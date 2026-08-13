@@ -42,10 +42,14 @@ footer 实时显示 `deepseek-v4-flash · effort:high · 缓存/上下文` 指�
   构建完备后两者皆可，`link:` 更稳。
 - **插件运行时加载的是 `lib/index.js`（tsdown bundle），不是 src**——包 exports
   的 `.` 指向 bundle，即使 CLI 带 `--import tsx/esm` 也不会回落到源码。改完
-  src 必须重建单包，否则跑的是旧代码且毫无报错：
+  src 必须重建单包，否则跑的是旧代码且毫无报错。构建是两段管线，**缺一不可**
+  （tsdown 的 entry 是 `lib/types/*.js`——tsc 的输出，不是 src；只跑 tsdown
+  会把旧 tsc 产物重新打包，产出新旧混合的 bundle）：
+  `node_modules/.bin/tsc -b packages/tui/tui`
   `CI=true node_modules/.bin/tsdown --env.DSH_BUILD_FACE host --filter @deepseek-ai/dsh-tui`
   （直接调 `.bin` 绕开 pnpm 11 无 TTY 时 `confirmModulesPurge` 中止；`--filter`
-  精确包名匹配可用，正则不可用）。
+  精确包名匹配可用，正则不可用。删除 src 文件后 tsc 增量不清孤儿产物，
+  需手动删对应 `lib/types/**` 输出再打包。）
 - **`script` 伪终端捕获必须先设窗口尺寸**——无控制终端时 pty winsize 为 0×0，
   `stdout.columns=0` 会让所有居中/截断文本渲染成空串（欢迎块「隐形」，只剩
   SGR 壳）。捕获命令内先 `stty rows 40 cols 100` 再 exec。

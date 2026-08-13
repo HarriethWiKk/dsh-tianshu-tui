@@ -57,7 +57,9 @@
 | src/external-editor.ts | external-editor.ts | modified |
 | src/fluency-hook.ts | fluency-hook.ts | modified |
 | src/format/activity-labels.ts | format/activity-labels.ts | modified |
+| src/format/approval-card.ts | — | new（审批卡：圆角轨 + diff 体 + y/n/a/esc 键位，纯渲染） |
 | src/format/btw-panel.ts | — | new |
+| src/format/chrome-colors.ts | — | new（输入轨/footer 雾蓝 chrome token，对齐 dsh-cc-tui Gentle Mist Blue） |
 | src/format/collapsed-bash.ts | format/collapsed-bash.ts | modified |
 | src/format/diff.ts | format/diff.ts | modified |
 | src/format/doctor-report.ts | — | new |
@@ -66,7 +68,7 @@
 | src/format/glance-bar.ts | format/glance-bar.ts | modified |
 | src/format/hidden-lines.ts | format/hidden-lines.ts | ported |
 | src/format/history-search-overlay.ts | — | new |
-| src/format/input-frame.ts | — | new（输入框完整框体：╭─╮ 顶框 + │ 侧边 + ╰─╯ 底框，几何复用 box-chars，纯渲染） |
+| src/format/input-frame.ts | — | new（输入轨：上下圆角横线 ╭─╮/╰─╯，左右不封，纯渲染） |
 | src/format/keymap-panel.ts | — | new |
 | src/format/markdown.ts | format/markdown.ts | modified |
 | src/format/memory-overlay.ts | — | new |

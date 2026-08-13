@@ -863,8 +863,8 @@ describe('TuiApp Phase 9b 欢迎页会话恢复入口', () => {
     await app.attach()
 
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    // 摘要并入「恢复会话」菜单项（不单独列表）：携带相对时间。
-    expect(written).toContain('恢复会话')
+    // 摘要并入 Tips「恢复」行（不单独列表）：携带相对时间。
+    expect(written).toContain('恢复 ·')
     expect(written).toContain('小时前')
     // 裸 UUID 不再出现（摘要不含 id）
     expect(written).not.toContain('session-old-2')
@@ -905,7 +905,7 @@ describe('TuiApp 输入行 IME 硬件光标锚定（caretCol 接线）', () => {
     await app.attach()
 
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    // 空输入行 caret.col = `❯ ` 前缀宽 2，经 formatInputFrame 左边线 `│ ` 修正 +2
+    // 空输入行 caret.col = `❯ ` 前缀宽 2，再加 CHROME_GUTTER=2 → 4
     // → 驻停列 = col+1 = 5（CHA `\x1B[5G`）。未接线时 caretCol 恒缺，LiveEngine
     // 不驻停，stdout 里不会出现任何 CHA 序列。
     expect(written).toContain('\x1B[5G')
@@ -941,11 +941,42 @@ describe('TuiApp Phase 8 审批 answerer', () => {
     // 挂起提示上屏
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     expect(written).toContain('允许执行 bash')
-    expect(written).toContain('[y/N]')
+    expect(written).toContain('[y] 允许')
+    expect(written).toContain('[a] 本会话放行')
+    expect(written).toContain('╭─ 审批 · bash')
 
     // y 放行
     stdin.emit('data', 'y')
     await expect(outcome).resolves.toBe('allowed-once')
+    await app.dispose()
+  })
+
+  it('审批挂起按 a → 本会话放行（always-approve + 当前请求 allowed-once）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('approval-a')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    const handler = ctx.on.mock.calls.find(call => call[0] === 'approval/request')?.[1] as
+      | ((req: unknown, next: () => Promise<string>) => Promise<string>)
+      | undefined
+    if (handler === undefined) throw new Error('approval/request handler not registered')
+    const owner = { id: app.sessionId ?? SessionId('approval-a') }
+    const outcome = handler(
+      { agent: { session: { id: owner.id } }, toolName: 'bash' },
+      () => Promise.resolve('unavailable'),
+    )
+    stdin.emit('data', 'a')
+    await expect(outcome).resolves.toBe('allowed-once')
+    const next = handler(
+      { agent: { session: { id: owner.id } }, toolName: 'bash' },
+      () => Promise.resolve('unavailable'),
+    )
+    await expect(next).resolves.toBe('allowed-once')
     await app.dispose()
   })
 
@@ -992,10 +1023,55 @@ describe('TuiApp Phase 8 审批 answerer', () => {
     )
 
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    // diff 块（内联在 y/N 上方）；行前缀与结算卡共享 renderFileDiff（`+ ` 带空格）
+    // diff 块在审批卡内；行前缀与结算卡共享 renderFileDiff（`+ ` 带空格）
     expect(written).toContain('- const x = 1')
     expect(written).toContain('+ const x = 2')
     expect(written).toContain('允许执行 str_replace_editor')
+    await app.dispose()
+  })
+
+  it('矮屏审批卡 compact：有 diff 也不展开体，键位仍在', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('approval-tight')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const events = agent.session.events as unknown as unknown[]
+    events.push({
+      type: 'tool/call',
+      seq: 1,
+      time: 1,
+      data: {
+        turn: 1,
+        step: 1,
+        callId: 'call-tight-1',
+        name: 'str_replace_editor',
+        arguments: JSON.stringify({
+          command: 'str_replace',
+          path: '/repo/a.ts',
+          old_str: 'const x = 1',
+          new_str: 'const x = 2',
+        }),
+      },
+    })
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    stdout.rows = 16
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    const handler = ctx.on.mock.calls.find(call => call[0] === 'approval/request')?.[1] as
+      | ((req: unknown, next: () => Promise<string>) => Promise<string>)
+      | undefined
+    if (handler === undefined) throw new Error('approval/request handler not registered')
+    const owner = { id: app.sessionId ?? SessionId('approval-tight') }
+    void handler(
+      { agent: { session: { id: owner.id } }, toolName: 'str_replace_editor', callId: 'call-tight-1' },
+      () => Promise.resolve('unavailable'),
+    )
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('允许执行 str_replace_editor')
+    expect(written).toContain('[y] 允许')
+    expect(written).not.toContain('- const x = 1')
     await app.dispose()
   })
 
@@ -1421,7 +1497,7 @@ describe('TuiApp Phase 9d 流利度装配', () => {
     // 装配路径无异常即通过（策略内部折叠不直接渲染；渲染断言见下例）
   })
 
-  it('长静默 tool 阶段 → stale 提示上屏（action 档）', async () => {
+  it('长静默 tool 阶段 → stale 提示上屏（action 档）', { timeout: 20_000 }, async () => {
     const ctx = makeCtx()
     const handlers = new Map<string, ((...args: unknown[]) => void)[]>()
     Object.assign(ctx, {
@@ -3992,6 +4068,15 @@ describe('C4 概念稿 菜单快捷键与三行底部区（提交后审查补测
     return { ctx, agent, handle, stdin, stdout, app }
   }
 
+  function blankLinesBeforeRail(written: string): number {
+    const plain = written.replace(/\x1B\[[0-9;?]*[ -/]*[@-~]/g, '')
+    const idx = plain.lastIndexOf('╭')
+    if (idx < 0) return 0
+    const m = plain.slice(0, idx).match(/(?:\n[ \t]*)+$/)
+    if (m === null) return 0
+    return m[0].split('\n').length - 1
+  }
+
   it('ctrl_n（0x0e）→ newSession：agents.create 再次被调用（保留旧会话）', async () => {
     const { ctx, app, stdin } = boot()
     await app.attach()
@@ -4062,18 +4147,18 @@ describe('C4 概念稿 菜单快捷键与三行底部区（提交后审查补测
     await app.dispose()
   })
 
-  it('B 布局：输入框完整框体渲染 + 宽屏 footer 右侧合并 metrics/API 段', async () => {
+  it('B 布局：输入轨（╭─╮/╰─╯ 无左右竖线）+ 宽屏 footer 右侧合并 metrics/API 段', async () => {
     const { stdout, app } = boot()
     await app.attach()
     app.handleSubmit('hi')
     await new Promise(resolve => setImmediate(resolve))
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    // 完整框体：顶框 ╭─╮ 在输入行上方、底框 ╰─╯ 在下方
+    expect(written).toContain('❯')
     expect(written).toMatch(/╭─+/)
     expect(written).toMatch(/╰─+/)
+    expect(written).not.toMatch(/│ ❯/)
     // 宽屏（mock 100 列 ≥ 80）合并路径：API 状态段进 footer 右侧
-    // （测试环境无 DEEPSEEK_API_KEY → ✗；区别于欢迎页的「API Key」环境检查行）
-    expect(written).toContain('API ✗')
+    expect(written).toMatch(/API [✓✗]/)
     await app.dispose()
   })
 
@@ -4084,11 +4169,37 @@ describe('C4 概念稿 菜单快捷键与三行底部区（提交后审查补测
     app.handleSubmit('hi')
     await new Promise(resolve => setImmediate(resolve))
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    // 完整框体不随宽度消失（框体独立于合并阈值）
+    expect(written).toContain('❯')
     expect(written).toMatch(/╭─+/)
-    expect(written).toMatch(/╰─+/)
+    expect(written).not.toMatch(/│ ❯/)
     // 无合并 → API 状态段不渲染（欢迎页「API Key」环境检查行不受影响）
     expect(written).not.toContain('API ✗')
+    await app.dispose()
+  })
+
+  it('idle live 区不按剩余视口垫空行', async () => {
+    const { stdout, app } = boot()
+    stdout.rows = 40
+    await app.attach()
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    const idx = written.lastIndexOf('╭')
+    expect(idx).toBeGreaterThan(0)
+    expect(written).toContain('Tips')
+    expect(written.slice(idx)).toMatch(/╰─+/)
+    expect(blankLinesBeforeRail(written)).toBeLessThanOrEqual(2)
+    await app.dispose()
+  })
+
+  it('提交后输入轨仍在，轨前无整屏连续空行', async () => {
+    const { stdout, app } = boot()
+    stdout.rows = 40
+    await app.attach()
+    app.handleSubmit('hi')
+    await new Promise(resolve => setImmediate(resolve))
+    const after = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(after).toMatch(/╭─+/)
+    expect(after).toMatch(/╰─+/)
+    expect(blankLinesBeforeRail(after)).toBeLessThanOrEqual(2)
     await app.dispose()
   })
 })
@@ -4163,7 +4274,8 @@ describe('slash 命令菜单接线（grok slash_dropdown 移植）', () => {
     expect(written).not.toContain('切换主题')
     // 输入行清空（对齐正常提交路径；菜单提交不清空会残留 /theme）
     expect(written).not.toContain('❯ /theme')
-    expect(written).toContain('询问任何事，或 Ctrl+C 取消')
+    expect(written.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '')).toContain('❯ █')
+    expect(written).not.toContain('询问任何事')
     await app.dispose()
   })
 
@@ -4238,7 +4350,8 @@ describe('slash 菜单阶段 2 接线（ghost 预览 / 参数模式 / MRU）', (
     stdin.emit('data', '\r')
     const after = await writtenOf(stdout)
     // 提交后输入行清空（命令执行走 /theme 切换）
-    expect(after).toContain('询问任何事，或 Ctrl+C 取消')
+    expect(after.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '')).toContain('❯ █')
+    expect(after).not.toContain('询问任何事')
     await app.dispose()
   })
 

@@ -209,10 +209,10 @@ describe('tui real Loader composition through cordis.yml', () => {
     const { ctx, stdout, stdin, tuiCtx } = await boot()
 
     // attach 是 runner 内的异步路径：以首帧渲染为完成判据（启动 context bar +
-    // 输入行占位符都到 fake stdout）。
+    // 输入行都到 fake stdout）。
     await vi.waitFor(() => {
       expect(stdout.text()).toContain('📁')
-      expect(stdout.text()).toContain('询问任何事')
+      expect(stdout.text()).toContain('❯')
     }, { timeout: 10_000 })
 
     // 终端接管：raw-mode 已开启。

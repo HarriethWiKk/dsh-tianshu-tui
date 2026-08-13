@@ -1,9 +1,10 @@
 /**
  * 启动欢迎面（format/welcome.ts）— 纯渲染契约测试。
  *
- * - 品牌区 formatBrandWelcome：主标/副标各一行，水平居中
- * - 菜单 formatWelcomeMenu：整块居中，label 左 BOLD + keyHint 右对齐
- * - 环境行 formatEnvCheckLine：单行主题名/API/Git，居中；缺 key 段 warning 色
+ * - 品牌区 formatBrandWelcome：主标/副标；缺省居中，align=left 贴左
+ * - Tips formatWelcomeTips：标题 + 快捷键列对齐；不可用项 muted
+ * - 环境行 formatEnvCheckLine：单行主题名/API/Git；缺 key 段 warning 色
+ * - Hero formatWelcomeHero：宽屏左品牌右 tips zip，窄屏垂直居中叠放
  * - 宽度守恒：任何输入下每行显示宽度 ≤ width
  */
 
@@ -11,11 +12,14 @@ import { describe, expect, it } from 'vitest'
 import type { RivetTheme } from '../src/theme.js'
 import { displayWidth } from '../src/width.js'
 import {
+  WELCOME_HERO_WIDE_MIN,
+  CHROME_GUTTER,
   formatBrandWelcome,
   formatEnvCheckLine,
-  formatWelcomeMenu,
-  type FormatWelcomeMenuInput,
+  formatWelcomeHero,
+  formatWelcomeTips,
   type WelcomeEnvCheck,
+  type WelcomeTipItem,
 } from '../src/format/welcome.js'
 
 function fakeTheme(): RivetTheme {
@@ -32,6 +36,15 @@ function plain(lines: readonly string[]): string[] {
   return lines.map(l => l.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, ''))
 }
 
+function tips(over: Partial<WelcomeTipItem>[] = []): WelcomeTipItem[] {
+  const base: WelcomeTipItem[] = [
+    { keyHint: 'ctrl+n', label: '新会话' },
+    { keyHint: 'ctrl+s', label: '恢复会话' },
+    { keyHint: 'ctrl+p', label: '命令面板' },
+  ]
+  return over.length === 0 ? base : over.map((o, i) => ({ ...base[i]!, ...o }))
+}
+
 describe('formatBrandWelcome（欢迎页品牌区）', () => {
   it('两行：主标 DSH 居中 BOLD + 副标居中 muted，宽度守恒', () => {
     const lines = formatBrandWelcome({ width: 80 }, fakeTheme())
@@ -43,6 +56,11 @@ describe('formatBrandWelcome（欢迎页品牌区）', () => {
     expect(lines[0]).toContain('\x1B[1m') // 主标 BOLD
     expect(displayWidth(lines[0]!)).toBeLessThanOrEqual(80)
     expect(displayWidth(lines[1]!)).toBeLessThanOrEqual(80)
+  })
+
+  it('align=left：主标贴左，无前导空格', () => {
+    const [brand] = plain(formatBrandWelcome({ width: 80, align: 'left' }, fakeTheme()))
+    expect(brand!.startsWith('DSH')).toBe(true)
   })
 
   it('自定义 brand/subtitle 生效', () => {
@@ -65,61 +83,43 @@ describe('formatBrandWelcome（欢迎页品牌区）', () => {
   })
 })
 
-describe('formatWelcomeMenu（欢迎页菜单入口，居中）', () => {
-  function items() {
-    return [
-      { id: 'new', label: '新会话', keyHint: 'ctrl+n' },
-      { id: 'resume', label: '恢复会话', keyHint: 'ctrl+s' },
-      { id: 'quit', label: '退出', keyHint: 'ctrl+q' },
+describe('formatWelcomeTips（欢迎页右栏 tips）', () => {
+  it('标题 Tips + 快捷键列对齐、说明在右', () => {
+    const lines = plain(formatWelcomeTips({ width: 40, items: tips() }, fakeTheme()))
+    expect(lines[0]!.trim()).toBe('Tips')
+    expect(lines[1]).toContain('ctrl+n')
+    expect(lines[1]).toContain('新会话')
+    expect(lines[2]).toContain('ctrl+s')
+    expect(lines[3]).toContain('ctrl+p')
+  })
+
+  it('available=false：整行 muted，keyHint 仍在', () => {
+    const items: WelcomeTipItem[] = [
+      { keyHint: 'ctrl+s', label: '恢复会话', available: false },
     ]
-  }
+    const raw = formatWelcomeTips({ width: 40, items }, fakeTheme())
+    const row = plain(raw)[1]
+    expect(row).toContain('恢复会话')
+    expect(row).toContain('ctrl+s')
+    expect(raw[1]).toContain('\x1B[38;2;119;119;119m') // muted #777777
+  })
 
-  function menu(over: Partial<FormatWelcomeMenuInput> = {}): FormatWelcomeMenuInput {
-    return { width: 80, items: items(), ...over }
-  }
-
-  it('整块水平居中：label 左对齐同一列、keyHint 右对齐到行尾', () => {
-    const lines = plain(formatWelcomeMenu(menu(), fakeTheme()))
-    expect(lines.length).toBe(3)
-    expect(lines[0]).toContain('新会话')
-    expect(lines[0]!.trimEnd().endsWith('ctrl+n')).toBe(true)
-    expect(lines[1]!.trimEnd().endsWith('ctrl+s')).toBe(true)
-    expect(lines[2]!.trimEnd().endsWith('ctrl+q')).toBe(true)
-    // 居中：首行前导空格 > 0（非左对齐贴边）
-    const col0 = lines[0]!.indexOf('新会话')
-    expect(col0).toBeGreaterThan(0)
-    // 三行 label 左对齐到同一列
-    expect(col0).toBe(lines[1]!.indexOf('恢复会话'))
-    expect(col0).toBe(lines[2]!.indexOf('退出'))
+  it('align=center：整块前导空格 > 0', () => {
+    const lines = plain(formatWelcomeTips({ width: 80, items: tips(), align: 'center' }, fakeTheme()))
+    expect(lines[0]!.indexOf('Tips')).toBeGreaterThan(0)
   })
 
   it('宽度守恒：任意宽度下每行显示宽度 ≤ width', () => {
-    for (const width of [80, 60, 40, 30, 20]) {
-      const lines = formatWelcomeMenu(menu({ width }), fakeTheme())
+    for (const width of [80, 40, 20, 8]) {
+      const lines = formatWelcomeTips({ width, items: tips() }, fakeTheme())
       for (const line of lines) {
         expect(displayWidth(line)).toBeLessThanOrEqual(width)
       }
     }
   })
 
-  it('available=false：整行 muted 降级，label 仍在', () => {
-    const item = { id: 'resume', label: '恢复会话', keyHint: 'ctrl+s', available: false }
-    const [line] = plain(formatWelcomeMenu(menu({ items: [item] }), fakeTheme()))
-    expect(line).toContain('恢复会话')
-    expect(line).not.toContain('ctrl+s') // 不可用项不显示快捷键
-    const raw = formatWelcomeMenu(menu({ items: [item] }), fakeTheme())
-    expect(raw[0]).toContain('\x1B[')
-  })
-
-  it('超长 label：截断保留 label、丢弃 keyHint（label 优先）', () => {
-    const long = 'x'.repeat(100)
-    const lines = formatWelcomeMenu(menu({ width: 40, items: [{ id: 'a', label: long, keyHint: 'ctrl+x' }] }), fakeTheme())
-    expect(displayWidth(lines[0]!)).toBeLessThanOrEqual(40)
-    expect(plain(lines)[0]).not.toContain('ctrl+x')
-  })
-
-  it('空 items：返回空数组', () => {
-    expect(formatWelcomeMenu(menu({ items: [] }), fakeTheme())).toEqual([])
+  it('width ≤ 0 → 空数组', () => {
+    expect(formatWelcomeTips({ width: 0, items: tips() }, fakeTheme())).toEqual([])
   })
 })
 
@@ -136,10 +136,14 @@ describe('formatEnvCheckLine（环境检查紧凑行）', () => {
     expect(displayWidth(line!)).toBeLessThanOrEqual(100)
   })
 
+  it('align=left：贴左', () => {
+    const [line] = plain(formatEnvCheckLine(env({ align: 'left' }), fakeTheme()))
+    expect(line!.startsWith('graphite')).toBe(true)
+  })
+
   it('缺 API key：✗ + 可行动提示，该段 warning 色', () => {
     const [line] = formatEnvCheckLine(env({ hasApiKey: false }), fakeTheme())
     expect(plain([line!])[0]).toContain('API Key ✗（设 DEEPSEEK_API_KEY）')
-    // fakeTheme warning=#444444 → truecolor 前景 38;2;68;68;68
     expect(line).toContain('\x1B[38;2;68;68;68m')
   })
 
@@ -158,5 +162,64 @@ describe('formatEnvCheckLine（环境检查紧凑行）', () => {
 
   it('cols ≤ 0 → 空数组', () => {
     expect(formatEnvCheckLine(env({ cols: 0 }), fakeTheme())).toEqual([])
+  })
+})
+
+describe('formatWelcomeHero（左品牌 + 右 tips）', () => {
+  const env: WelcomeEnvCheck = {
+    hasApiKey: true, isGitRepo: true, themeName: 'graphite', cols: 100,
+  }
+  const whale = [
+    '        ████▄▄██',
+    '     ▄██████████',
+  ]
+
+  it('宽屏：Tips 与鲸鱼同行（zip），品牌在左栏', () => {
+    const lines = plain(formatWelcomeHero({
+      width: 100, whale, env, tips: tips(),
+    }, fakeTheme()))
+    expect(lines.some(l => l.includes('Tips'))).toBe(true)
+    expect(lines.some(l => l.includes('DSH'))).toBe(true)
+    expect(lines.some(l => l.includes('ctrl+n'))).toBe(true)
+    // zip：含块字符的行同时含 Tips 或后续 tips 行在右
+    const first = lines[0]!
+    expect(first).toMatch(/█/)
+    expect(first.indexOf('Tips')).toBeGreaterThan(first.indexOf('█'))
+    expect(first.indexOf('█')).toBe(CHROME_GUTTER)
+  })
+
+  it(`窄于 ${WELCOME_HERO_WIDE_MIN}：垂直叠放，Tips 在品牌下方`, () => {
+    const lines = plain(formatWelcomeHero({
+      width: 60, whale, env, tips: tips(),
+    }, fakeTheme()))
+    const dsh = lines.findIndex(l => l.includes('DSH'))
+    const tipsIdx = lines.findIndex(l => l.trim() === 'Tips' || l.includes('Tips'))
+    expect(dsh).toBeGreaterThanOrEqual(0)
+    expect(tipsIdx).toBeGreaterThan(dsh)
+    // 窄屏不 zip：鲸鱼行不含 Tips
+    expect(lines[0]!).not.toContain('Tips')
+  })
+
+  it('宽度守恒', () => {
+    for (const width of [100, 80, 72, 40, 20]) {
+      const lines = formatWelcomeHero({ width, whale, env, tips: tips() }, fakeTheme())
+      for (const line of lines) {
+        expect(displayWidth(line)).toBeLessThanOrEqual(width)
+      }
+    }
+  })
+
+  it('无鲸鱼时宽屏仍出品牌 + tips', () => {
+    const lines = plain(formatWelcomeHero({
+      width: 100, whale: [], env, tips: tips(),
+    }, fakeTheme()))
+    expect(lines.some(l => l.includes('DSH'))).toBe(true)
+    expect(lines.some(l => l.includes('Tips'))).toBe(true)
+    const dsh = lines.find(l => l.includes('DSH'))!
+    expect(dsh.indexOf('DSH')).toBe(CHROME_GUTTER)
+  })
+
+  it('width ≤ 0 → 空数组', () => {
+    expect(formatWelcomeHero({ width: 0, whale, env, tips: tips() }, fakeTheme())).toEqual([])
   })
 })
