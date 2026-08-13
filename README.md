@@ -6,12 +6,14 @@ English | [中文](README.zh.md)
 
 ## Highlights
 
-- **Full session workspace in a terminal** — live rendering, append-only scrollback, session restore on startup, `/fork` exploration branches, `/rewind` rollback (session truncation + optional file rollback), and `/export` to Markdown transcripts.
+- **Full session workspace in a terminal** — live rendering, append-only scrollback, session restore on startup, `/fork` exploration branches, `/rewind` rollback (session truncation + optional file rollback), `/export` to Markdown transcripts, and mid-turn steering (`/steer` / `Ctrl+T`).
 - **End-to-end images** — paste from clipboard (`Ctrl+V` / terminal-menu paste), render as inline terminal graphics (kitty / iTerm2), deliver through the harness attachment service, and let a vision-capable model actually see them — with an automatic vision bridge that describes the image through a separate vision model when the main model cannot see.
-- **In-terminal interaction surfaces** — structured question panels (numeric selection, plan-review feedback mode), pending approval cards with inline `diff` previews, command palette, and keymap overlay.
+- **A complete input surface** — grok-style slash dropdown menu (fuzzy prefix matching, MRU ordering, ghost previews), `@`-path Tab completion and `@mention` expansion, bracketed paste, optional vim keybindings, external editor (`Ctrl+E`), history search (`Ctrl+F`) — and a full keymap overlay behind `Ctrl+.`.
+- **In-terminal interaction surfaces** — structured question panels (numeric selection, plan-review feedback mode), pending approval cards with inline `diff` previews, mode cycle (`Shift+Tab`: normal → plan → always-approve), command palette, and live panels for status / config / skills / tasks / delegation / workflow.
 - **Reasoning made visible** — the think channel streams as a live header, folds into a compact scrollback line (`✻ 思考 (3.2s) · 12 行`), and expands in place with `Ctrl+O` (competitor-aligned: collapsed by default).
 - **Personalized harness integrations** — `/doctor` terminal diagnostics, `/memory` project-memory browser, `/btw` side questions to a background agent, `/model` + `/effort` hot-switching that takes effect on the current session immediately.
 - **Auditable by construction** — the TUI registers no prompt, tool, or context surface of its own; user input becomes ordinary logged messages, and every rendered state derives from session events.
+- **Co-evolved with the harness** — built in lockstep with harness-side capabilities on the 2026-08-09 baseline snapshot (250+ commits): the image/vision pipeline, DeepSeek Spark model engineering, session persistence and file snapshots, memory, the validation gate and failure routing, code intelligence, and the git tool. See [Co-evolved harness capabilities](#co-evolved-harness-capabilities-since-the-2026-08-09-baseline).
 
 ## Features
 
@@ -28,35 +30,98 @@ English | [中文](README.zh.md)
 
 ### Input surface
 
+- **Slash command menu** — typing `/` opens a dropdown with fuzzy prefix matching, `↑↓` / `PageUp` / `PageDown` selection, `Tab` accept, `Enter` submit, MRU ordering, argument-placeholder ghosts, and an input-line ghost preview.
 - **Clipboard & image paste** — `Ctrl+V` reads a clipboard image (falling back to text); terminal-menu paste detects images; pasted paths that look like images are loaded as attachments; `Alt+W` / vim yank copies selection to the system clipboard via OSC52.
 - **Image submission** — attached images show a `📎 N images` marker, render inline under the user bubble on submit, and reach the model through the attachment service; the bubble carries a vision hint (forwarded / bridged via a vision model / not sent).
-- **Editing** — vim keybindings (optional), external editor (`Ctrl+E`), Tab file completion, `@mention` expansion, input history, multi-line input.
+- **Editing** — vim keybindings (optional), external editor (`Ctrl+E`), Tab file completion, `@mention` expansion, input history, multi-line input, and bracketed paste (multi-line / long pastes land in the input line as one block instead of submitting line by line); the input line is drawn as a full rounded frame.
 - **Image re-interrogation is deferred** (see Known Limitations).
 
 ### Rendering & projection
 
+- **Conversation stream** — markdown rendering, tool-family coloring with per-tool timing, and parallel tool calls folded into groups.
 - **Tool cards commit in real time** — settled tool results render as scrollback cards consuming the harness presenter intent: `diff` results as structured red/green file diffs (shared with the approval preview), `terminal` results with command title + cwd + exit/signal badge, everything else as folding cards.
 - **Reasoning channel** — shimmer live header while thinking, folded scrollback line at segment end, `Ctrl+O` expands the full text in the live area.
-- **Fluency folding** — repetitive routine tool traffic collapses under a quiet strategy; compact mode keeps header-only lines.
+- **Fluency folding** — repetitive routine tool traffic collapses under a quiet strategy; compact mode (`/density`) keeps header-only lines.
 - **Turn status** — braille spinner + phase text status line, workflow-run summaries, delegation tree, task pane, config/skills panels as live-region panels.
+- **Subagent runs** — a live spinner line per run; terminal states commit to scrollback as `✓`/`✗`/`◌` entries.
+- **Window chrome** — welcome page (brand header, friendly short session ids, environment check line), top bar (cwd + git branch + model), and a three-line bottom area: input line (mode-colored bottom edge) → footer (mode badge + key hints) → metrics line (model / token usage / cache hit rate).
 - **Themes** — built-in palettes plus `custom:<name>`; auto terminal detection and 16-color fallbacks.
 
 ### Interaction panels
 
 - **Structured questions** — numeric selection, `Esc` cancels, overlap protection; plan-review feedback mode (`f` to enter, `Enter` submits Keep-planning + custom feedback).
 - **Approval cards** — `y`/`N`/`Ctrl+C` settle pending approvals; inline diff previews when the tool is diffable; blind-approval hint when the diff is invisible; non-current-session requests delegate to the next listener.
-- **Command palette / keymap / history search overlays**.
+- **Mode cycle** — `Shift+Tab` cycles normal → plan → always-approve; the plan state drives the footer badge, and always-approve is session-local (resets on switch/exit).
+- **Live panels** — `/status` (5-domain projection snapshot), `/config` (settings / permission / credentials), `/skills` browser, `/tasks` pane, `/subagents` delegation tree, `/workflow` runs.
+- **Command palette (`Ctrl+P`) / keymap (`Ctrl+.`) / history search (`Ctrl+F`) overlays**.
 
 ### Models & vision
 
-- `/model` — view and switch the model (default + hot-switch for the current session; `spark-flash` / `spark-pro` aliases switch in one keystroke).
+- `/model` — view and switch the model (default + hot-switch for the current session); `spark-flash` / `spark-pro` aliases switch in one keystroke, and `/model <provider/model|alias> [off|high|max]` sets the reasoning effort in the same command.
 - `/effort` — set the reasoning effort (`off` / `high` / `max`; `auto` returns to the model default), hot-switched for the current session.
-- **Vision bridge** — when the main model cannot see images, an automatically selected vision model describes them before submission (one-shot path; see Known Limitations).
+- **Vision bridge** — vision capability is declared per model (`supportsVision`) and drives the bubble hint; when the main model cannot see images, an automatically selected vision model describes them before submission (one-shot path; see Known Limitations).
 - `/mcp` — list connected MCP servers and tool counts; `tools <name>` inspects a server's tool list.
 
-### Additional commands
+### Commands
 
-`/theme` · `/config` · `/skills` · `/goal` · `/tasks` · `/subagents` · `/workflow` · `/btw` · `/remember` · `/memory` · `/doctor` · `/compact` · `/clear`
+| Command | What it does |
+|---|---|
+| `/session new\|list\|switch` | Session management |
+| `/fork [directive]` · `/branch` | Fork the current session, optionally with a starting directive |
+| `/rewind` | Two-phase rollback (message list → granularity) |
+| `/export [path]` | Export the transcript to Markdown |
+| `/clear` | Clear the scrollback view |
+| `/compact` | Compact the session context |
+| `/steer <text>` | Mid-turn steering (correct course without interrupting) |
+| `/model [target] [effort]` | View/switch model (aliases: `spark-flash`, `spark-pro`) |
+| `/effort off\|high\|max\|auto` | Set reasoning effort (hot-switched) |
+| `/theme [name]` | Switch theme |
+| `/density` | Toggle compact tool-card rendering |
+| `/status` | Toggle the status panel (5-domain projection snapshot) |
+| `/config` | Toggle the settings panel (settings / permission / credentials) |
+| `/skills` | Toggle the skills browser |
+| `/tasks` | Task pane (background tasks) |
+| `/goal` | Goal management (create / pause / resume / complete / block) |
+| `/subagents` | Delegation tree panel |
+| `/workflow` | Workflow runs panel |
+| `/btw <question>` | Side question to a background agent |
+| `/remember <text>` | Save a memory |
+| `/memory` | Memory browser (list / filter / delete / preview) |
+| `/doctor` | Terminal diagnostics + fix guidance |
+| `/mcp [tools <name>]` | List MCP servers; inspect a server's tools |
+
+### Keyboard shortcuts
+
+| Key | Action |
+|---|---|
+| `Ctrl+N` | New session |
+| `Ctrl+S` | Restore the most recent session |
+| `Ctrl+Q` | Quit |
+| `Ctrl+P` | Command palette |
+| `Ctrl+.` | Keymap overlay |
+| `Ctrl+F` | History search (`n`/`N` to jump) |
+| `Ctrl+O` | Expand/collapse the latest reasoning block |
+| `Ctrl+E` | Open the input line in `$EDITOR` (configurable via `editorKey`) |
+| `Ctrl+T` | Mid-turn steering |
+| `Ctrl+V` | Paste clipboard image (falls back to clipboard text) |
+| `Alt+W` | Copy selection to the system clipboard (OSC52) |
+| `Shift+Tab` | Mode cycle: normal → plan → always-approve |
+| `Tab` | `@`-path completion; accept the slash-menu selection |
+| `↑`/`↓` | Input history (selection while the slash menu is open) |
+| `PageUp`/`PageDown` | Slash menu paging |
+| `Esc` | Close menu/overlay; cancel a pending question |
+
+## Co-evolved harness capabilities (since the 2026-08-09 baseline)
+
+This bundle was developed in lockstep with harness-side work on the DeepSeek Harness baseline snapshot `snapshots/20260809T140917Z` — 250+ commits between 2026-08-10 and 2026-08-13. The capabilities below live in the host harness (separate packages, not shipped in this bundle); the TUI is their primary interactive surface:
+
+- **Image pipeline & vision bridge** — the `image` ContentBlock joins the merge-extensible content vocabulary and `dsh-llm-deepseek` serializes user image blocks as OpenAI-style `image_url` content parts, so user images reach the wire end-to-end (clipboard → input line → session → model request). Models declare `supportsVision` (`LlmModelInfo` + llm-deepseek catalog). `dsh-vision-bridge` covers text-only main models: at `agent/pre-step` it describes image attachments through a separate vision model (`visionAutoBridge` auto-selects the first vision-capable model when provider/model are omitted; fallback model + data URL validation; the prompt auto-selects between general structure and OCR-level transcription based on UI/error keywords), injecting the description as a plugin-source user message — Model-visible ⟺ logged; bridge failure degrades to a visible hint, never a failed turn.
+- **DeepSeek Spark mode (internal capability)** — the `deepseek-spark` provider route truncates assistant reasoning at the wire layer to a tail window (flash 300 tokens / pro opt-in) to keep the model context lean; `dsh-spark-anchors` pairs with it, re-injecting excluded-path anchors lost to truncation so the model does not re-derive rejected options. Enabled once via settings hot-reload (no restart); Spark shares the DeepSeek API key. TUI surface: `/model spark-flash` / `spark-pro`.
+- **Session persistence & file snapshots** — `Session.truncate` rewinds the event log and resets derived state; persistence backends gained `deleteFrom` plus a truncate coordinator, so rollback survives reload; `dsh-fs-snapshot` ports FileHistory (trackEdit / rewindToBoundary) and snapshots before write-tool execution. TUI surface: `/rewind` (conversation truncation + optional file rollback).
+- **Memory** — `dsh-memory` (MemoryService + Markdown file backend, non-git fallback) and `tool-memory` (`memory_save` / `memory_search` + memory-digest injection) provide cross-session recall. TUI surface: `/memory`, `/remember`.
+- **Validation gate & failure routing** — `dsh-evidence-gate` enforces RED-first verification: obligation state machine, edit/verify counters, TDD gate (`enforce` mode), probe suggestions with cooldown, and an L2 final-review gate, natively wired into `str_replace_editor` and the headless-agent assembly. `dsh-agent-router` predicts step failure from turn history and routes work — verification-subagent dispatch and per-profile tool restriction — with real-turn e2e coverage.
+- **Code intelligence & retrieval** — `dsh-semantic-index` (BM25 + salience/RRF/vector fusion, incremental updates) exposed as the `semantic_search` tool; `dsh-meridian` code index (node:sqlite schema, tree-sitter parsers for TypeScript/Python/Go, graph/impact/flow queries, behavioral signals, background backfill) exposed as `repo_graph` and the `<codebase-index>` digest; `dsh-pheromone` file-level pheromones with atomic JSON persistence, surfaced through `file_info` and the read tool's `focus` semantics.
+- **Git service & tool** — `dsh-git` service seam (GitLocal CLI provider, service-class-as-plugin) plus `dsh-tool-git`, a single model-facing git tool with an operation discriminator (status / diff / log / commit), assembled in the base bundle.
 
 ## Install
 
@@ -76,7 +141,7 @@ The bundle patch inserts the `tui-runner` plugin over `dsh-base`:
   name: '@deepseek-ai/dsh-tui'
 ```
 
-`TuiRunnerConfig` (all optional): `stdin`/`stdout` (stream injection, defaults to process streams), `initialSessionId`, `editorKey` (default `ctrl_o`), `vimEnabled` (default `false`), `vision` (supportsVision / bridgeEnabled / bridgeSource, derived from the vision-bridge plugin), `workflowHistoryLimit` (default `50`).
+`TuiRunnerConfig` (all optional): `stdin`/`stdout` (stream injection, defaults to process streams), `initialSessionId`, `editorKey` (default `ctrl_e`; `ctrl+o` is reserved for reasoning expansion), `vimEnabled` (default `false`), `vision` (supportsVision / bridgeEnabled / bridgeSource, derived from the vision-bridge plugin), `workflowHistoryLimit` (default `50`).
 
 Service dependencies: `sessions`/`agents`/`agentDefaultModel` required; `goals`/`subagents`/`memory`/`compact` optional — unassembled services degrade fails-loud with an availability message, never silently.
 
