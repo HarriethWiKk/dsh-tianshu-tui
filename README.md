@@ -2,6 +2,8 @@
 
 English | [中文](README.zh.md)
 
+![dsh-tui](docs/tui-screenshot.jpg)
+
 `@deepseek-ai/dsh-tui` is the interactive terminal UI layer for the official DeepSeek Harness (`dsh`), mounted as a pluggable profile bundle — the official codebase stays untouched (`dsh plugin --profile tui add @deepseek-ai/dsh-tui`, then `dsh --profile tui`). The render core is ported from the Tianshu terminal engine (Apache-2.0; file-by-file provenance in [SOURCE-MAP.md](SOURCE-MAP.md)). The UI is a pure presentation layer: every piece of agent state arrives through the session event stream, so live and restored transcripts render identically and nothing reaches a model request that is not already logged.
 
 ## Highlights
