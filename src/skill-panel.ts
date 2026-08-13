@@ -17,7 +17,7 @@
  * 极端窄宽退化为 … 不抛错）。TuiApp 消费技能快照与 /skills 命令切换显隐
  * （接线由其他维度独占）。
  *
- * @module @deepseek-ai/dsh-tui/skill-panel
+ * @module @deepseek-ai/dsh-tianshu-tui/skill-panel
  */
 
 import { displayWidth } from './width.js'

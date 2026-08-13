@@ -4,7 +4,7 @@
  * module only READS logs and the live store; it never appends events and never
  * disposes agents (a handle's teardown belongs to its holder).
  *
- * @module @deepseek-ai/dsh-tui/adapter/sessions
+ * @module @deepseek-ai/dsh-tianshu-tui/adapter/sessions
  */
 
 import type { Context } from '@deepseek-ai/cordis'

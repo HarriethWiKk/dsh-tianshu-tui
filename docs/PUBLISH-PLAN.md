@@ -5,7 +5,7 @@
 
 ## 当前状态（2026-08-13）
 
-- `@deepseek-ai/dsh-tui` 已移植到公开版形态（`packages/tui/tui`，P1 适配完成）
+- `@deepseek-ai/dsh-tianshu-tui` 已移植到公开版形态（`packages/tui/tui`，P1 适配完成）
 - 发布形态就绪：peer 真实版本范围、`publishConfig.access: public`、`engines`、`keywords`、`files`（含 NOTICE/SOURCE-MAP.md）、`dsh.bundle.patch`
 - 本地验证通过：tsc（tui 闭包）、vitest 1515/1515、单包 tsdown 构建、`pnpm pack` 产物结构核对
 - 装配启动 + 真实对话冒烟通过（2026-08-13，基于 0812 快照 p1-work 工作区）：见下方「本地启动验证」
@@ -46,7 +46,7 @@ footer 实时显示 `deepseek-v4-flash · effort:high · 缓存/上下文` 指�
   （tsdown 的 entry 是 `lib/types/*.js`——tsc 的输出，不是 src；只跑 tsdown
   会把旧 tsc 产物重新打包，产出新旧混合的 bundle）：
   `node_modules/.bin/tsc -b packages/tui/tui`
-  `CI=true node_modules/.bin/tsdown --env.DSH_BUILD_FACE host --filter @deepseek-ai/dsh-tui`
+  `CI=true node_modules/.bin/tsdown --env.DSH_BUILD_FACE host --filter @deepseek-ai/dsh-tianshu-tui`
   （直接调 `.bin` 绕开 pnpm 11 无 TTY 时 `confirmModulesPurge` 中止；`--filter`
   精确包名匹配可用，正则不可用。删除 src 文件后 tsc 增量不清孤儿产物，
   需手动删对应 `lib/types/**` 输出再打包。）
@@ -75,7 +75,7 @@ footer 实时显示 `deepseek-v4-flash · effort:high · 缓存/上下文` 指�
 - [ ] 用户**显式授权**发布（本清单不构成授权）
 - [ ] 官方公开版 `@deepseek-ai/*` 核心包（session/agent/llm/tools/user-questions 等，peer 依赖）**已在 npm 发布**且版本与 `peerDependencies` 匹配（当前 `^0.0.1-rc.2` 线）
 - [ ] 官方 `@deepseek-ai/cordis` 已在 npm 发布（当前 `^4.0.1-rc.1` 线）
-- [ ] 包名 scope 决策：`@deepseek-ai/dsh-tui`（需官方 org 授权）或独立 scope（如 `@dsh2026/dsh-tui`）——**待用户决定**
+- [ ] 包名 scope 决策：`@deepseek-ai/dsh-tianshu-tui`（需官方 org 授权）或独立 scope（如 `@dsh2026/dsh-tui`）——**待用户决定**
 
 ## 发布步骤（未来执行，现在不做）
 
@@ -94,7 +94,7 @@ footer 实时显示 `deepseek-v4-flash · effort:high · 缓存/上下文` 指�
      （约 170 包 / 11s 实测）。
 4. `pnpm pack` 核对产物（对照下方清单）
 5. `npm login`（或配置 CI token）后 `pnpm publish --access public`（在用户授权的发布通道执行）
-6. 发布后验证：干净环境 `dsh plugin --profile tui add @deepseek-ai/dsh-tui && dsh --profile tui`
+6. 发布后验证：干净环境 `dsh plugin --profile tui add @deepseek-ai/dsh-tianshu-tui && dsh --profile tui`
 
 ## 发布前检查项（本次已完成的）
 

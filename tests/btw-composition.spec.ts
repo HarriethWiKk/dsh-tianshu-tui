@@ -15,7 +15,7 @@
  * 拿 scripts[0]。fixture 事件只需 assistant/chunk（deriveReplayScript 从
  * assistant/chunk 推导 StreamChunk 列表，finish 结尾）。
  *
- * @module @deepseek-ai/dsh-tui/tests/btw-composition
+ * @module @deepseek-ai/dsh-tianshu-tui/tests/btw-composition
  */
 
 import { EventEmitter } from 'node:events'
@@ -151,7 +151,7 @@ async function boot(): Promise<Booted> {
     '    persona: |',
     '      You are the tui composition-test agent, powered by the {{model}} model.',
     '- id: tui-runner',
-    "  name: '@deepseek-ai/dsh-tui'",
+    "  name: '@deepseek-ai/dsh-tianshu-tui'",
     '',
   ].join('\n'))
 
@@ -170,7 +170,7 @@ async function boot(): Promise<Booted> {
     ['@deepseek-ai/dsh-agent-default-model', AgentDefaultModel],
     ['@deepseek-ai/dsh-subagent', Subagent],
     ['@deepseek-ai/dsh-agent-spine-demo', AgentSpine],
-    ['@deepseek-ai/dsh-tui', wrappedTui],
+    ['@deepseek-ai/dsh-tianshu-tui', wrappedTui],
   ])
 
   const ctx = new Context()

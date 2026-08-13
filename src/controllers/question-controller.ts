@@ -15,7 +15,7 @@
  * - 重叠 ask → reject UserQuestionError(ASK_CANCELLED)（一次只呈现一个问题）。
  * - cancel → reject UserQuestionError(ASK_CANCELLED)（取消必须 reject，非 resolve）。
  *
- * @module @deepseek-ai/dsh-tui/controllers/question-controller
+ * @module @deepseek-ai/dsh-tianshu-tui/controllers/question-controller
  */
 
 import { UserQuestionError } from '@deepseek-ai/dsh-user-questions'

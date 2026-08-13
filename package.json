@@ -1,6 +1,6 @@
 {
-  "name": "@deepseek-ai/dsh-tui",
-  "description": "dsh code: an interactive TUI layer over the dsh-base profile, installable as a plugin (`dsh plugin --profile tui add @deepseek-ai/dsh-tui`)",
+  "name": "@deepseek-ai/dsh-tianshu-tui",
+  "description": "dsh code: an interactive TUI layer over the dsh-base profile, installable as a plugin (`dsh plugin --profile tui add @deepseek-ai/dsh-tianshu-tui`)",
   "version": "0.0.1-rc.2",
   "private": true,
   "type": "module",

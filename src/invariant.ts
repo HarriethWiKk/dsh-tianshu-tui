@@ -1,5 +1,5 @@
 /**
- * Runtime invariant companion for @deepseek-ai/dsh-tui.
+ * Runtime invariant companion for @deepseek-ai/dsh-tianshu-tui.
  *
  * The TUI is a terminal presentation layer: every stream it renders
  * (session/event, approval/request, subagent/*, workflow/*) is owned and
@@ -8,13 +8,13 @@
  * state asserted behaviorally by package tests and the real-composition
  * suite. No cross-plugin event/data relation is owned here.
  *
- * @module @deepseek-ai/dsh-tui/invariant
+ * @module @deepseek-ai/dsh-tianshu-tui/invariant
  */
 /* jscpd:ignore-start */
 import type { Context } from '@deepseek-ai/cordis'
 import type { InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 
-const PACKAGE_NAME = '@deepseek-ai/dsh-tui'
+const PACKAGE_NAME = '@deepseek-ai/dsh-tianshu-tui'
 
 /** Cordis companion plugin name. */
 export const name = 'tui-invariant'

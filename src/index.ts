@@ -1,12 +1,12 @@
 /**
- * @deepseek-ai/dsh-tui — interactive terminal UI profile bundle. The bundle
+ * @deepseek-ai/dsh-tianshu-tui — interactive terminal UI profile bundle. The bundle
  * patch rides over dsh-base and inserts this runner under the stable
  * `tui-runner` id. Render core: the terminal rendering engine ported from
  * `.rivet/tui-source/tui/` (Apache-2.0 source; see SOURCE-MAP.md for the
  * per-file mapping). The engine is pure presentation — all agent state arrives
  * via {@link TuiPort}.
  *
- * @module @deepseek-ai/dsh-tui
+ * @module @deepseek-ai/dsh-tianshu-tui
  */
 
 import type { Context } from '@deepseek-ai/cordis'

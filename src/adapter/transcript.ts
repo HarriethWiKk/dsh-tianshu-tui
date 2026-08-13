@@ -10,7 +10,7 @@
  * (`createTranscript`) that replays the session's existing log and then folds
  * every `session/event` publication for that session.
  *
- * @module @deepseek-ai/dsh-tui/adapter/transcript
+ * @module @deepseek-ai/dsh-tianshu-tui/adapter/transcript
  */
 
 import type { Context } from '@deepseek-ai/cordis'

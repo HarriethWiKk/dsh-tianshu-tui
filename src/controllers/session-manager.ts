@@ -9,7 +9,7 @@
  * detachProjections({ keepHandle: true }) 让渡所有权给 registry）；本层不
  * 创建/销毁会话——退出时由 factory 统一 teardown。
  *
- * @module @deepseek-ai/dsh-tui/controllers/session-manager
+ * @module @deepseek-ai/dsh-tianshu-tui/controllers/session-manager
  */
 
 import type { Context } from '@deepseek-ai/cordis'

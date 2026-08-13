@@ -4,7 +4,7 @@
 
 ![dsh code](docs/tui-screenshot.jpg)
 
-**dsh code** (`@deepseek-ai/dsh-tui`) is the interactive terminal UI layer for the official DeepSeek Harness (`dsh`), mounted as a pluggable profile bundle — the official codebase stays untouched (`dsh plugin --profile tui add @deepseek-ai/dsh-tui`, then `dsh --profile tui`). The render core evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) (Apache-2.0; file-by-file provenance in [SOURCE-MAP.md](SOURCE-MAP.md)). The UI is a pure presentation layer: every piece of agent state arrives through the session event stream, so live and restored transcripts render identically and nothing reaches a model request that is not already logged.
+**dsh code** (`@deepseek-ai/dsh-tianshu-tui`) is the interactive terminal UI layer for the official DeepSeek Harness (`dsh`), mounted as a pluggable profile bundle — the official codebase stays untouched (`dsh plugin --profile tui add @deepseek-ai/dsh-tianshu-tui`, then `dsh --profile tui`). The render core evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) (Apache-2.0; file-by-file provenance in [SOURCE-MAP.md](SOURCE-MAP.md)). The UI is a pure presentation layer: every piece of agent state arrives through the session event stream, so live and restored transcripts render identically and nothing reaches a model request that is not already logged.
 
 ## Highlights
 
@@ -129,7 +129,7 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 ## Install
 
 ```sh
-dsh plugin --profile tui add @deepseek-ai/dsh-tui
+dsh plugin --profile tui add @deepseek-ai/dsh-tianshu-tui
 dsh --profile tui
 ```
 
@@ -147,7 +147,7 @@ The bundle patch inserts the `tui-runner` plugin over `dsh-base`:
 
 ```yaml
 - id: tui-runner
-  name: '@deepseek-ai/dsh-tui'
+  name: '@deepseek-ai/dsh-tianshu-tui'
 ```
 
 `TuiRunnerConfig` (all optional): `stdin`/`stdout` (stream injection, defaults to process streams), `initialSessionId`, `editorKey` (default `ctrl_e`; `ctrl+o` is reserved for reasoning expansion), `vimEnabled` (default `false`), `vision` (supportsVision / bridgeEnabled / bridgeSource, derived from the vision-bridge plugin), `workflowHistoryLimit` (default `50`).
