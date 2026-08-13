@@ -8,15 +8,20 @@
 - `@deepseek-ai/dsh-tui` 已移植到公开版形态（`packages/tui/tui`，P1 适配完成）
 - 发布形态就绪：peer 真实版本范围、`publishConfig.access: public`、`engines`、`keywords`、`files`（含 NOTICE/SOURCE-MAP.md）、`dsh.bundle.patch`
 - 本地验证通过：tsc（tui 闭包）、vitest 1515/1515、单包 tsdown 构建、`pnpm pack` 产物结构核对
-- 装配启动冒烟通过（2026-08-13，基于 0812 快照 p1-work 工作区）：见下方「本地启动验证」
+- 装配启动 + 真实对话冒烟通过（2026-08-13，基于 0812 快照 p1-work 工作区）：见下方「本地启动验证」
 - **`private: true` 有意保留**：发布防误触发的最后一道闸，发布第一步才移除
 
 ## 本地启动验证（2026-08-13，基于 0812 快照 p1-work）
 
 隔离 `DSH_HOME` 下把本仓包装为 tui profile 并伪终端启动：界面渲染正常（会话短
 id、`◆ ○ 空闲` 状态行、输入行占位、`normal` 模式徽标、15s 静默提示为 fluency
-设计行为），退出时终端状态正确恢复。沙箱无 API key，覆盖「装配 → 启动 → 渲染 →
-退出」，真实对话轮次未验。
+设计行为），退出时终端状态正确恢复。
+
+真实对话轮次也已验证（2026-08-13，带真实 `DEEPSEEK_API_KEY`）：欢迎页完整出画
+（鲸鱼像素画 truecolor 半块渲染、品牌区、菜单、`graphite · API Key ✓ · Git ✓`
+环境行），发送中文消息后走完整轮次——思考流逐字渲染、markdown 列表转 `◇` 项、
+footer 实时显示 `deepseek-v4-flash · effort:high · 缓存/上下文` 指标，第二次调用
+缓存命中 100%。覆盖「装配 → 启动 → 欢迎页 → 真实 LLM 对话 → 渲染 → 退出」。
 
 复现配方（在 p1-work 工作区执行）：
 
@@ -35,6 +40,18 @@ id、`◆ ○ 空闲` 状态行、输入行占位、`normal` 模式徽标、15s 
 - 安装用 `link:` 而非 `file:`——`file:` 把包复制出工作区，宿主构建产物缺失时
   tsx 的 tsconfig paths 兜底失效；`link:` 真实路径留在工作区内。宿主 host 面
   构建完备后两者皆可，`link:` 更稳。
+- **插件运行时加载的是 `lib/index.js`（tsdown bundle），不是 src**——包 exports
+  的 `.` 指向 bundle，即使 CLI 带 `--import tsx/esm` 也不会回落到源码。改完
+  src 必须重建单包，否则跑的是旧代码且毫无报错：
+  `CI=true node_modules/.bin/tsdown --env.DSH_BUILD_FACE host --filter @deepseek-ai/dsh-tui`
+  （直接调 `.bin` 绕开 pnpm 11 无 TTY 时 `confirmModulesPurge` 中止；`--filter`
+  精确包名匹配可用，正则不可用）。
+- **`script` 伪终端捕获必须先设窗口尺寸**——无控制终端时 pty winsize 为 0×0，
+  `stdout.columns=0` 会让所有居中/截断文本渲染成空串（欢迎块「隐形」，只剩
+  SGR 壳）。捕获命令内先 `stty rows 40 cols 100` 再 exec。
+- **失效代理会让 LLM 请求无限挂起**——`HTTPS_PROXY` 等指向未运行的本地代理时，
+  启动期的「理解」阶段就会卡在 `Waiting for response`。冒烟前 unset 代理环境
+  变量或确认代理存活。
 - profile 机制对本地未发布包开箱即用：`dsh plugin` 是 pnpm 转发器（支持
   path spec），profile 的 `autoInstallPeers: false` + hoisted 布局让缺失 peer
   回落到宿主安装解析（`healProfilesModuleFallback` 锚定运行中的检出）。
