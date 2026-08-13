@@ -27,10 +27,10 @@ vision-ask/         独立插件 @deepseek-ai/dsh-vision-ask（自有 package.js
 
 ## 依赖前提
 
-peerDependencies 指向 `@deepseek-ai/*` 与 `@deepseek-ai/cordis`（`^0.0.1-rc.2` 版本线）。
-这些包当前**未发布到 npm**——`pnpm install`、`tsc`、`vitest` 需在官方包发布后，或在
-公开版 monorepo 环境中运行（P1 适配与全部验证均在公开版 monorepo 工作区完成：
-`pnpm exec tsc -b packages/tui/tui`、`pnpm vitest run packages/tui/tui/tests`）。
+peerDependencies 指向 `@deepseek-ai/*`（`^0.1.0-rc.6`）与 `@deepseek-ai/cordis`（`^4.0.1`）。
+官方核心包已在 npm `next` 标签发布；`@deepseek-ai/dsh` CLI 与 `@deepseek-ai/dsh-workflow`
+仍未上架。`pnpm install`、`tsc`、`vitest` 可在能解析这些 peer 的环境运行（公开版
+monorepo 工作区：`pnpm exec tsc -b packages/tui/tui`、`pnpm vitest run packages/tui/tui/tests`）。
 vision-ask 的附件引用均为 type-only：行为测试可在任一解析 dsh-llm/dsh-tools 的
 工作区运行（`vitest run vision-ask/tests/`）；类型面在公开版环境复核。
 
@@ -43,6 +43,7 @@ tsdown --config tsdown.config.ts  # 产出 lib/index.js + lib/invariant.js
 tsc -p vision-ask/tsconfig.json --noEmit
 ```
 
-## 保密
+## 发布
 
-保密阶段：不推送、不发布、不外发。发布前提与步骤见 `docs/PUBLISH-PLAN.md`。
+GitHub 公开仓：https://github.com/dsh-external/dsh-tianshu-tui  
+`package.json` 仍保留 `"private": true`，避免误 npm publish。npm 发布步骤见 `docs/PUBLISH-PLAN.md`。

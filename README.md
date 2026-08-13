@@ -129,17 +129,15 @@
 ## 安装
 
 ```sh
-dsh plugin --profile tui add @deepseek-ai/dsh-tianshu-tui
+dsh plugin --profile tui add github:dsh-external/dsh-tianshu-tui
 dsh --profile tui
 ```
 
-需要图片再询问能力时，同样方式装配伴生视觉插件（同仓独立包）：
+包名仍是 `@deepseek-ai/dsh-tianshu-tui`，尚未发 npm；从 Git 安装时 loader 读的是 `lib/index.js`，需要先在能解析 peer 的宿主里构建本包，或用 `link:` 指向本地 checkout。
 
-```sh
-dsh plugin --profile tui add @deepseek-ai/dsh-vision-ask
-```
+需要图片再询问能力时，装配同仓伴生包 `vision-ask/`（独立 `package.json`）。
 
-宿主需要官方 `@deepseek-ai/*` 包（`^0.0.1-rc.2` 版本线）与 `@deepseek-ai/cordis`（`^4.0.1-rc.1`）。
+宿主需要官方 `@deepseek-ai/*` 包（`^0.1.0-rc.6` 版本线）与 `@deepseek-ai/cordis`（`^4.0.1`）。官方 `@deepseek-ai/dsh` CLI 目前未上 npm，需已有可运行的 `dsh`。
 
 ## 装配
 

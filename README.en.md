@@ -129,17 +129,15 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 ## Install
 
 ```sh
-dsh plugin --profile tui add @deepseek-ai/dsh-tianshu-tui
+dsh plugin --profile tui add github:dsh-external/dsh-tianshu-tui
 dsh --profile tui
 ```
 
-The companion vision plugin (same repository, independent package) adds image re-interrogation when needed:
+The package name remains `@deepseek-ai/dsh-tianshu-tui`; it is not on npm yet. Git installs load `lib/index.js`, so build this package on a host that can resolve its peers, or `link:` a local checkout.
 
-```sh
-dsh plugin --profile tui add @deepseek-ai/dsh-vision-ask
-```
+The companion vision plugin lives in `vision-ask/` (same repository, independent `package.json`).
 
-Requires the official `@deepseek-ai/*` packages (the `^0.0.1-rc.2` line) and `@deepseek-ai/cordis` (`^4.0.1-rc.1`) on the host.
+Requires the official `@deepseek-ai/*` packages (the `^0.1.0-rc.6` line) and `@deepseek-ai/cordis` (`^4.0.1`) on the host. The official `@deepseek-ai/dsh` CLI is not on npm yet; you need a working `dsh`.
 
 ## Assembly
 

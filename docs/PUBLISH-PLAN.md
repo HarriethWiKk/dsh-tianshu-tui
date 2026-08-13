@@ -1,7 +1,7 @@
 # dsh-tui 发布计划（内部文档，不随包分发）
 
-> 状态：**保密阶段**。代码已整理为可独立发布形态，但**未执行任何发布动作**——
-> 不推送 git、不发布 npm。本文件是未来发布时的操作清单与检查项。
+> 状态：**GitHub 已公开**（https://github.com/dsh-external/dsh-tianshu-tui）。
+> npm **尚未发布**（`private: true` 仍保留）。本文件是 npm 发布时的操作清单。
 
 ## 当前状态（2026-08-13）
 
@@ -62,19 +62,17 @@ footer 实时显示 `deepseek-v4-flash · effort:high · 缓存/上下文` 指�
 - 待确认观察一枚：管道喂 stdin 的环境下，退出清屏后 node 进程有逗留；真终端
   未复现前不下结论。
 
-## 保密边界（红线）
+## 仍未做的（npm）
 
-1. 不执行 `git push`（任何 remote）
-2. 不执行 `pnpm publish` / `npm publish`
-3. 不提交 PR / ISSUE / 公开讨论
-4. 不把 tarball、bundle、代码片段外发给任何人
-5. 本分支不配置 npm 认证 token（发布时才需要）
+1. 不执行 `pnpm publish` / `npm publish`，除非再次明确授权
+2. 不提交 `.npmrc` / token
+3. 不公开 0812 宿主整仓源码
 
 ## 发布前提（触发条件，全部满足才可发布）
 
-- [ ] 用户**显式授权**发布（本清单不构成授权）
-- [ ] 官方公开版 `@deepseek-ai/*` 核心包（session/agent/llm/tools/user-questions 等，peer 依赖）**已在 npm 发布**且版本与 `peerDependencies` 匹配（当前 `^0.0.1-rc.2` 线）
-- [ ] 官方 `@deepseek-ai/cordis` 已在 npm 发布（当前 `^4.0.1-rc.1` 线）
+- [x] 用户**显式授权**公开 GitHub（2026-08-13）；npm 仍需另一次明确授权
+- [ ] 官方公开版 `@deepseek-ai/*` 核心包（session/agent/llm/tools/user-questions 等，peer 依赖）**已在 npm 发布**且版本与 `peerDependencies` 匹配（当前 `^0.1.0-rc.6` 线；`dsh-workflow` 仍未上架）
+- [x] 官方 `@deepseek-ai/cordis` 已在 npm 发布（当前 `^4.0.1` 线）
 - [ ] 包名 scope 决策：`@deepseek-ai/dsh-tianshu-tui`（需官方 org 授权）或独立 scope（如 `@dsh2026/dsh-tui`）——**待用户决定**
 
 ## 发布步骤（未来执行，现在不做）
@@ -104,7 +102,7 @@ footer 实时显示 `deepseek-v4-flash · effort:high · 缓存/上下文` 指�
 - [x] Apache-2.0 再分发要件：LICENSE、NOTICE、SOURCE-MAP.md（含修改声明）均在 `files`
 - [x] tarball 结构：lib/index.js、lib/invariant.js、lib/types/**、cordis.patch.yml、LICENSE、NOTICE、SOURCE-MAP.md、README（md/zh）
 - [x] 运行时 import 声明核对：lib/index.js 外部依赖 8 个（dsh-agent/llm/session/user-questions + chalk/diff/get-east-asian-width/string-width）全部在 peer/dependencies 中
-- [x] 版本线：`0.0.1-rc.2` 对齐公开版；peer `^0.0.1-rc.2` / `^4.0.1-rc.1`
+- [x] 版本线：`0.1.0-rc.6` 对齐官方 npm `next`；peer `^0.1.0-rc.6` / `^4.0.1`
 
 ## 发布后仍需跟进（Phase 2+）
 
