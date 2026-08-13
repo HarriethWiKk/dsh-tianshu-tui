@@ -239,7 +239,12 @@ interface MemoryServiceFacet {
 
 /** credentials.describe 最小面（不引入 dsh-credentials peer；ref 为 POSIX 标识符）。 */
 interface CredentialsDescribeFacet {
-  describe(ref: string): Promise<{ configured: boolean; source?: string }>
+  describe(ref: string): Promise<{ configured: boolean; source?: string; writable?: boolean }>
+}
+
+/** llm.resolveModelInfo 最小面（识图能力取 inputModalities，不引入 dsh-llm peer）。 */
+interface LlmModelInfoFacet {
+  resolveModelInfo(provider: string, model: string): Promise<{ inputModalities?: readonly string[] }>
 }
 
 /** TuiApp 构造选项。 */
@@ -600,9 +605,9 @@ export class TuiApp {
     this.slash.register({
       name: 'config',
       description: '切换设置面板（settings/permission/credentials）',
-      run: () => {
+      run: async () => {
         this.configPanelVisible = !this.configPanelVisible
-        if (this.configPanelVisible) this.refreshConfigProjection()
+        if (this.configPanelVisible) await this.refreshConfigProjection()
         this.renderBatcher.schedule()
       },
     })
@@ -890,6 +895,39 @@ export class TuiApp {
   }
 
   /**
+   * 按当前主控模型刷新识图标志。llm 服务缺失或查询失败时保持原值；
+   * inputModalities 含 image 才直发图片，否则走桥或「未发送」。
+   */
+  private refreshVisionForSelection(selection: { provider: string; model: string }): void {
+    const llm = this.ctx.reflect.get('llm', false) as LlmModelInfoFacet | undefined
+    if (llm === undefined) return
+    void llm.resolveModelInfo(selection.provider, selection.model).then((info) => {
+      if (this.disposed) return
+      const modalities = info.inputModalities
+      this.supportsVision = modalities !== undefined && modalities.includes('image')
+    }).catch(() => {
+      // 目录查询失败时保持启动时的识图标志
+    })
+  }
+
+  /** 当前会话工作区：header.cwd 优先，缺省回退启动目录。 */
+  private sessionCwd(): string {
+    if (this.activeSessionId === null) return process.cwd()
+    const cwd = getSession(this.ctx, this.activeSessionId)?.header.cwd
+    return cwd === undefined || cwd === '' ? process.cwd() : cwd
+  }
+
+  /**
+   * Ctrl+S / 欢迎「恢复」：切到 listSessions 里最近的非当前会话（含 persistence）。
+   * live store 没有时走 switchSession → resume。
+   */
+  private async restoreRecentOtherSession(): Promise<void> {
+    const others = (await listSessions(this.ctx)).filter(s => s.id !== this.activeSessionId)
+    const target = others[0]?.id
+    if (target !== undefined) await this.switchSession(target)
+  }
+
+  /**
    * Phase 9b：把可恢复会话列表写进 scrollback（启动时）。
    * 排除当前活跃会话；无其他可恢复会话时静默（不占位）。
    * live 标注取 live store（listSessions 的 header 无 live 字段，
@@ -910,7 +948,7 @@ export class TuiApp {
     const branch = gitBranch()
     for (const line of formatTopBar({
       width: cols - gutter,
-      cwd: process.cwd(),
+      cwd: this.sessionCwd(),
       modelName: `${current.provider}/${current.model}`,
       // exactOptionalPropertyTypes：branch 不可显式传 undefined，条件展开
       ...(branch === undefined ? {} : { branch }),
@@ -1005,6 +1043,9 @@ export class TuiApp {
   switchLiveModel(selection: ModelSelection): boolean {
     if (this.modelRef === null) return false
     this.modelRef.current = selection
+    this.glanceModelName = selection.model
+    this.glanceEffort = selection.reasoningEffort ?? null
+    this.refreshVisionForSelection(selection)
     return true
   }
 
@@ -1253,6 +1294,10 @@ export class TuiApp {
       this.glanceModelName = selection.model
       this.glanceEffort = selection.reasoningEffort ?? null
     }
+    const visionSelection = headerConfig !== undefined
+      ? { provider: headerConfig.provider, model: headerConfig.model }
+      : this.ctx.agentDefaultModel.currentSelection()
+    this.refreshVisionForSelection(visionSelection)
     // 上下文窗口：路由元数据折叠（request/context 只在路由变化时记录；热切换经
     // request/context 事件更新，见 handleStreamEvent）。
     this.contextWindow = session.requestContext()?.contextWindow ?? null
@@ -1457,13 +1502,12 @@ export class TuiApp {
   }
 
   /** T3.2：刷新 /config 面板投影（settings describe + permission + credentials；服务缺失降级）。 */
-  private refreshConfigProjection(): void {
+  private async refreshConfigProjection(): Promise<void> {
     const settings = this.ctx.reflect.get('settings', false) as
       | { describe(options?: { redactSecrets?: boolean }): unknown[] } | undefined
     const permission = this.ctx.reflect.get('permission', false) as
       | { names: readonly string[]; current(events: readonly unknown[]): string } | undefined
-    const credentials = this.ctx.reflect.get('credentials', false) as
-      | { describe(ref: { id: string }): Promise<{ configured: boolean; source?: string; writable: boolean }> } | undefined
+    const credentials = this.ctx.reflect.get('credentials', false) as CredentialsDescribeFacet | undefined
     if (settings === undefined && permission === undefined && credentials === undefined) {
       this.configProjection = null
       return
@@ -1473,15 +1517,31 @@ export class TuiApp {
       options: permission.names.map(n => ({ value: n, name: n })),
       currentValue: permission.current([]),
     }
-    const credentialsList: ConfigPanelProjection['credentials'] = []
-    if (credentials !== undefined) {
-      // 凭据 ref 未知（无枚举面）——T3.2 渲染空凭据段（服务存在但无 ref 列表时占位）。
-      void credentials.describe({ id: '' }).catch(() => {})
-    }
     this.configProjection = {
       settings: settingsDescriptors as ConfigPanelProjection['settings'],
       permission: permissionView,
-      credentials: credentialsList,
+      credentials: [],
+    }
+    if (credentials !== undefined) await this.fillCredentials(credentials)
+  }
+
+  /** 把 DEEPSEEK_API_KEY 的 describe 结果填进 /config 凭据段（与欢迎页同源）。 */
+  private async fillCredentials(credentials: CredentialsDescribeFacet): Promise<void> {
+    try {
+      const info = await credentials.describe('DEEPSEEK_API_KEY')
+      if (this.disposed || !this.configPanelVisible || this.configProjection === null) return
+      this.configProjection = {
+        ...this.configProjection,
+        credentials: [{
+          ref: 'DEEPSEEK_API_KEY',
+          configured: info.configured,
+          writable: info.writable !== false,
+          ...(info.source === undefined ? {} : { source: info.source }),
+        }],
+      }
+      this.renderBatcher.schedule()
+    } catch {
+      // 面不匹配时保持空凭据段
     }
   }
 
@@ -1552,7 +1612,7 @@ export class TuiApp {
     }
     // Phase 9a：@mention 用户侧摘要展开（cwd 边界/截断/降级见 mention-expand）。
     // 展开后的文本进用户消息与 followup——agent 看到的是摘要而非裸路径。
-    const expanded = expandMentions(trimmed, process.cwd())
+    const expanded = expandMentions(trimmed, this.sessionCwd())
     this.history = [trimmed, ...this.history.filter(h => h !== trimmed)].slice(0, 100)
     this.inputLine.setHistory(this.history)
     // 用户气泡：正文 + 📎 附件行 + 识图能力提示；有图且终端支持图形协议时
@@ -1781,7 +1841,7 @@ export class TuiApp {
     const result = this.inputController.tabComplete(
       this.inputLine.value,
       this.inputLine.cursor,
-      process.cwd(),
+      this.sessionCwd(),
     )
     if (result === null) return false
     this.inputLine.setValue(result.text, result.cursor)
@@ -1895,11 +1955,7 @@ export class TuiApp {
       return
     }
     if (key.name === 'ctrl_s') {
-      // 恢复会话：切换到最近创建的非当前活动会话（sessions.list() 按创建序，
-      // 末元素 = 最近创建；无其他会话时 no-op）。
-      const others = this.ctx.sessions.list().filter(s => s.id !== this.activeSessionId)
-      const target = others[others.length - 1]?.id
-      if (target !== undefined) void this.switchSession(target)
+      void this.restoreRecentOtherSession()
       return
     }
     if (key.name === 'ctrl_q') {
@@ -2234,8 +2290,9 @@ export class TuiApp {
         break
       }
       case 'request/header':
-        // effort 随实际请求更新（header 记录 adapterDefaults 折叠后的生效值）。
+        // effort / 模型名随实际请求更新（header 记录 adapterDefaults 折叠后的生效值）。
         this.glanceEffort = event.data.header.config.reasoningEffort ?? null
+        this.glanceModelName = event.data.header.config.model
         break
       case 'request/context':
         this.contextWindow = event.data.contextWindow ?? null

@@ -55,7 +55,11 @@ function toSummary(header: Session['header']): SessionSummary {
  * @returns one summary per known session, ordered by `createdAt` descending.
  */
 export async function listSessions(ctx: Context): Promise<SessionSummary[]> {
-  const persistence = ctx.get('sessionPersistence') as SessionPersistenceFacet | undefined
+  const persistence = (
+    ctx.reflect !== undefined
+      ? ctx.reflect.get('sessionPersistence', false)
+      : ctx.get('sessionPersistence')
+  ) as SessionPersistenceFacet | undefined
   const headers: readonly SessionHeader[] = persistence !== undefined
     ? await persistence.list()
     : ctx.sessions.list().map(session => session.header)

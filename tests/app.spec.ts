@@ -2369,6 +2369,141 @@ describe('TuiApp API key 就绪（credentials 分层，非仅 env）', () => {
   })
 })
 
+describe('TuiApp 会话交互 UX 对齐（显示层 = 实际能力）', () => {
+  const PNG_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+
+  it('/config：credentials.describe(DEEPSEEK_API_KEY) 报 file → 凭据段显示已配置', async () => {
+    const ctx = makeCtx()
+    const describe = vi.fn(async (ref: string) => {
+      expect(ref).toBe('DEEPSEEK_API_KEY')
+      return { configured: true, source: 'file', writable: true }
+    })
+    const fallback = ctx.reflect.get.getMockImplementation()!
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'credentials') return { describe }
+      return fallback(name)
+    })
+    const agent = makeAgent('cfg-key')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    await app.attach()
+    app.handleSubmit('/config')
+    await new Promise(resolve => setTimeout(resolve, 40))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('DEEPSEEK_API_KEY')
+    expect(written).toContain('已配置')
+    expect(written).toContain('file')
+    expect(written).not.toContain('（无凭据）')
+    expect(describe).toHaveBeenCalledWith('DEEPSEEK_API_KEY')
+    await app.dispose()
+  })
+
+  it('/model 热切后 footer 显示新模型名（不再停在挂载时的旧名）', async () => {
+    const ctx = makeCtx()
+    Object.assign(ctx.agentDefaultModel, {
+      currentSelection: vi.fn(() => ({ provider: 'deepseek', model: 'v4-flash' })),
+      saveSelection: vi.fn(async () => { }),
+    })
+    const agent = makeAgent('mdl-footer')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    await app.attach()
+    app.handleSubmit('/model deepseek/v4-turbo')
+    await new Promise(resolve => setTimeout(resolve, 40))
+    expect((app as unknown as { glanceModelName: string | null }).glanceModelName).toBe('v4-turbo')
+    await app.dispose()
+  })
+
+  it('切到无 image 模态的模型后，发图走「图片未发送」（不沿用启动时的识图标志）', async () => {
+    const ctx = makeCtx()
+    const resolveModelInfo = vi.fn(async () => ({ inputModalities: ['text'] as const }))
+    const fallback = ctx.reflect.get.getMockImplementation()!
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'llm') return { resolveModelInfo }
+      return fallback(name)
+    })
+    const agent = makeAgent('vision-hot')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+    const app = new TuiApp({
+      ctx, stdout, stdin: makeStdin(),
+      vision: { supportsVision: true, bridgeEnabled: false },
+    })
+    await app.newSession()
+    expect(app.switchLiveModel({ provider: 'deepseek', model: 'text-only' })).toBe(true)
+    await new Promise(resolve => setTimeout(resolve, 40))
+    app.handleSubmit('hi', [PNG_DATA_URL])
+    await new Promise(resolve => setTimeout(resolve, 40))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('图片未发送')
+    const msg = agent.followup.mock.calls[0]?.[0] as { content?: unknown[] } | undefined
+    expect(msg?.content).toEqual([{ type: 'text', text: 'hi' }])
+    expect(resolveModelInfo).toHaveBeenCalledWith('deepseek', 'text-only')
+    await app.dispose()
+  })
+
+  it('ctrl_s：persistence 有磁盘会话、live 只有当前 → resume 该磁盘会话', async () => {
+    const ctx = makeCtx()
+    const live = makeAgent('live-now')
+    ctx.agents.create.mockResolvedValue(makeHandle(live))
+    ctx.sessions.get.mockReturnValue(live.session)
+    ctx.sessions.list.mockReturnValue([])
+    const diskId = SessionId('session-disk-1')
+    const diskHeader = {
+      id: diskId, version: 0, createdAt: Date.now() - 1_000,
+      cwd: '/tmp/disk-ws', parentSession: undefined,
+    }
+    const fallback = ctx.reflect.get.getMockImplementation()!
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'sessionPersistence') {
+        return { list: vi.fn(async () => [diskHeader]) }
+      }
+      return fallback(name)
+    })
+    ctx.agents.get.mockReturnValue(undefined)
+    const disk = makeAgent('disk-1')
+    disk.session.id = diskId
+    disk.session.header = { ...disk.session.header, id: diskId, cwd: '/tmp/disk-ws' }
+    ctx.agents.resume.mockResolvedValue(makeHandle(disk))
+    const stdin = makeStdin()
+    const app = new TuiApp({ ctx, stdout: makeStdout(), stdin })
+    await app.attach()
+    expect(app.sessionId).not.toBe(diskId)
+    stdin.emit('data', '\x13')
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(ctx.agents.resume).toHaveBeenCalledWith(expect.objectContaining({ resumeSessionId: diskId }))
+    expect(app.sessionId).toBe(diskId)
+    await app.dispose()
+  })
+
+  it('顶栏与 @mention 使用会话 header.cwd，不是启动进程 cwd', async () => {
+    const ws = mkdtempSync(join(tmpdir(), 'session-cwd-'))
+    writeFileSync(join(ws, 'notes.md'), '会话工作区笔记')
+    const ctx = makeCtx()
+    const id = SessionId('session-cwd-1')
+    const agent = makeAgent('cwd-1')
+    agent.session.id = id
+    agent.session.header = { ...agent.session.header, id, cwd: ws }
+    ctx.sessions.list.mockReturnValue([{ id, header: agent.session.header, events: [] }])
+    ctx.sessions.get.mockReturnValue(agent.session)
+    ctx.agents.get.mockReturnValue(agent)
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    await app.attach()
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain(ws)
+    app.handleSubmit('看 @notes.md')
+    await new Promise(resolve => setTimeout(resolve, 40))
+    expect(firstCallText(agent.followup)).toContain('会话工作区笔记')
+    await app.dispose()
+  })
+})
+
 describe('TuiApp forkSession（A3 会话分叉）', () => {
   it('fork 当前会话并切换：sessions.fork 被调、resume 到 child、返回新 id', async () => {
     const ctx = makeCtx()
@@ -3991,18 +4126,20 @@ describe('TuiApp /config 服务组合分支', () => {
     const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
     await app.attach()
     app.handleSubmit('/config')
-    await new Promise(resolve => setImmediate(resolve))
+    await new Promise(resolve => setTimeout(resolve, 40))
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     return { app, written }
   }
 
-  it('仅 credentials 服务存在 → 渲染空凭据段', async () => {
+  it('仅 credentials 服务存在 → 查询 DEEPSEEK_API_KEY，未配置则显示未配置行', async () => {
+    const describe = vi.fn(async () => ({ configured: false, writable: true }))
     const { app, written } = await bootWithReflect((name: string) => {
-      if (name === 'credentials') return { describe: vi.fn(async () => ({ configured: false })) }
+      if (name === 'credentials') return { describe }
       return undefined
     })
-    // /config 面板切换后渲染无崩溃（credentials 无枚举面，投影空凭据段）
-    expect(written.length).toBeGreaterThan(0)
+    expect(written).toContain('DEEPSEEK_API_KEY')
+    expect(written).toContain('未配置')
+    expect(describe).toHaveBeenCalledWith('DEEPSEEK_API_KEY')
     await app.dispose()
   })
 
