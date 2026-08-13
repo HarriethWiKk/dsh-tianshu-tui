@@ -86,8 +86,8 @@ export declare class TuiApp {
     private readonly slash;
     /** Ctrl+P 命令面板（overlay 渲染经 OverlayController 进出 alt screen）。 */
     private palette;
-    /** API key 就绪标志（footer 右侧段；构造时读一次，进程内不变）。 */
-    private readonly apiKeyReady;
+    /** API key 就绪标志（footer 右侧段；attach 时经 credentials.describe 刷新）。 */
+    private apiKeyReady;
     private overlay;
     /** C3 项 3：rewind overlay（/rewind 双阶段回退面板）。 */
     private rewindOverlay;

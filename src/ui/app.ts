@@ -237,6 +237,11 @@ interface MemoryServiceFacet {
   delete(id: string): Promise<void>
 }
 
+/** credentials.describe 最小面（不引入 dsh-credentials peer；ref 为 POSIX 标识符）。 */
+interface CredentialsDescribeFacet {
+  describe(ref: string): Promise<{ configured: boolean; source?: string }>
+}
+
 /** TuiApp 构造选项。 */
 export interface TuiAppOptions {
   ctx: Context
@@ -357,8 +362,8 @@ export class TuiApp {
   private readonly slash: SlashCommandRegistry
   /** Ctrl+P 命令面板（overlay 渲染经 OverlayController 进出 alt screen）。 */
   private palette: CommandPalette | null = null
-  /** API key 就绪标志（footer 右侧段；构造时读一次，进程内不变）。 */
-  private readonly apiKeyReady = Boolean(process.env.DEEPSEEK_API_KEY)
+  /** API key 就绪标志（footer 右侧段；attach 时经 credentials.describe 刷新）。 */
+  private apiKeyReady = Boolean(process.env.DEEPSEEK_API_KEY)
   private overlay: OverlayController | null = null
   /** C3 项 3：rewind overlay（/rewind 双阶段回退面板）。 */
   private rewindOverlay: RewindOverlay | null = null
@@ -867,12 +872,31 @@ export class TuiApp {
   }
 
   /**
+   * 查 DEEPSEEK_API_KEY 是否已配置：优先 credentials.describe（含 file / .env 层），
+   * 服务缺失或抛错时回退 process.env。欢迎页与 footer 共用，避免只看环境变量的误报。
+   */
+  private async refreshApiKeyReady(): Promise<void> {
+    const credentials = this.ctx.reflect.get('credentials', false) as CredentialsDescribeFacet | undefined
+    if (credentials !== undefined) {
+      try {
+        const info = await credentials.describe('DEEPSEEK_API_KEY')
+        this.apiKeyReady = info.configured
+        return
+      } catch {
+        // 服务面不匹配时回退 env
+      }
+    }
+    this.apiKeyReady = Boolean(process.env.DEEPSEEK_API_KEY)
+  }
+
+  /**
    * Phase 9b：把可恢复会话列表写进 scrollback（启动时）。
    * 排除当前活跃会话；无其他可恢复会话时静默（不占位）。
    * live 标注取 live store（listSessions 的 header 无 live 字段，
    * 经 ctx.sessions.list() 的 id 集合判定）。
    */
   private async renderRestorableSessions(): Promise<void> {
+    await this.refreshApiKeyReady()
     const cols = this.stdout.columns
     const gutter = cols >= CHROME_GUTTER * 2 + 8 ? CHROME_GUTTER : 0
     const commitLine = (text: string): void => {
@@ -900,7 +924,7 @@ export class TuiApp {
 
     // 环境检查结果：唯一来源（首启与有会话统一一行，不重复渲染）。
     const env: WelcomeEnvCheck = {
-      hasApiKey: Boolean(process.env.DEEPSEEK_API_KEY),
+      hasApiKey: this.apiKeyReady,
       isGitRepo: isGitRepo(),
       themeName: getActiveThemeName(),
       cols,

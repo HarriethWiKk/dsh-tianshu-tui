@@ -20,7 +20,7 @@ export declare function formatBrandWelcome(input: FormatBrandWelcomeInput, theme
  * 首次启动环境检查结果，供欢迎页环境行使用。
  */
 export interface WelcomeEnvCheck {
-    /** DEEPSEEK_API_KEY 环境变量是否已设置。 */
+    /** API key 是否已配置（env / credentials 文件 / .env 分层，非仅环境变量）。 */
     hasApiKey: boolean;
     /** 当前目录是否为 git 仓库（git status 可执行）。 */
     isGitRepo: boolean;

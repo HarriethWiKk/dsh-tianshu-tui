@@ -2284,6 +2284,91 @@ describe('TuiApp T6 启动 context bar（C4 概念稿 A 顶部栏）', () => {
   })
 })
 
+describe('TuiApp API key 就绪（credentials 分层，非仅 env）', () => {
+  const previousKey = process.env.DEEPSEEK_API_KEY
+
+  afterEach(() => {
+    if (previousKey === undefined) delete process.env.DEEPSEEK_API_KEY
+    else process.env.DEEPSEEK_API_KEY = previousKey
+  })
+
+  function boot(opts: {
+    credentials?: { configured: boolean; source?: string }
+    credentialsError?: boolean
+    envKey?: string
+  } = {}): {
+    app: TuiApp
+    stdout: WriteStream & { write: ReturnType<typeof vi.fn> }
+    describe: ReturnType<typeof vi.fn>
+  } {
+    if (opts.envKey === undefined) delete process.env.DEEPSEEK_API_KEY
+    else process.env.DEEPSEEK_API_KEY = opts.envKey
+
+    const ctx = makeCtx()
+    const agent = makeAgent('key-1')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const describe = vi.fn(async () => {
+      if (opts.credentialsError === true) throw new Error('bad facet')
+      return {
+        writable: true,
+        configured: opts.credentials?.configured ?? false,
+        ...(opts.credentials?.source === undefined ? {} : { source: opts.credentials.source }),
+      }
+    })
+    if (opts.credentials !== undefined || opts.credentialsError === true) {
+      const fallback = ctx.reflect.get.getMockImplementation()!
+      ctx.reflect.get.mockImplementation((name: string) => {
+        if (name === 'credentials') return { describe }
+        return fallback(name)
+      })
+    }
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    return { app, stdout, describe }
+  }
+
+  it('credentials 报 file 已配置、env 未设 → 欢迎页 API Key ✓、footer API ✓', async () => {
+    const { app, stdout, describe } = boot({ credentials: { configured: true, source: 'file' } })
+    await app.attach()
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('API Key ✓')
+    expect(written).not.toContain('API Key ✗')
+    expect(written).toMatch(/API ✓/)
+    expect(describe).toHaveBeenCalledWith('DEEPSEEK_API_KEY')
+    await app.dispose()
+  })
+
+  it('credentials 未配置且 env 未设 → 欢迎页 API Key ✗', async () => {
+    const { app, stdout } = boot({ credentials: { configured: false } })
+    await app.attach()
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('API Key ✗（设 DEEPSEEK_API_KEY）')
+    await app.dispose()
+  })
+
+  it('无 credentials 服务、env 已设 → 欢迎页 API Key ✓（env 兜底）', async () => {
+    const { app, stdout, describe } = boot({ envKey: 'sk-test' })
+    await app.attach()
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('API Key ✓')
+    expect(written).not.toContain('API Key ✗')
+    expect(describe).not.toHaveBeenCalled()
+    await app.dispose()
+  })
+
+  it('credentials.describe 抛错、env 已设 → 回退 env，欢迎页 API Key ✓', async () => {
+    const { app, stdout, describe } = boot({ credentialsError: true, envKey: 'sk-test' })
+    await app.attach()
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('API Key ✓')
+    expect(written).not.toContain('API Key ✗')
+    expect(describe).toHaveBeenCalledWith('DEEPSEEK_API_KEY')
+    await app.dispose()
+  })
+})
+
 describe('TuiApp forkSession（A3 会话分叉）', () => {
   it('fork 当前会话并切换：sessions.fork 被调、resume 到 child、返回新 id', async () => {
     const ctx = makeCtx()
