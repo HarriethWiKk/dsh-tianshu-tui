@@ -1,14 +1,15 @@
 /**
  * 启动欢迎面（format/welcome.ts）— 纯渲染。
  *
- * 首屏骨架对齐 grok 欢迎页（views/welcome/）：品牌区居中（主标 + 副标）、
- * 菜单居中（label 左 BOLD + 快捷键右对齐，grok menu.rs 形态）、环境检查
- * 压成一行（formatEnvCheckLine）。无四周边框线——延续 C4 概念稿 B 的纯净感。
+ * 首屏骨架对齐 grok 欢迎页（views/welcome/）：品牌区居中（主标 + 副标；
+ * 鲸鱼像素画见 format/whale.ts）、菜单居中（label 左 BOLD + 快捷键右对齐，
+ * grok menu.rs 形态）、环境检查压成一行居中（formatEnvCheckLine）。
+ * 无四周边框线——延续 C4 概念稿 B 的纯净感。
  * 宽度守恒：任何输入下每行显示宽度 ≤ width。
  */
 import { color } from '../engine/ansi.js'
 import type { RivetTheme } from '../theme.js'
-import { displayWidth } from '../width.js'
+import { displayWidth, truncateToDisplayWidth } from '../width.js'
 
 function truncateTo(text: string, columns: number): string {
   let out = ''
@@ -59,27 +60,32 @@ export interface WelcomeEnvCheck {
   hasApiKey: boolean
   /** 当前目录是否为 git 仓库（git status 可执行）。 */
   isGitRepo: boolean
-  /** 终端背景色检测结果（'dark' | 'light' | 'unknown'）。 */
-  background: string
-  /** 终端列数。 */
+  /** 当前主题引用名（如 'graphite'，环境行首段展示）。 */
+  themeName: string
+  /** 终端列数（宽度预算）。 */
   cols: number
-  /** 终端行数。 */
-  rows: number
 }
 
 /**
- * 环境检查紧凑行（欢迎页常驻）：`API Key ✓ · Git ✓ · 100×30 · dark`，单行 muted。
+ * 环境检查紧凑行（欢迎页常驻）：`graphite · API Key ✓ · Git ✓`，单行居中。
+ * 终端尺寸/明暗是调试信息不再展示（明暗与主题名同义）。缺 API key 时该段
+ * 换 warning 色并携带可行动提示（设 DEEPSEEK_API_KEY），其余保持 muted；
+ * git ✗ 仅信息性展示（在仓库外运行是正常场景）。
  * 用「API Key」措辞（非 footer 的「API ✗」），避免与 footer 合并段混淆。
- * @param env - 环境检查结果（API key/git/终端信息）。
- * @param theme - 当前主题（muted）。
- * @returns 单行 ANSI；cols ≤ 0 返回空数组。
+ * @param env - 环境检查结果（主题名/API key/git）。
+ * @param theme - 当前主题（muted；缺 key 段 warning）。
+ * @returns 单行 ANSI（居中，ANSI 安全截断）；cols ≤ 0 返回空数组。
  */
 export function formatEnvCheckLine(env: WelcomeEnvCheck, theme: RivetTheme): string[] {
   if (env.cols <= 0) return []
-  const api = env.hasApiKey ? '✓' : '✗'
-  const git = env.isGitRepo ? '✓' : '✗'
-  const plain = `API Key ${api} · Git ${git} · ${env.cols}×${env.rows} · ${env.background}`
-  return [color(truncateTo(plain, env.cols), theme.muted)]
+  const sep = color(' · ', theme.muted)
+  const api = env.hasApiKey
+    ? color('API Key ✓', theme.muted)
+    : color('API Key ✗（设 DEEPSEEK_API_KEY）', theme.warning)
+  const git = color(`Git ${env.isGitRepo ? '✓' : '✗'}`, theme.muted)
+  const line = `${color(env.themeName, theme.muted)}${sep}${api}${sep}${git}`
+  // 居中与品牌区/菜单同轴；混色行用 ANSI 安全截断保宽度守恒。
+  return [truncateToDisplayWidth(center(line, env.cols), env.cols)]
 }
 
 /** 欢迎页菜单项（grok menu.rs 形态的 label + 快捷键行）。 */

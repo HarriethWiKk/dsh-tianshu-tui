@@ -90,6 +90,7 @@
 | src/format/turn-status.ts | — | new（C4 概念稿 turn_status：spinner/◆ + 阶段文本，纯渲染） |
 | src/format/user-message.ts | format/user-message.ts | modified |
 | src/format/welcome.ts | format/welcome.ts | modified |
+| src/format/whale.ts | — | new（欢迎页鲸鱼品牌像素画：半块字符双色渲染，品牌固定色 + 色深/宽度档降级，纯渲染） |
 | src/gutter.ts | gutter.ts | ported |
 | src/index.ts | — | new |
 | src/invariant.ts | — | new |

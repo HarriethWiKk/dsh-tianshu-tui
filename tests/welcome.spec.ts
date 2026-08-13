@@ -3,7 +3,7 @@
  *
  * - 品牌区 formatBrandWelcome：主标/副标各一行，水平居中
  * - 菜单 formatWelcomeMenu：整块居中，label 左 BOLD + keyHint 右对齐
- * - 环境行 formatEnvCheckLine：单行 API/Git/终端/背景
+ * - 环境行 formatEnvCheckLine：单行主题名/API/Git，居中；缺 key 段 warning 色
  * - 宽度守恒：任何输入下每行显示宽度 ≤ width
  */
 
@@ -125,19 +125,35 @@ describe('formatWelcomeMenu（欢迎页菜单入口，居中）', () => {
 
 describe('formatEnvCheckLine（环境检查紧凑行）', () => {
   function env(over: Partial<WelcomeEnvCheck> = {}): WelcomeEnvCheck {
-    return { hasApiKey: true, isGitRepo: true, background: 'dark', cols: 100, rows: 30, ...over }
+    return { hasApiKey: true, isGitRepo: true, themeName: 'graphite', cols: 100, ...over }
   }
 
-  it('单行含 API/Git/终端/背景，宽度守恒', () => {
+  it('单行：主题名 · API Key ✓ · Git ✓，居中且宽度守恒', () => {
     const [line] = formatEnvCheckLine(env(), fakeTheme())
     const text = plain([line!])[0]
-    expect(text).toBe('API Key ✓ · Git ✓ · 100×30 · dark')
+    expect(text!.trim()).toBe('graphite · API Key ✓ · Git ✓')
+    expect(text!.indexOf('graphite')).toBeGreaterThan(0) // 居中（前导空格）
     expect(displayWidth(line!)).toBeLessThanOrEqual(100)
   })
 
-  it('缺 API key / 非 git → ✗', () => {
-    const [line] = formatEnvCheckLine(env({ hasApiKey: false, isGitRepo: false }), fakeTheme())
-    expect(plain([line!])[0]).toBe('API Key ✗ · Git ✗ · 100×30 · dark')
+  it('缺 API key：✗ + 可行动提示，该段 warning 色', () => {
+    const [line] = formatEnvCheckLine(env({ hasApiKey: false }), fakeTheme())
+    expect(plain([line!])[0]).toContain('API Key ✗（设 DEEPSEEK_API_KEY）')
+    // fakeTheme warning=#444444 → truecolor 前景 38;2;68;68;68
+    expect(line).toContain('\x1B[38;2;68;68;68m')
+  })
+
+  it('非 git → Git ✗ 信息性展示，无 warning 色', () => {
+    const [line] = formatEnvCheckLine(env({ isGitRepo: false }), fakeTheme())
+    expect(plain([line!])[0]).toContain('Git ✗')
+    expect(line).not.toContain('\x1B[38;2;68;68;68m')
+  })
+
+  it('窄宽截断：宽度守恒（ANSI 安全）', () => {
+    for (const cols of [24, 12, 5]) {
+      const [line] = formatEnvCheckLine(env({ cols }), fakeTheme())
+      expect(displayWidth(line!)).toBeLessThanOrEqual(cols)
+    }
   })
 
   it('cols ≤ 0 → 空数组', () => {

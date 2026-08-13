@@ -53,7 +53,7 @@ import { resolveToolViews, type ToolPresenterSource } from '../adapter/tool-view
 import { trackAgent, type LiveAgent } from '../adapter/live.js'
 import { controlsFromHandle, controlsFromRegistry, type AgentControls } from '../adapter/send.js'
 import { listSessions, flushAll, getSession, type SessionSummary } from '../adapter/sessions.js'
-import { getTheme, getActiveThemeBackground, getActiveThemeName, setTheme, type RivetTheme } from '../theme.js'
+import { getTheme, getActiveThemeName, setTheme, type RivetTheme } from '../theme.js'
 import { detectTerminalBackground, autoThemeFor } from '../theme-detect.js'
 import { formatUserMessage } from '../format/user-message.js'
 import { formatSteerMessage } from '../format/steer-message.js'
@@ -201,6 +201,7 @@ import { BtwController } from '../controllers/btw-controller.js'
 import { SessionManager } from '../controllers/session-manager.js'
 import { renderBtwPanel } from '../format/btw-panel.js'
 import { formatWelcomeMenu, formatBrandWelcome, formatEnvCheckLine, type WelcomeEnvCheck, type WelcomeMenuItem } from '../format/welcome.js'
+import { formatWhaleLogo } from '../format/whale.js'
 import { formatTopBar } from '../format/top-bar.js'
 import { formatTurnStatus } from '../format/turn-status.js'
 import { formatPromptFooter, FOOTER_RIGHT_MERGE_MIN_WIDTH } from '../format/prompt-footer.js'
@@ -889,13 +890,11 @@ export class TuiApp {
     const others = summaries.filter(s => s.id !== active)
 
     // 环境检查结果：唯一来源（首启与有会话统一一行，不重复渲染）。
-    // background 读激活主题明暗（attach 已在 'auto' 时探测并 setTheme）。
     const env: WelcomeEnvCheck = {
       hasApiKey: Boolean(process.env.DEEPSEEK_API_KEY),
       isGitRepo: isGitRepo(),
-      background: getActiveThemeBackground(),
+      themeName: getActiveThemeName(),
       cols,
-      rows: this.stdout.rows,
     }
     // 最近可恢复会话摘要（并入「恢复会话」菜单项，不单独占屏）。
     const recent = others[0]
@@ -903,17 +902,26 @@ export class TuiApp {
       ? '恢复会话'
       : `恢复会话 · ${formatSessionAge(recent.createdAt, Date.now())}`
 
-    // grok 式垂直留白：品牌区不贴顶栏，按屏高下沉（/8 近似垂直居中）。
-    const topPad = Math.max(2, Math.floor(this.stdout.rows / 8))
+    // 品牌鲸鱼像素画（窄屏/矮屏/低色深/legacy conhost 时降级为纯文字品牌区）。
+    const whale = formatWhaleLogo({ width: cols, rows: this.stdout.rows })
+
+    // grok 式垂直留白：品牌区不贴顶栏，按屏高下沉（出画时整块更高，下沉减少）。
+    const topPad = whale.length > 0
+      ? Math.max(1, Math.floor(this.stdout.rows / 10))
+      : Math.max(2, Math.floor(this.stdout.rows / 8))
     for (let i = 0; i < topPad; i++) {
       this.commitToScrollback({ text: '', trailingNewline: true })
     }
 
-    // 品牌区（居中主标 + 副标；副标含主题名，muted）。
-    for (const line of formatBrandWelcome({
-      width: cols,
-      subtitle: `DeepSeek Harness · ${getActiveThemeName()}`,
-    }, this.theme)) {
+    for (const line of whale) {
+      this.commitToScrollback({ text: line, trailingNewline: true })
+    }
+    if (whale.length > 0) {
+      this.commitToScrollback({ text: '', trailingNewline: true })
+    }
+
+    // 品牌区（居中主标 + 副标 muted；主题名迁往环境行）。
+    for (const line of formatBrandWelcome({ width: cols }, this.theme)) {
       this.commitToScrollback({ text: line, trailingNewline: true })
     }
     this.commitToScrollback({ text: '', trailingNewline: true })
