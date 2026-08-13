@@ -46,12 +46,12 @@ function tips(over: Partial<WelcomeTipItem>[] = []): WelcomeTipItem[] {
 }
 
 describe('formatBrandWelcome（欢迎页品牌区）', () => {
-  it('两行：主标 DSH 居中 BOLD + 副标居中 muted，宽度守恒', () => {
+  it('两行：主标 dsh code 居中 BOLD + 副标居中 muted，宽度守恒', () => {
     const lines = formatBrandWelcome({ width: 80 }, fakeTheme())
     expect(lines.length).toBe(2)
     const [brand, sub] = plain(lines)
-    expect(brand!.trim()).toBe('DSH')
-    expect(brand!.indexOf('DSH')).toBeGreaterThan(0) // 居中（前导空格）
+    expect(brand!.trim()).toBe('dsh code')
+    expect(brand!.indexOf('dsh code')).toBeGreaterThan(0) // 居中（前导空格）
     expect(sub!.trim()).toBe('DeepSeek Harness')
     expect(lines[0]).toContain('\x1B[1m') // 主标 BOLD
     expect(displayWidth(lines[0]!)).toBeLessThanOrEqual(80)
@@ -60,7 +60,7 @@ describe('formatBrandWelcome（欢迎页品牌区）', () => {
 
   it('align=left：主标贴左，无前导空格', () => {
     const [brand] = plain(formatBrandWelcome({ width: 80, align: 'left' }, fakeTheme()))
-    expect(brand!.startsWith('DSH')).toBe(true)
+    expect(brand!.startsWith('dsh code')).toBe(true)
   })
 
   it('自定义 brand/subtitle 生效', () => {
@@ -179,7 +179,7 @@ describe('formatWelcomeHero（左品牌 + 右 tips）', () => {
       width: 100, whale, env, tips: tips(),
     }, fakeTheme()))
     expect(lines.some(l => l.includes('Tips'))).toBe(true)
-    expect(lines.some(l => l.includes('DSH'))).toBe(true)
+    expect(lines.some(l => l.includes('dsh code'))).toBe(true)
     expect(lines.some(l => l.includes('ctrl+n'))).toBe(true)
     // zip：含块字符的行同时含 Tips 或后续 tips 行在右
     const first = lines[0]!
@@ -192,7 +192,7 @@ describe('formatWelcomeHero（左品牌 + 右 tips）', () => {
     const lines = plain(formatWelcomeHero({
       width: 60, whale, env, tips: tips(),
     }, fakeTheme()))
-    const dsh = lines.findIndex(l => l.includes('DSH'))
+    const dsh = lines.findIndex(l => l.includes('dsh code'))
     const tipsIdx = lines.findIndex(l => l.trim() === 'Tips' || l.includes('Tips'))
     expect(dsh).toBeGreaterThanOrEqual(0)
     expect(tipsIdx).toBeGreaterThan(dsh)
@@ -213,10 +213,10 @@ describe('formatWelcomeHero（左品牌 + 右 tips）', () => {
     const lines = plain(formatWelcomeHero({
       width: 100, whale: [], env, tips: tips(),
     }, fakeTheme()))
-    expect(lines.some(l => l.includes('DSH'))).toBe(true)
+    expect(lines.some(l => l.includes('dsh code'))).toBe(true)
     expect(lines.some(l => l.includes('Tips'))).toBe(true)
-    const dsh = lines.find(l => l.includes('DSH'))!
-    expect(dsh.indexOf('DSH')).toBe(CHROME_GUTTER)
+    const dsh = lines.find(l => l.includes('dsh code'))!
+    expect(dsh.indexOf('dsh code')).toBe(CHROME_GUTTER)
   })
 
   it('width ≤ 0 → 空数组', () => {
