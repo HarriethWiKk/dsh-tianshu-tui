@@ -1,40 +1,84 @@
-# dsh-tui
+# dsh-tui — DeepSeek Harness 终端 UI
 
 [English](README.md) | 中文
 
-交互式终端 UI：`dsh --profile` 的 TUI 层，经 bundle patch 骑在 dsh-base 之上（稳定插件 id `tui-runner`）。渲染核心移植自天枢（Tianshu）终端引擎（Apache-2.0，逐文件溯源见 [SOURCE-MAP.md](SOURCE-MAP.md)），代理状态一律经 session 事件与投影总线到达——引擎是纯展示层，不含 agent 逻辑。
+`@deepseek-ai/dsh-tui` 是官方 DeepSeek Harness（`dsh`）之上的交互式终端 UI 层，以可插拔 profile bundle 挂载——官方代码零改动（`dsh plugin --profile tui add @deepseek-ai/dsh-tui`，随后 `dsh --profile tui`）。渲染核心移植自天枢终端引擎（Apache-2.0；逐文件来源见 [SOURCE-MAP.md](SOURCE-MAP.md)）。UI 是纯展示层：所有 agent 状态都来自会话事件流，因此实时转录与恢复转录渲染完全一致，任何到达模型请求的内容都必然已被日志记录。
+
+## 亮点
+
+- **终端内的完整会话工作区** — 实时渲染、只增滚动转录、启动时会话恢复、`/fork` 探索分支、`/rewind` 回退（会话截断 + 可选文件回退）、`/export` 导出 Markdown 转录。
+- **图片端到端** — 剪贴板粘贴（`Ctrl+V` / 终端菜单粘贴）、以终端图形协议内联渲染（kitty / iTerm2）、经 harness 附件服务投递、让具备视觉能力的模型真正看见——主模型不识图时自动经独立视觉模型把图片转成描述（视觉桥）。
+- **终端内交互面** — 结构化提问面板（数字键选择、plan-review 反馈模式）、带内联 `diff` 预览的挂起审批卡片、命令面板、按键表 overlay。
+- **推理过程可视化** — think 通道以实时头行流动、在滚动区折叠为紧凑行（`✻ 思考 (3.2s) · 12 行`）、`Ctrl+O` 原位展开（对标竞品：默认折叠）。
+- **个性化 harness 集成** — `/doctor` 终端诊断、`/memory` 项目记忆浏览器、`/btw` 后台 agent 侧问、`/model` + `/effort` 热切换（当前会话立即生效）。
+- **构造上可审计** — TUI 自身不注册任何 prompt、工具或上下文面；用户输入成为普通日志消息，所有渲染状态都派生自会话事件。
+
+## 功能
+
+### 会话管理
+
+| 能力 | 说明 |
+|---|---|
+| `/session new\|list\|switch` | 新建、列出、切换会话；恢复时经同一渲染桥重放完整转录 |
+| 恢复面板 | 启动时把可恢复会话列表写入滚动区 |
+| `/fork [directive]` · `/branch` | 分叉当前会话（历史复制到新子会话），可选带起始指令 |
+| `/rewind` | 回退到指定消息——会话截断和/或文件回退到边界前快照 |
+| `/export` | 把当前会话转录导出为 Markdown 文件 |
+| `/clear` | 清空当前会话滚动区视图 |
+
+### 输入面
+
+- **剪贴板与图片粘贴** — `Ctrl+V` 读取剪贴板图片（回退到文本）；终端菜单粘贴检测图片；看起来像图片的粘贴路径按附件加载；`Alt+W` / vim yank 经 OSC52 把选区复制到系统剪贴板。
+- **图片提交** — 附件图片显示 `📎 N images` 标记，提交时在用户气泡下方以内联图形渲染，并经附件服务到达模型；气泡携带识图提示（已转发 / 经视觉模型桥接 / 未发送）。
+- **编辑** — vim 键位（可选）、外部编辑器（`Ctrl+E`）、Tab 文件补全、`@mention` 展开、输入历史、多行输入。
+- **图片再询问暂缓**（见 Known Limitations）。
+
+### 渲染与投影
+
+- **工具卡实时结算** — 已结算的工具结果按 harness presenter 意图渲染为滚动区卡片：`diff` 结果渲染结构化红/绿文件差异（与审批预览共用）、`terminal` 结果带命令标题 + cwd + 退出/信号徽标、其余折叠为文本卡片。
+- **推理通道** — 思考中实时 shimmer 头行、段末折叠滚动行、`Ctrl+O` 在 live 区展开全文。
+- **流利度折叠** — 重复的例行工具流量在 quiet 策略下折叠；compact 模式只保留头行。
+- **轮次状态** — braille spinner + 阶段文本状态行、workflow 运行汇总、委派树、任务窗格、config/skills 面板作为 live-region 面板。
+- **主题** — 内置调色板 + `custom:<name>`；自动终端检测与 16 色降级。
+
+### 交互面板
+
+- **结构化提问** — 数字键选择、`Esc` 取消、重叠保护；plan-review 反馈模式（`f` 进入、`Enter` 提交 Keep planning + 自定义反馈）。
+- **审批卡片** — `y`/`N`/`Ctrl+C` 结算挂起审批；工具可 diff 时内联差异预览；diff 不可见时盲批提示；非当前会话请求委托给下一个监听者。
+- **命令面板 / 按键表 / 历史搜索 overlay**。
+
+### 模型与视觉
+
+- `/model` — 查看并切换模型（默认 + 当前会话热切；`spark-flash` / `spark-pro` 别名一键切换）。
+- `/effort` — 设置推理等级（`off` / `high` / `max`；`auto` 回模型默认），当前会话热切。
+- **视觉桥** — 主模型不识图时，自动选定的视觉模型在提交前生成图片描述（一次性路径；见 Known Limitations）。
+- `/mcp` — 列出已连接 MCP server 与工具数；`tools <name>` 查看某 server 的工具清单。
+
+### 其他命令
+
+`/theme` · `/config` · `/skills` · `/goal` · `/tasks` · `/subagents` · `/workflow` · `/btw` · `/remember` · `/memory` · `/doctor` · `/compact` · `/clear`
+
+## 安装
+
+```sh
+dsh plugin --profile tui add @deepseek-ai/dsh-tui
+dsh --profile tui
+```
+
+宿主需要官方 `@deepseek-ai/*` 包（`^0.0.1-rc.2` 版本线）与 `@deepseek-ai/cordis`（`^4.0.1-rc.1`）。
 
 ## 装配
 
+bundle patch 在 `dsh-base` 之上插入 `tui-runner` 插件：
+
 ```yaml
-# cordis.yml（examples/tui 是可运行样例；bundle patch 自动插入同一行）
 - id: tui-runner
   name: '@deepseek-ai/dsh-tui'
 ```
 
-`TuiRunnerConfig`（全部可选）：
+`TuiRunnerConfig`（均可选）：`stdin`/`stdout`（流注入，缺省走进程流）、`initialSessionId`、`editorKey`（缺省 `ctrl_o`）、`vimEnabled`（缺省 `false`）、`vision`（supportsVision / bridgeEnabled / bridgeSource，由视觉桥插件配置派生）、`workflowHistoryLimit`（缺省 `50`）。
 
-| 字段 | 语义 |
-|---|---|
-| `stdin` / `stdout` | 流注入（测试替身）；缺省 process 全局流 |
-| `initialSessionId` | 启动即切入的会话；缺省新建 |
-| `editorKey` | 外部编辑器触发键（Phase 6.4）；缺省 `ctrl_o` |
-| `vimEnabled` | Vim 键位（Phase 6.5）；缺省 `false` |
-| `vision` | 主控模型识图能力与视觉桥状态（图片附件气泡提示数据源：`supportsVision` / `bridgeEnabled` / `bridgeSource`）；由装配方按 vision-bridge 插件配置派生 |
-| `workflowHistoryLimit` | `/workflow` 面板已结算 run 缓存条数上限，超限 drop-oldest；正整数，缺省 `50` |
-
-**输入框剪贴板与图片粘贴**（移植自 opencode-tui 输入面）：`Ctrl+V` 读系统剪贴板图片（无图 fallback 剪贴板文本）；右键/终端菜单粘贴先识别剪贴板图片（命中则附图并吞掉图片字节乱码），粘贴内容像图片路径时加载为附件；附件以 `📎 N images` 标记显示在输入行上方，提交后在用户气泡下方以终端内联图形渲染（kitty / iTerm2）。vim yank / `Alt+W` 选区复制经 OSC52 写系统剪贴板。用户气泡携带识图提示——图片直发 / 经识图桥转描述 / 未发送（无识图桥）。
-
-**会话渲染面**（对标 Claude Code）：已结算工具卡在 `tool/result` 时实时提交进 scrollback，经软降级桥（`adapter/tool-view.ts`）消费 harness 的 presenter 渲染意图（`presentCall`/`presentResult`）——`diff` 结果渲染结构化红绿文件 diff（与审批预览共享 `renderFileDiff`），`terminal` 结果渲染命令标题 + cwd + exit/signal 徽标，其余回落文本折叠卡。think 推理通道流式期在 live 区渲染 shimmer 头行（`✻ 思考中…`，tick 驱动光带扫过，16 色终端静态降级）+ 暗色尾巴，段结束时以折叠头行落底进 scrollback（`✻ 思考 (3.2s) · 12 行`）——正文默认收起（对标竞品），`Ctrl+O` 在 live 区按需展开查看（scrollback append-only，展开不重复落底；中止的 turn 丢弃缓冲；紧凑模式只留头行）。resume/attach 经同一条桥重放，消息与工具卡按事件 seq 交错——live 与恢复转录渲染完全一致。
-
-依赖服务：`sessions`/`agents`/`agentDefaultModel` 必需；`goals`/`subagents` 可选——未装配时 `/goal` 命令与委派树面板降级（fails loud 报不可用，不静默吞）。TUI 同时注册 `userQuestions` provider（终端内答题）并订阅 `approval/request`（挂起审批卡片）。
-
-## 分层
-
-- `src/engine/` — 终端渲染引擎（live 区 / scrollback 提交 / 输入行 / 图片 / 性能监视），移植层
-- `src/ui/app.ts` — TuiApp 装配与会话挂载（挂起审批/提问、面板显隐、slash 分发、rewind overlay）
-- `src/adapter/` — dsh 会话/agent 服务到 `TuiPort` 的适配（引擎只认 port，不认 ctx）
-- 面板投影（`projectXxxPanel`）是纯函数；挂起态状态机已提取为 controller（`src/controllers/`，见 docs/tui-controllers.md），[C4 拆分方案](../../../docs/dsh-tui-拆分方案-c4.md) 持续把 app.ts 拆薄
+服务依赖：`sessions`/`agents`/`agentDefaultModel` 必需；`goals`/`subagents`/`memory`/`compact` 可选——未装配的服务 fails loud 报不可用，绝不静默吞。
 
 ## 验证
 
@@ -44,17 +88,19 @@ NO_COLOR=1 pnpm vitest run packages/tui/tui/tests/
 
 ## Model Experience
 
-None, as the TUI renders logged session events and forwards ordinary user input; it registers no prompt, tool, or context surface.
+无——TUI 渲染已记录的会话事件并转发普通用户输入；不注册任何 prompt、工具或上下文面。
 
-#### KV Cache effect
+#### KV Cache 影响
 
-None directly; user input submitted through the TUI becomes ordinary logged messages whose request effects belong to the session and loop packages.
+无直接影响；经 TUI 提交的用户输入成为普通日志消息，其请求影响归属 session 与 loop 包。
 
-## Known Limitations and Deferred Work
+## 已知限制与待办
 
-- **图片追问未移植** — opencode-tui 的 ask_image 工具、imageRegistry 与视觉描述缓存未移植：已发送的图片无法反复追问，同角度重复描述会重调视觉模型。视觉桥本身（`dsh-vision-bridge`）覆盖提交时一次性描述路径。
-- **app.ts 单体（约 2.2k 行）** — 挂起态状态机已 controller 化（question/approval），渲染组合与键仲裁仍在 app.ts；C4 拆分方案（面板段纯函数化）继续推进。dispose 已释放 interaction/taskDone/taskSurface/subagent/workflow disposer，切会话结算挂起审批/提问（fail-closed）。
-- **engine I/O 文件覆盖率豁免** — input-line/live-engine 等终端边界文件在 vitest.config.ts 的覆盖率豁免清单中（`TODO(tui)` 注释），随真实组合测试线成熟逐步消化。
-- **孤儿 controller 已收敛** — `engine/stream-render-controller.ts` 与 `engine/tool-group-controller.ts` 与 app.ts 内联逻辑逐 case 对比后语义不等（StreamRender 缺 tool/call·tool/result·turn/end 的 fluency 处理；ToolGroup 缺 compact 参数），按 C4 Wave 3 判据删除提取（保留 app.ts 内联）。底层原语（StreamRenderer/BlockStreamWriter/formatToolCard/format-tool-group）保留且有独立测试。
-- **用户级 TTY 验收受阻** — 代理沙箱无法驱动真实终端做人工验收；行为证据以单测与真实组合测试为准。
-- **投影模型未接线** — activity-status/activity-store/turn-summary/summary-state 四个纯 fold 模型已带 spec 落地，但 App 主体尚未驱动（仅 fluency 链消费 `ActivityPhase` 类型）；设计中的 cache-telemetry/cache-panel-source/history-replay/adapter-projections 未落地。现状记录在 [docs/projection-layer.md](docs/projection-layer.md)。
+- **图片再询问暂缓** — opencode-tui 的 ask_image 工具、图片注册表与视觉描述缓存未移植：已发送的图片无法再次询问，同角度重复描述会再次调用视觉模型。视觉桥覆盖一次性提交时描述路径。
+- **app.ts 单体（约 2.2k 行）** — 挂起状态机已控制器化（question/approval），渲染组合与键仲裁仍在 app.ts；C4 拆分方案（纯函数面板段）持续推进。
+- **引擎 I/O 文件覆盖率豁免** — input-line/live-engine 等终端边界文件在 vitest.config.ts 的豁免清单上（`TODO(tui)` 注释），随真实组合测试线成熟逐步消化。
+- **投影模型尚未接线** — 四个纯折叠模型 activity-status/activity-store/turn-summary/summary-state 已带规格落地，App 主体尚未驱动它们。当前状态记录于 [docs/projection-layer.md](docs/projection-layer.md)。
+
+## 许可与来源
+
+Apache-2.0。终端渲染引擎移植自天枢终端 UI 引擎（Apache-2.0）；逐文件来源与修改声明见 [SOURCE-MAP.md](SOURCE-MAP.md) 与 [NOTICE](NOTICE)。
