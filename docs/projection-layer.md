@@ -15,7 +15,7 @@
 | `turn-summary.ts` | turn 内工具统计模型（数量/耗时/家族分布） | 模型与 spec 就绪；渲染半为 `format/turn-summary.ts` |
 | `summary-state.ts` | 会话级跨 turn 汇总 | 模型与 spec 就绪；App 尚未驱动 |
 
-设计曾承诺、至今未落地的模块：`cache-telemetry.ts`、`cache-panel-source.ts`、`history-replay.ts`、`adapter/projections.ts`——处置见 [README《Known Limitations and Deferred Work》](../README.md#known-limitations-and-deferred-work)。
+设计曾承诺、至今未落地的模块：`cache-telemetry.ts`、`cache-panel-source.ts`、`history-replay.ts`、`adapter/projections.ts`——处置见 [README《已知限制与待办》](../README.md#已知限制与待办)。
 
 ## 关键契约
 
