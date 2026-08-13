@@ -1,0 +1,20 @@
+import type { RivetTheme } from '../theme.js';
+/** formatTopBar 的渲染输入。 */
+export interface FormatTopBarInput {
+    width: number;
+    /** 当前工作目录（显示原文，不折叠）。 */
+    cwd: string;
+    /** git 分支名（可检测时；缺省不渲染分支段）。 */
+    branch?: string;
+    /** 模型显示名（provider/model；缺省不渲染）。 */
+    modelName?: string;
+    /** legacy 终端：📁 降级为 `~`。 */
+    ascii?: boolean;
+}
+/**
+ * 渲染顶部栏单行：段顺序 cwd → model → branch，超宽丢尾段。
+ * @param input - 宽度、cwd、可选分支/模型/ascii。
+ * @param theme - 当前主题（cwd secondary、分支 brandColor）。
+ * @returns 单行 ANSI；任何宽度下 ≤ width。
+ */
+export declare function formatTopBar(input: FormatTopBarInput, theme: RivetTheme): string[];

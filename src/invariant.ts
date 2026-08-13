@@ -14,7 +14,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 
-const PACKAGE_NAME = '@deepseek-ai/dsh-tianshu-tui'
+const PACKAGE_NAME = '@huiliyi37/dsh-tianshu-tui'
 
 /** Cordis companion plugin name. */
 export const name = 'tui-invariant'

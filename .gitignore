@@ -1,5 +1,8 @@
-node_modules/
-lib/
+node_modules
+# tsc intermediates only — lib/index.js and lib/invariant.js must be tracked
+# so github: installs do not rebuild inside the harness workspace (issue #1).
+lib/types/**/*.js
+lib/types/**/*.js.map
 *.tgz
 .DS_Store
 coverage/

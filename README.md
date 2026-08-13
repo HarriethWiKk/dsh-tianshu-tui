@@ -4,7 +4,7 @@
 
 ![dsh-tianshu-tui](docs/tui-screenshot.jpg)
 
-**dsh-tianshu-tui**（`@deepseek-ai/dsh-tianshu-tui`）是官方 DeepSeek Harness（`dsh`）之上的交互式终端 UI 层，以可插拔 profile bundle 挂载——官方代码零改动（`dsh plugin --profile tui add @deepseek-ai/dsh-tianshu-tui`，随后 `dsh --profile tui`）。渲染核心从 [天枢 Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) 演进而来（Apache-2.0；逐文件来源见 [SOURCE-MAP.md](SOURCE-MAP.md)）。UI 是纯展示层：所有 agent 状态都来自会话事件流，因此实时转录与恢复转录渲染完全一致，任何到达模型请求的内容都必然已被日志记录。
+**dsh-tianshu-tui**（`@huiliyi37/dsh-tianshu-tui`）是官方 DeepSeek Harness（`dsh`）之上的交互式终端 UI 层，以可插拔 profile bundle 挂载——官方代码零改动（`dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui`，随后 `dsh --profile tui`）。渲染核心从 [天枢 Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) 演进而来（Apache-2.0；逐文件来源见 [SOURCE-MAP.md](SOURCE-MAP.md)）。UI 是纯展示层：所有 agent 状态都来自会话事件流，因此实时转录与恢复转录渲染完全一致，任何到达模型请求的内容都必然已被日志记录。
 
 ## 亮点
 
@@ -129,11 +129,13 @@
 ## 安装
 
 ```sh
-dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui
+dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
 dsh --profile tui
 ```
 
-包名仍是 `@deepseek-ai/dsh-tianshu-tui`，尚未发 npm；从 Git 安装时 loader 读的是 `lib/index.js`，需要先在能解析 peer 的宿主里构建本包，或用 `link:` 指向本地 checkout。
+也可以 `dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui`。仓库已包含 `lib/index.js`，Git 安装不必再打包。
+
+不要在 DeepSeek Harness 工作区根目录对本包跑 tsdown：tsdown 0.22 会把仓根 `@deepseek-ai/dsh-root` 写进 bundle，而该包不发布，加载必失败。
 
 需要图片再询问能力时，装配同仓伴生包 `vision-ask/`（独立 `package.json`）。
 
@@ -145,7 +147,7 @@ bundle patch 在 `dsh-base` 之上插入 `tui-runner` 插件：
 
 ```yaml
 - id: tui-runner
-  name: '@deepseek-ai/dsh-tianshu-tui'
+  name: '@huiliyi37/dsh-tianshu-tui'
 ```
 
 `TuiRunnerConfig`（均可选）：`stdin`/`stdout`（流注入，缺省走进程流）、`initialSessionId`、`editorKey`（缺省 `ctrl_e`；`ctrl+o` 保留给推理展开）、`vimEnabled`（缺省 `false`）、`vision`（supportsVision / bridgeEnabled / bridgeSource，由视觉桥插件配置派生）、`workflowHistoryLimit`（缺省 `50`）。

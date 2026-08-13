@@ -4,7 +4,7 @@
 
 ![dsh-tianshu-tui](docs/tui-screenshot.jpg)
 
-**dsh-tianshu-tui** (`@deepseek-ai/dsh-tianshu-tui`) is the interactive terminal UI layer for the official DeepSeek Harness (`dsh`), mounted as a pluggable profile bundle — the official codebase stays untouched (`dsh plugin --profile tui add @deepseek-ai/dsh-tianshu-tui`, then `dsh --profile tui`). The render core evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) (Apache-2.0; file-by-file provenance in [SOURCE-MAP.md](SOURCE-MAP.md)). The UI is a pure presentation layer: every piece of agent state arrives through the session event stream, so live and restored transcripts render identically and nothing reaches a model request that is not already logged.
+**dsh-tianshu-tui** (`@huiliyi37/dsh-tianshu-tui`) is the interactive terminal UI layer for the official DeepSeek Harness (`dsh`), mounted as a pluggable profile bundle — the official codebase stays untouched (`dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui`, then `dsh --profile tui`). The render core evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) (Apache-2.0; file-by-file provenance in [SOURCE-MAP.md](SOURCE-MAP.md)). The UI is a pure presentation layer: every piece of agent state arrives through the session event stream, so live and restored transcripts render identically and nothing reaches a model request that is not already logged.
 
 ## Highlights
 
@@ -129,11 +129,13 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 ## Install
 
 ```sh
-dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui
+dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
 dsh --profile tui
 ```
 
-The package name remains `@deepseek-ai/dsh-tianshu-tui`; it is not on npm yet. Git installs load `lib/index.js`, so build this package on a host that can resolve its peers, or `link:` a local checkout.
+You can also `dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui`. The repository ships `lib/index.js`; Git installs do not need a rebuild.
+
+Do not run tsdown for this package from the DeepSeek Harness workspace root: tsdown 0.22 rewrites imports to `@deepseek-ai/dsh-root`, which is unpublished, so loading fails.
 
 The companion vision plugin lives in `vision-ask/` (same repository, independent `package.json`).
 
@@ -145,7 +147,7 @@ The bundle patch inserts the `tui-runner` plugin over `dsh-base`:
 
 ```yaml
 - id: tui-runner
-  name: '@deepseek-ai/dsh-tianshu-tui'
+  name: '@huiliyi37/dsh-tianshu-tui'
 ```
 
 `TuiRunnerConfig` (all optional): `stdin`/`stdout` (stream injection, defaults to process streams), `initialSessionId`, `editorKey` (default `ctrl_e`; `ctrl+o` is reserved for reasoning expansion), `vimEnabled` (default `false`), `vision` (supportsVision / bridgeEnabled / bridgeSource, derived from the vision-bridge plugin), `workflowHistoryLimit` (default `50`).

@@ -1,0 +1,22 @@
+/**
+ * 任务窗格（grok-build /tasks 面板移植）。
+ *
+ * 纯函数层：projectTaskPanel 把 sessionProjections 注册表的任务投影
+ * （全量快照或 null）投影为面板行。null = 从未写过任务（面板不渲染）；
+ * 空数组 = 已清空（渲染占位）。TuiApp 消费注册表的任务单元，/tasks 命令
+ * 切换显隐，行渲染进 live 区。
+ *
+ * @module @deepseek-ai/dsh-tianshu-tui/format/task-panel
+ */
+/** 任务条目（与 session-projection 任务单元的 wire 形状一致）。 */
+export interface TaskItem {
+    content: string;
+    status: 'pending' | 'in_progress' | 'completed';
+}
+/**
+ * 投影任务快照为面板行。
+ * @param tasks - 任务全量快照；null（从未写入）→ 空数组（不渲染面板）。
+ * @param width - 终端列数（行截断预算，含标题）。
+ * @returns 面板行数组（含标题与空态占位；null 输入返回空数组）。
+ */
+export declare function projectTaskPanel(tasks: TaskItem[] | null, width: number): string[];
