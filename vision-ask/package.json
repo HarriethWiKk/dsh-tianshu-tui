@@ -1,0 +1,50 @@
+{
+  "name": "@deepseek-ai/dsh-vision-ask",
+  "description": "Vision co-pilot plugin: session-scoped image registry + ask_image tool for the dsh harness (public-baseline plugin, developed against the 2026-08-09 snapshot)",
+  "version": "0.0.1-rc.2",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "Apache-2.0",
+  "engines": {
+    "node": "^22.19 || >=24"
+  },
+  "keywords": [
+    "dsh",
+    "agent-harness",
+    "vision",
+    "image",
+    "ask-image"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1-rc.1",
+    "@deepseek-ai/dsh-agent": "^0.0.1-rc.2",
+    "@deepseek-ai/dsh-attachment": "^0.0.1-rc.2",
+    "@deepseek-ai/dsh-llm": "^0.0.1-rc.2",
+    "@deepseek-ai/dsh-session": "^0.0.1-rc.2",
+    "@deepseek-ai/dsh-tools": "^0.0.1-rc.2"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1-rc.1",
+    "@deepseek-ai/dsh-agent": "^0.0.1-rc.2",
+    "@deepseek-ai/dsh-attachment": "^0.0.1-rc.2",
+    "@deepseek-ai/dsh-llm": "^0.0.1-rc.2",
+    "@deepseek-ai/dsh-session": "^0.0.1-rc.2",
+    "@deepseek-ai/dsh-tools": "^0.0.1-rc.2"
+  }
+}
