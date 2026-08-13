@@ -4,7 +4,49 @@
 
 ![dsh-tianshu-tui](docs/tui-screenshot.jpg)
 
-**dsh-tianshu-tui** (`@huiliyi37/dsh-tianshu-tui`) is the interactive terminal UI layer for the official DeepSeek Harness (`dsh`), mounted as a pluggable profile bundle — the official codebase stays untouched (`dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui`, then `dsh --profile tui`). The render core evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) (Apache-2.0; file-by-file provenance in [SOURCE-MAP.md](SOURCE-MAP.md)). The UI is a pure presentation layer: every piece of agent state arrives through the session event stream, so live and restored transcripts render identically and nothing reaches a model request that is not already logged.
+**dsh-tianshu-tui** (`@huiliyi37/dsh-tianshu-tui`) is the interactive terminal UI plugin for the official [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). The render core evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) (Apache-2.0; file-by-file provenance in [SOURCE-MAP.md](SOURCE-MAP.md)). The UI is a pure presentation layer: every piece of agent state arrives through the session event stream.
+
+## Install
+
+This package is not a standalone app. You need the official CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh) (`0.1.0-rc.6`). `npm i` of this package alone will not run.
+
+### 1. Prerequisites
+
+- [Node.js](https://nodejs.org/) `^22.19 || >=24`
+- [`pnpm`](https://pnpm.io/installation) on PATH (`dsh plugin` forwards to it)
+
+**Do not type `dsh` by itself.** An older `dsh` on PATH (for example `~/.local/bin/dsh`, where `dsh --version` is not `0.1.0-rc.6`) will hit a local staging tree and fail with `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`. Always use the `npx` commands below.
+
+### 2. Add this plugin to the tui profile
+
+```sh
+npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+```
+
+pnpm may warn about missing peers; ignore that. Peers come from the official `dsh` host.
+
+You can also install from Git: `npx -y @deepseek-ai/dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui` (the repository ships `lib/index.js`; no rebuild).
+
+### 3. Start
+
+```sh
+npx -y @deepseek-ai/dsh --profile tui
+```
+
+Success looks like a welcome screen branded **dsh-tianshu-tui**. Quit with `Ctrl+Q`.
+
+If the official CLI is installed globally and `dsh --version` is `0.1.0-rc.6`, you can use `dsh` in place of `npx -y @deepseek-ai/dsh`.
+
+If `npx` still raises `ERR_FS_EISDIR`, stale install fallbacks under `~/.dsh/profiles/node_modules` are colliding with the official CLI. Use a clean home:
+
+```sh
+DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh --profile tui
+```
+
+Do not run tsdown for this package from the DeepSeek Harness workspace root: it rewrites imports to unpublished `@deepseek-ai/dsh-root`, and loading fails.
+
+The companion vision plugin lives in `vision-ask/` if you need image re-interrogation.
 
 ## Highlights
 
@@ -125,30 +167,6 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 | `↑`/`↓` | Input history (selection while the slash menu is open) |
 | `PageUp`/`PageDown` | Slash menu paging |
 | `Esc` | Close menu/overlay; cancel a pending question |
-
-## Install
-
-This package is a profile plugin on the official DeepSeek Harness, not a standalone app. You need the official CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh) (`0.1.0-rc.6`) and [`pnpm`](https://pnpm.io/installation) on PATH. Runtime peers come from the host; do not install them separately. `npm i` of this package alone, without official `dsh`, will not run.
-
-Requires [Node.js](https://nodejs.org/) `^22.19 || >=24`.
-
-```sh
-npx @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
-npx @deepseek-ai/dsh --profile tui
-```
-
-If the CLI is installed globally (`npm install -g @deepseek-ai/dsh`), use `dsh` in place of `npx @deepseek-ai/dsh`:
-
-```sh
-dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
-dsh --profile tui
-```
-
-You can also install from Git: `npx @deepseek-ai/dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui`. The repository ships `lib/index.js`; no rebuild is needed.
-
-Do not run tsdown for this package from the DeepSeek Harness workspace root: tsdown 0.22 rewrites imports to `@deepseek-ai/dsh-root`, which is unpublished, so loading fails.
-
-The companion vision plugin lives in `vision-ask/` (same repository, independent `package.json`).
 
 ## Assembly
 

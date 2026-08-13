@@ -4,7 +4,49 @@
 
 ![dsh-tianshu-tui](docs/tui-screenshot.jpg)
 
-**dsh-tianshu-tui**（`@huiliyi37/dsh-tianshu-tui`）是官方 DeepSeek Harness（`dsh`）之上的交互式终端 UI 层，以可插拔 profile bundle 挂载——官方代码零改动（`dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui`，随后 `dsh --profile tui`）。渲染核心从 [天枢 Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) 演进而来（Apache-2.0；逐文件来源见 [SOURCE-MAP.md](SOURCE-MAP.md)）。UI 是纯展示层：所有 agent 状态都来自会话事件流，因此实时转录与恢复转录渲染完全一致，任何到达模型请求的内容都必然已被日志记录。
+**dsh-tianshu-tui**（`@huiliyi37/dsh-tianshu-tui`）是官方 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 上的交互式终端 UI 插件。渲染核心从 [天枢 Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) 演进而来（Apache-2.0；逐文件来源见 [SOURCE-MAP.md](SOURCE-MAP.md)）。UI 是纯展示层：所有 agent 状态都来自会话事件流。
+
+## 安装
+
+本包不是独立程序。须先有官方 CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh)（`0.1.0-rc.6`）。只 `npm i` 本包跑不起来。
+
+### 1. 准备环境
+
+- [Node.js](https://nodejs.org/) `^22.19 || >=24`
+- PATH 上有 [`pnpm`](https://pnpm.io/installation)（`dsh plugin` 会转发给它）
+
+**不要直接敲 `dsh`。** 若 PATH 上已有旧的 `dsh`（例如 `~/.local/bin/dsh`，`dsh --version` 不是 `0.1.0-rc.6`），会走到本地 staging，出现 `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`。请始终用下面的 `npx` 命令。
+
+### 2. 把本插件装进 tui profile
+
+```sh
+npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+```
+
+pnpm 可能提示 peer missing，可忽略：peer 由官方 `dsh` 宿主提供，不必另装。
+
+也可以从 Git 装：`npx -y @deepseek-ai/dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui`（仓库已包含 `lib/index.js`，不必再打包）。
+
+### 3. 启动
+
+```sh
+npx -y @deepseek-ai/dsh --profile tui
+```
+
+看到欢迎页品牌 **dsh-tianshu-tui** 即成功。`Ctrl+Q` 退出。
+
+已全局安装官方 CLI 且 `dsh --version` 为 `0.1.0-rc.6` 时，把上面的 `npx -y @deepseek-ai/dsh` 换成 `dsh` 即可。
+
+若 `npx` 仍报 `ERR_FS_EISDIR`，是 `~/.dsh/profiles/node_modules` 里旧的安装 fallback 与官方 CLI 冲突。换干净目录再启动：
+
+```sh
+DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh --profile tui
+```
+
+不要在 DeepSeek Harness 工作区根目录对本包跑 tsdown：会把未发布的 `@deepseek-ai/dsh-root` 写进 bundle，加载必失败。
+
+需要图片再询问能力时，再装配同仓伴生包 `vision-ask/`。
 
 ## 亮点
 
@@ -125,30 +167,6 @@
 | `↑`/`↓` | 输入历史（slash 菜单打开时为选择） |
 | `PageUp`/`PageDown` | slash 菜单翻页 |
 | `Esc` | 关闭菜单/overlay；取消挂起提问 |
-
-## 安装
-
-本包是官方 DeepSeek Harness 上的 profile 插件，不是独立程序。须先有官方 CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh)（`0.1.0-rc.6`）和 PATH 上的 [`pnpm`](https://pnpm.io/installation)。运行时 peer 由宿主提供，不必另装。只 `npm i` 本包、没有官方 `dsh`，跑不起来。
-
-需要 [Node.js](https://nodejs.org/) `^22.19 || >=24`。
-
-```sh
-npx @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
-npx @deepseek-ai/dsh --profile tui
-```
-
-已全局安装 CLI（`npm install -g @deepseek-ai/dsh`）时，把 `npx @deepseek-ai/dsh` 换成 `dsh`：
-
-```sh
-dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
-dsh --profile tui
-```
-
-也可以从 Git 安装：`npx @deepseek-ai/dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui`。仓库已包含 `lib/index.js`，不必再打包。
-
-不要在 DeepSeek Harness 工作区根目录对本包跑 tsdown：tsdown 0.22 会把仓根 `@deepseek-ai/dsh-root` 写进 bundle，而该包不发布，加载必失败。
-
-需要图片再询问能力时，装配同仓伴生包 `vision-ask/`（独立 `package.json`）。
 
 ## 装配
 
