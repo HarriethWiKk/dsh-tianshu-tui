@@ -128,18 +128,27 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 
 ## Install
 
+This package is a profile plugin on the official DeepSeek Harness, not a standalone app. You need the official CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh) (`0.1.0-rc.6`) and [`pnpm`](https://pnpm.io/installation) on PATH. Runtime peers come from the host; do not install them separately. `npm i` of this package alone, without official `dsh`, will not run.
+
+Requires [Node.js](https://nodejs.org/) `^22.19 || >=24`.
+
+```sh
+npx @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+npx @deepseek-ai/dsh --profile tui
+```
+
+If the CLI is installed globally (`npm install -g @deepseek-ai/dsh`), use `dsh` in place of `npx @deepseek-ai/dsh`:
+
 ```sh
 dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
 dsh --profile tui
 ```
 
-You can also `dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui`. The repository ships `lib/index.js`; Git installs do not need a rebuild.
+You can also install from Git: `npx @deepseek-ai/dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui`. The repository ships `lib/index.js`; no rebuild is needed.
 
 Do not run tsdown for this package from the DeepSeek Harness workspace root: tsdown 0.22 rewrites imports to `@deepseek-ai/dsh-root`, which is unpublished, so loading fails.
 
 The companion vision plugin lives in `vision-ask/` (same repository, independent `package.json`).
-
-Requires the official `@deepseek-ai/*` packages (the `^0.1.0-rc.6` line) and `@deepseek-ai/cordis` (`^4.0.1`) on the host. The official `@deepseek-ai/dsh` CLI is not on npm yet; you need a working `dsh`.
 
 ## Assembly
 

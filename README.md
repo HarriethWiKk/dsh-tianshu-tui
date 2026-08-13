@@ -128,18 +128,27 @@
 
 ## 安装
 
+本包是官方 DeepSeek Harness 上的 profile 插件，不是独立程序。须先有官方 CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh)（`0.1.0-rc.6`）和 PATH 上的 [`pnpm`](https://pnpm.io/installation)。运行时 peer 由宿主提供，不必另装。只 `npm i` 本包、没有官方 `dsh`，跑不起来。
+
+需要 [Node.js](https://nodejs.org/) `^22.19 || >=24`。
+
+```sh
+npx @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+npx @deepseek-ai/dsh --profile tui
+```
+
+已全局安装 CLI（`npm install -g @deepseek-ai/dsh`）时，把 `npx @deepseek-ai/dsh` 换成 `dsh`：
+
 ```sh
 dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
 dsh --profile tui
 ```
 
-也可以 `dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui`。仓库已包含 `lib/index.js`，Git 安装不必再打包。
+也可以从 Git 安装：`npx @deepseek-ai/dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui`。仓库已包含 `lib/index.js`，不必再打包。
 
 不要在 DeepSeek Harness 工作区根目录对本包跑 tsdown：tsdown 0.22 会把仓根 `@deepseek-ai/dsh-root` 写进 bundle，而该包不发布，加载必失败。
 
 需要图片再询问能力时，装配同仓伴生包 `vision-ask/`（独立 `package.json`）。
-
-宿主需要官方 `@deepseek-ai/*` 包（`^0.1.0-rc.6` 版本线）与 `@deepseek-ai/cordis`（`^4.0.1`）。官方 `@deepseek-ai/dsh` CLI 目前未上 npm，需已有可运行的 `dsh`。
 
 ## 装配
 
