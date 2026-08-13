@@ -34,7 +34,7 @@ English | [中文](README.zh.md)
 - **Clipboard & image paste** — `Ctrl+V` reads a clipboard image (falling back to text); terminal-menu paste detects images; pasted paths that look like images are loaded as attachments; `Alt+W` / vim yank copies selection to the system clipboard via OSC52.
 - **Image submission** — attached images show a `📎 N images` marker, render inline under the user bubble on submit, and reach the model through the attachment service; the bubble carries a vision hint (forwarded / bridged via a vision model / not sent). Oversized pastes are adaptively compressed before send: 1568px long-edge clamp (PNG keeps transparency), degrading JPEG 0.82 → 0.55 → 1024px + 0.55 until under the provider cap, never upscaling.
 - **Editing** — vim keybindings (optional), external editor (`Ctrl+E`), Tab file completion, `@mention` expansion, input history, multi-line input, and bracketed paste (multi-line / long pastes land in the input line as one block instead of submitting line by line); the input line is drawn as a full rounded frame.
-- **Image re-interrogation is deferred** (see Known Limitations).
+- **Image re-interrogation** — the companion `@deepseek-ai/dsh-vision-ask` plugin registers sent images and answers targeted model questions via `ask_image` (see [vision-ask](vision-ask/README.md)).
 
 ### Rendering & projection
 
@@ -60,6 +60,7 @@ English | [中文](README.zh.md)
 - `/model` — view and switch the model (default + hot-switch for the current session); `spark-flash` / `spark-pro` aliases switch in one keystroke, and `/model <provider/model|alias> [off|high|max]` sets the reasoning effort in the same command.
 - `/effort` — set the reasoning effort (`off` / `high` / `max`; `auto` returns to the model default), hot-switched for the current session.
 - **Vision bridge** — vision capability is declared per model (`supportsVision`) and drives the bubble hint; when the main model cannot see images, an automatically selected vision model describes them before submission (one-shot path; see Known Limitations).
+- **Vision co-pilot** — with the companion `@deepseek-ai/dsh-vision-ask` plugin (same repository), every sent image is registered under a short id (`img_1`, …) and the model can re-interrogate it with `ask_image` — targeted questions, different angles, any number of times; repeated same-angle asks hit the per-image description cache. Details and config in the [vision-ask README](vision-ask/README.md).
 - `/mcp` — list connected MCP servers and tool counts; `tools <name>` inspects a server's tool list.
 
 ### Commands
@@ -130,6 +131,12 @@ dsh plugin --profile tui add @deepseek-ai/dsh-tui
 dsh --profile tui
 ```
 
+The companion vision plugin (same repository, independent package) adds image re-interrogation when needed:
+
+```sh
+dsh plugin --profile tui add @deepseek-ai/dsh-vision-ask
+```
+
 Requires the official `@deepseek-ai/*` packages (the `^0.0.1-rc.2` line) and `@deepseek-ai/cordis` (`^4.0.1-rc.1`) on the host.
 
 ## Assembly
@@ -161,7 +168,7 @@ None directly; user input submitted through the TUI becomes ordinary logged mess
 
 ## Known Limitations and Deferred Work
 
-- **Image re-interrogation deferred** — the opencode-tui ask_image tool, image registry, and vision description cache are not ported: an already-sent image cannot be re-queried, and repeated same-angle descriptions re-call the vision model. The vision bridge covers the one-shot submit-time description path.
+- **Image re-interrogation requires the companion plugin** — the `ask_image` tool and the session image registry live in `@deepseek-ai/dsh-vision-ask` (same repository, separate package); the TUI bundle itself does not ship them. Without the plugin, an already-sent image cannot be re-queried and repeated same-angle descriptions re-call the vision model; the vision bridge still covers the one-shot submit-time description path.
 - **app.ts monolith (~2.2k lines)** — the pending-state state machines are controller-ized (question/approval), while render composition and key arbitration remain in app.ts; the C4 split plan (pure-function panel segments) keeps advancing.
 - **Engine I/O file coverage exemptions** — terminal-boundary files such as input-line/live-engine sit on the coverage exemption list in vitest.config.ts (`TODO(tui)` comments), to be digested gradually as the real composition-test line matures.
 - **Projection models not yet wired** — the four pure fold models activity-status/activity-store/turn-summary/summary-state landed with specs, but the App body does not drive them yet. Current state is recorded in [docs/projection-layer.md](docs/projection-layer.md).

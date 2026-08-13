@@ -34,7 +34,7 @@
 - **剪贴板与图片粘贴** — `Ctrl+V` 读取剪贴板图片（回退到文本）；终端菜单粘贴检测图片；看起来像图片的粘贴路径按附件加载；`Alt+W` / vim yank 经 OSC52 把选区复制到系统剪贴板。
 - **图片提交** — 附件图片显示 `📎 N images` 标记，提交时在用户气泡下方以内联图形渲染，并经附件服务到达模型；气泡携带识图提示（已转发 / 经视觉模型桥接 / 未发送）。超大图发送前自适应压缩：长边 1568px 封顶（PNG 保留透明），逐级 JPEG 0.82 → 0.55 → 1024px + 0.55 直到低于 provider 上限，全程只缩不放。
 - **编辑** — vim 键位（可选）、外部编辑器（`Ctrl+E`）、Tab 文件补全、`@mention` 展开、输入历史、多行输入、bracketed paste（多行/长文本粘贴整段进输入行，不逐行提交）；输入行绘制为完整圆角框体。
-- **图片再询问暂缓**（见已知限制）。
+- **图片再询问** — 同仓伴生插件 `@deepseek-ai/dsh-vision-ask` 登记已发送图片，并经 `ask_image` 回答模型的定向问题（见 [vision-ask](vision-ask/README.md)）。
 
 ### 渲染与投影
 
@@ -60,6 +60,7 @@
 - `/model` — 查看并切换模型（默认 + 当前会话热切）；`spark-flash` / `spark-pro` 别名一键切换，`/model <provider/model|alias> [off|high|max]` 同一条命令内设置推理等级。
 - `/effort` — 设置推理等级（`off` / `high` / `max`；`auto` 回模型默认），当前会话热切。
 - **视觉桥** — 识图能力按模型声明（`supportsVision`）并驱动气泡提示；主模型不识图时，自动选定的视觉模型在提交前生成图片描述（一次性路径；见已知限制）。
+- **视觉副驾** — 装配同仓伴生插件 `@deepseek-ai/dsh-vision-ask` 后，每张已发送图片被登记为短 id（`img_1` …），模型可经 `ask_image` 反复询问——定向问题、换角度、不限次数；同图同角度重复提问命中 per-image 描述缓存。细节与配置见 [vision-ask README](vision-ask/README.md)。
 - `/mcp` — 列出已连接 MCP server 与工具数；`tools <name>` 查看某 server 的工具清单。
 
 ### 命令
@@ -130,6 +131,12 @@ dsh plugin --profile tui add @deepseek-ai/dsh-tui
 dsh --profile tui
 ```
 
+需要图片再询问能力时，同样方式装配伴生视觉插件（同仓独立包）：
+
+```sh
+dsh plugin --profile tui add @deepseek-ai/dsh-vision-ask
+```
+
 宿主需要官方 `@deepseek-ai/*` 包（`^0.0.1-rc.2` 版本线）与 `@deepseek-ai/cordis`（`^4.0.1-rc.1`）。
 
 ## 装配
@@ -161,7 +168,7 @@ NO_COLOR=1 pnpm vitest run packages/tui/tui/tests/
 
 ## 已知限制与待办
 
-- **图片再询问暂缓** — opencode-tui 的 ask_image 工具、图片注册表与视觉描述缓存未移植：已发送的图片无法再次询问，同角度重复描述会再次调用视觉模型。视觉桥覆盖一次性提交时描述路径。
+- **图片再询问需伴生插件** — `ask_image` 工具与会话图片注册表位于 `@deepseek-ai/dsh-vision-ask`（同仓独立包）；TUI bundle 本体不携带它们。未装配插件时，已发送图片无法再次询问，同角度重复描述会再次调用视觉模型；视觉桥仍覆盖一次性提交时描述路径。
 - **app.ts 单体（约 2.2k 行）** — 挂起状态机已控制器化（question/approval），渲染组合与键仲裁仍在 app.ts；C4 拆分方案（纯函数面板段）持续推进。
 - **引擎 I/O 文件覆盖率豁免** — input-line/live-engine 等终端边界文件在 vitest.config.ts 的豁免清单上（`TODO(tui)` 注释），随真实组合测试线成熟逐步消化。
 - **投影模型尚未接线** — 四个纯折叠模型 activity-status/activity-store/turn-summary/summary-state 已带规格落地，App 主体尚未驱动它们。当前状态记录于 [docs/projection-layer.md](docs/projection-layer.md)。
