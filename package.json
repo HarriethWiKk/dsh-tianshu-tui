@@ -26,11 +26,11 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dsh-external/dsh-tianshu-tui.git"
+    "url": "git+https://github.com/huiliyi37/dsh-tianshu-tui.git"
   },
-  "homepage": "https://github.com/dsh-external/dsh-tianshu-tui",
+  "homepage": "https://github.com/huiliyi37/dsh-tianshu-tui",
   "bugs": {
-    "url": "https://github.com/dsh-external/dsh-tianshu-tui/issues"
+    "url": "https://github.com/huiliyi37/dsh-tianshu-tui/issues"
   },
   "engines": {
     "node": "^22.19 || >=24"

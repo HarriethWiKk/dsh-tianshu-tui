@@ -45,5 +45,5 @@ tsc -p vision-ask/tsconfig.json --noEmit
 
 ## 发布
 
-GitHub 公开仓：https://github.com/dsh-external/dsh-tianshu-tui  
+GitHub 公开仓：https://github.com/huiliyi37/dsh-tianshu-tui  
 `package.json` 仍保留 `"private": true`，避免误 npm publish。npm 发布步骤见 `docs/PUBLISH-PLAN.md`。

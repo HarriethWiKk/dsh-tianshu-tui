@@ -1,6 +1,6 @@
 # dsh-tui 发布计划（内部文档，不随包分发）
 
-> 状态：**GitHub 已公开**（https://github.com/dsh-external/dsh-tianshu-tui）。
+> 状态：**GitHub 已公开**（https://github.com/huiliyi37/dsh-tianshu-tui）。
 > npm **尚未发布**（`private: true` 仍保留）。本文件是 npm 发布时的操作清单。
 
 ## 当前状态（2026-08-13）

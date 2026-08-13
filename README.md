@@ -129,7 +129,7 @@
 ## 安装
 
 ```sh
-dsh plugin --profile tui add github:dsh-external/dsh-tianshu-tui
+dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui
 dsh --profile tui
 ```
 

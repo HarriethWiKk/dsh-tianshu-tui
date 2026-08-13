@@ -129,7 +129,7 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 ## Install
 
 ```sh
-dsh plugin --profile tui add github:dsh-external/dsh-tianshu-tui
+dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui
 dsh --profile tui
 ```
 
