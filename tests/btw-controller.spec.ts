@@ -23,6 +23,7 @@ function event(seq: number, type: string, extra: Record<string, unknown> = {}): 
 function makeCtx(overrides: {
   events?: SessionEvent[]
   createHandle?: () => AgentHandle
+  header?: { cwd?: string }
 } = {}): {
   ctx: Context & {
     agents: { create: ReturnType<typeof vi.fn>; get: ReturnType<typeof vi.fn> }
@@ -48,7 +49,10 @@ function makeCtx(overrides: {
       get: vi.fn(),
     },
     sessions: {
-      get: vi.fn(() => ({ events: overrides.events ?? [] })),
+      get: vi.fn(() => ({
+        events: overrides.events ?? [],
+        header: overrides.header ?? { id: ACTIVE, version: 0, createdAt: 1 },
+      })),
     },
     agentDefaultModel: {
       currentSelection: vi.fn(() => ({ provider: 'mock', model: 'mock' })),
@@ -135,6 +139,49 @@ describe('BtwController', () => {
       | undefined
     expect(message?.content[0]?.text).toBe('这个函数的时间复杂度是多少？')
     expect(controller.peek()).toEqual({ status: 'loading', question: '这个函数的时间复杂度是多少？' })
+    controller.dispose()
+  })
+
+  it('ask 把父会话 cwd 与 parentSession/seedLength 写入 create meta', async () => {
+    const events = [
+      event(0, 'user/message'),
+      event(1, 'turn/start'),
+      event(2, 'turn/end', { reason: { kind: 'stop' } }),
+    ]
+    const { ctx } = makeCtx({ events, header: { cwd: '/workspace' } })
+    const controller = new BtwController({
+      ctx,
+      activeSessionId: () => ACTIVE,
+      timeoutMs: 1000,
+    })
+    await controller.ask('q')
+    const createArgs = ctx.agents.create.mock.calls[0]?.[0] as
+      | { meta?: { cwd?: string; parentSession?: SessionId; seedLength?: number }; seed: readonly unknown[] }
+      | undefined
+    expect(createArgs?.meta).toEqual({
+      cwd: '/workspace',
+      parentSession: ACTIVE,
+      seedLength: 3,
+    })
+    controller.dispose()
+  })
+
+  it('ask 父会话无 cwd 时回退 process.cwd()', async () => {
+    const { ctx } = makeCtx()
+    const controller = new BtwController({
+      ctx,
+      activeSessionId: () => ACTIVE,
+      timeoutMs: 1000,
+    })
+    await controller.ask('q')
+    const createArgs = ctx.agents.create.mock.calls[0]?.[0] as
+      | { meta?: { cwd?: string; parentSession?: SessionId; seedLength?: number } }
+      | undefined
+    expect(createArgs?.meta).toEqual({
+      cwd: process.cwd(),
+      parentSession: ACTIVE,
+      seedLength: 0,
+    })
     controller.dispose()
   })
 

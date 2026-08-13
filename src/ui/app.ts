@@ -954,8 +954,11 @@ export class TuiApp {
     // 下一次 agent 步进的 prompt assembly 自动生效）。
     this.modelRef = { current: selection, assembled: undefined }
     const ref = this.modelRef
+    // header.cwd 是 Web 会话列表与 workspace 挂载的门槛：缺省会被持久化进
+    // `_no-cwd/` 并从 web API 可见列表过滤掉（issue #5）。TUI 工作区 = 启动目录。
     const handle = await this.ctx.agents.create({
       sessionId: id,
+      meta: { cwd: process.cwd() },
       agentOptions: { provider: selection.provider, model: selection.model },
       setup: (agentCtx) => {
         installModelSelection(agentCtx, ref)

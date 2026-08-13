@@ -275,6 +275,22 @@ describe('TuiApp agent-ensure 三分支', () => {
     expect(handle.dispose).toHaveBeenCalledTimes(1)
   })
 
+  it('newSession 把 process.cwd() 写入 create meta.cwd（Web 会话列表可见）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('cwd-1')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+
+    const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
+    await app.newSession()
+
+    expect(ctx.agents.create).toHaveBeenCalledWith(expect.objectContaining({
+      meta: { cwd: process.cwd() },
+    }))
+    await app.dispose()
+  })
+
   it('switchSession 旧会话无 agent → resume，controls 来自 handle', async () => {
     const ctx = makeCtx()
     const agent = makeAgent('old-1')
