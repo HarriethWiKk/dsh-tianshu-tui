@@ -1,10 +1,10 @@
-# dsh code — Terminal UI for DeepSeek Harness
+# dsh-tianshu-tui — Terminal UI for DeepSeek Harness
 
 [中文](README.md) | English
 
-![dsh code](docs/tui-screenshot.jpg)
+![dsh-tianshu-tui](docs/tui-screenshot.jpg)
 
-**dsh code** (`@deepseek-ai/dsh-tianshu-tui`) is the interactive terminal UI layer for the official DeepSeek Harness (`dsh`), mounted as a pluggable profile bundle — the official codebase stays untouched (`dsh plugin --profile tui add @deepseek-ai/dsh-tianshu-tui`, then `dsh --profile tui`). The render core evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) (Apache-2.0; file-by-file provenance in [SOURCE-MAP.md](SOURCE-MAP.md)). The UI is a pure presentation layer: every piece of agent state arrives through the session event stream, so live and restored transcripts render identically and nothing reaches a model request that is not already logged.
+**dsh-tianshu-tui** (`@deepseek-ai/dsh-tianshu-tui`) is the interactive terminal UI layer for the official DeepSeek Harness (`dsh`), mounted as a pluggable profile bundle — the official codebase stays untouched (`dsh plugin --profile tui add @deepseek-ai/dsh-tianshu-tui`, then `dsh --profile tui`). The render core evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) (Apache-2.0; file-by-file provenance in [SOURCE-MAP.md](SOURCE-MAP.md)). The UI is a pure presentation layer: every piece of agent state arrives through the session event stream, so live and restored transcripts render identically and nothing reaches a model request that is not already logged.
 
 ## Highlights
 

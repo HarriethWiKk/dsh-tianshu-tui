@@ -1,10 +1,10 @@
-# dsh code — DeepSeek Harness 终端 UI
+# dsh-tianshu-tui — DeepSeek Harness 终端 UI
 
 中文 | [English](README.en.md)
 
-![dsh code](docs/tui-screenshot.jpg)
+![dsh-tianshu-tui](docs/tui-screenshot.jpg)
 
-**dsh code**（`@deepseek-ai/dsh-tianshu-tui`）是官方 DeepSeek Harness（`dsh`）之上的交互式终端 UI 层，以可插拔 profile bundle 挂载——官方代码零改动（`dsh plugin --profile tui add @deepseek-ai/dsh-tianshu-tui`，随后 `dsh --profile tui`）。渲染核心从 [天枢 Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) 演进而来（Apache-2.0；逐文件来源见 [SOURCE-MAP.md](SOURCE-MAP.md)）。UI 是纯展示层：所有 agent 状态都来自会话事件流，因此实时转录与恢复转录渲染完全一致，任何到达模型请求的内容都必然已被日志记录。
+**dsh-tianshu-tui**（`@deepseek-ai/dsh-tianshu-tui`）是官方 DeepSeek Harness（`dsh`）之上的交互式终端 UI 层，以可插拔 profile bundle 挂载——官方代码零改动（`dsh plugin --profile tui add @deepseek-ai/dsh-tianshu-tui`，随后 `dsh --profile tui`）。渲染核心从 [天枢 Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) 演进而来（Apache-2.0；逐文件来源见 [SOURCE-MAP.md](SOURCE-MAP.md)）。UI 是纯展示层：所有 agent 状态都来自会话事件流，因此实时转录与恢复转录渲染完全一致，任何到达模型请求的内容都必然已被日志记录。
 
 ## 亮点
 

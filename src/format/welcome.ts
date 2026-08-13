@@ -43,7 +43,7 @@ function stripLeadingSpaces(line: string): string {
 /** formatBrandWelcome 的渲染输入。 */
 export interface FormatBrandWelcomeInput {
   width: number
-  /** 品牌名（缺省 'dsh code'）。 */
+  /** 品牌名（缺省 'dsh-tianshu-tui'）。 */
   brand?: string
   /** 副标题（缺省 'DeepSeek Harness'）。 */
   subtitle?: string
@@ -59,7 +59,7 @@ export interface FormatBrandWelcomeInput {
  */
 export function formatBrandWelcome(input: FormatBrandWelcomeInput, theme: RivetTheme): string[] {
   if (input.width <= 0) return []
-  const brand = truncateTo(input.brand ?? 'dsh code', input.width)
+  const brand = truncateTo(input.brand ?? 'dsh-tianshu-tui', input.width)
   const subtitle = truncateTo(input.subtitle ?? 'DeepSeek Harness', input.width)
   const brandLine = color(brand, theme.brandColor, { bold: true })
   const subLine = color(subtitle, theme.muted)
