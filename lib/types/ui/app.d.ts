@@ -89,6 +89,11 @@ export declare class TuiApp {
     /** API key 就绪标志（footer 右侧段；attach 时经 credentials.describe 刷新）。 */
     private apiKeyReady;
     private overlay;
+    /**
+     * overlay 激活期间暂存的 scrollback 条目（文本条目或原始字节序列）。
+     * alt screen 下 stdout 写入会盖住面板，且退出时终端恢复的是进入 overlay 前的主屏。
+     */
+    private deferredScrollback;
     /** C3 项 3：rewind overlay（/rewind 双阶段回退面板）。 */
     private rewindOverlay;
     /** P2：memory 浏览器 overlay（/memory 记忆列表/过滤/删除）。 */
@@ -202,6 +207,9 @@ export declare class TuiApp {
     private tick;
     private ticker;
     private disposed;
+    /** attach() 完成后才往 scrollback 写更新提示（避免欢迎页之前的空窗）。 */
+    private attached;
+    private pendingUpdateNotice;
     /** bracketed paste 处理器 disposer（attach 注册，dispose 释放）。 */
     private pasteDisposer;
     /** 渲染帧合并器：事件路径走 schedule（16ms 合并），critical 路径走 flushLiveRender。 */
@@ -221,11 +229,35 @@ export declare class TuiApp {
     /** 当前会话 id（null = 尚未 attach）。 */
     get sessionId(): SessionId | null;
     /**
+     * A1/A2：等待若干服务完成激活（fiber state 2，即 init 钩子已跑完、文件数据
+     * 已装载）后再做首帧渲染。credentials/settings 由 dsh-base 异步激活（读文件 +
+     * watcher），可能晚于本 runner——不等的话欢迎页会误报 API Key ✗、顶栏显示
+     * 默认模型（settings 里的 agent-default-model 未生效）。
+     *
+     * 服务未注册（不在本 profile 组成中）时跳过；有界等待避免服务缺失时挂死。
+     * @param names - 要等待的服务名。
+     * @param timeoutMs - 最大等待毫秒（缺省 5000）。
+     */
+    private waitForServicesReady;
+    /**
+     * 宿主服务（cmdlineArgs/appExit）就绪窗口：launcher 在 boot prepare 里
+     * provide，正常时序下 attach 时已注册（0 等待）；仅当检测到宿主特征
+     * （任一服务已注册）时为缺失方做短窗口轮询，覆盖 provide 略晚于装配的
+     * 罕见时序。两服务均未注册 = 非宿主环境，立即返回。
+     * @param timeoutMs - 最大等待毫秒（缺省 200）。
+     */
+    private waitForHostServices;
+    /**
      * 接管终端：切主题（'auto' 探测背景）、装配会话、注册键路由与 resize、启动渲染 ticker。
      * @param initialSessionId - 覆盖构造选项的起始会话；缺省用构造 initialSessionId，
      *   再缺省恢复最近会话（live store 为空才新建）。
      */
     attach(initialSessionId?: SessionId): Promise<void>;
+    /**
+     * 自更新落盘后的用户提示。模块已加载，新代码要重启才生效。
+     * attach 完成前调用则排队，完成后写入 scrollback。
+     */
+    notifyPluginUpdated(version: string): void;
     /** T3.1：结构化提问 answerer——薄转发 QuestionController（渲染/ESC/重绘由控制器回调承担）。 */
     private handleQuestionRequest;
     /**
@@ -253,6 +285,23 @@ export declare class TuiApp {
     private settleQuestion;
     /** T3.1：取消挂起的提问（Esc/Ctrl+C）——薄转发。 */
     private cancelQuestion;
+    /**
+     * 查 DEEPSEEK_API_KEY 是否已配置：优先 credentials.describe（含 file / .env 层），
+     * 服务缺失或抛错时回退 process.env。欢迎页与 footer 共用，避免只看环境变量的误报。
+     */
+    private refreshApiKeyReady;
+    /**
+     * 按当前主控模型刷新识图标志。llm 服务缺失或查询失败时保持原值；
+     * inputModalities 含 image 才直发图片，否则走桥或「未发送」。
+     */
+    private refreshVisionForSelection;
+    /** 当前会话工作区：header.cwd 优先，缺省回退启动目录。 */
+    private sessionCwd;
+    /**
+     * Ctrl+S / 欢迎「恢复」：切到 listSessions 里最近的非当前会话（含 persistence）。
+     * live store 没有时走 switchSession → resume。
+     */
+    private restoreRecentOtherSession;
     /**
      * Phase 9b：把可恢复会话列表写进 scrollback（启动时）。
      * 排除当前活跃会话；无其他可恢复会话时静默（不占位）。
@@ -364,6 +413,8 @@ export declare class TuiApp {
     private toWorkflowRunView;
     /** T3.2：刷新 /config 面板投影（settings describe + permission + credentials；服务缺失降级）。 */
     private refreshConfigProjection;
+    /** 把 DEEPSEEK_API_KEY 的 describe 结果填进 /config 凭据段（与欢迎页同源）。 */
+    private fillCredentials;
     /** T3.3：刷新 skill 快照（ctx.skills.list；服务缺失时空数组）。 */
     private refreshSkillItems;
     /** 当前主题（动态读取，切主题后立即生效）。 */
@@ -373,8 +424,11 @@ export declare class TuiApp {
      * 不擦则文本写在光标处（live 区底部），随后 renderLive 重绘 live 区把刚写的
      * 内容覆盖——用户消息丢失根因（assistant 流式 commit 已带 clearForCommit，
      * 非流式路径缺失导致行为不对称）。
+     * overlay 激活时只入队，退出 alt screen 后再按同一协议补写。
      */
     private commitToScrollback;
+    /** overlay 退出后把暂存条目按 mid-stream 协议写入主屏 scrollback。 */
+    private flushDeferredScrollback;
     /**
      * 提交用户输入：追加输入历史、将用户消息渲染进 scrollback、
      * 走 adapter.send 的 followup 驱动 agent。slash 命令（/steer）分流到 handleSteer。

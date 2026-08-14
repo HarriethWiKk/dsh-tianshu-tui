@@ -116,12 +116,7 @@ export declare function inferPhaseFromTool(toolName: string): WorkflowPhase | un
  */
 export declare function applyWorkflowEvent(view: WorkflowView, event: SessionEvent): WorkflowView;
 /**
- * 渲染 statusline 文本：`阶段 · 工具名`，无活动时仅阶段。
- * plan 投影 active 时带 [plan] 徽标（T1.4）；pending 切换待生效时显示
- * [plan…]（A1：轮内 /plan 的意图在下一请求边界才落地，需给用户反馈）。
- * 授权模式徽标：permission preset 装配时显示预设名（如 [danger-full-access]，
- * 即 yolo 语义的全放行预设）；否则按 approval/policy 折叠值显示 [yolo]
- * （'never' = 不询问，sandbox 越界仍拒绝）或 [ask]（显式记录时）。
+ * 渲染 statusline：`阶段 · 工具名`，无活动时仅阶段；后缀为授权/模式徽标。
  * @param view - 工作流视图。
  * @param planActive - plan 模式已生效（渲染 [plan]）。
  * @param planPending - plan 切换待请求边界落地（渲染 [plan…]，优先于 planActive）。
@@ -144,6 +139,8 @@ export declare class WorkflowStatusLine {
     private approvalPolicy;
     /** 会话内最后一条 permission/preset 折叠值（permission 服务装配时；null = 未记录）。 */
     private permissionPreset;
+    /** agent 是否不在 running。收尾相位在 idle 时不占状态行（否则 ◆ 收尾一直挂着像卡住）。 */
+    private agentIdle;
     private lastText;
     private readonly onUpdate;
     private readonly disposers;
