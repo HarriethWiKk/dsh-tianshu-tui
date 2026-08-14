@@ -371,6 +371,11 @@ export class TuiApp {
   /** API key 就绪标志（footer 右侧段；attach 时经 credentials.describe 刷新）。 */
   private apiKeyReady = Boolean(process.env.DEEPSEEK_API_KEY)
   private overlay: OverlayController | null = null
+  /**
+   * overlay 激活期间暂存的 scrollback 条目。alt screen 下 stdout 写入会盖住
+   * 面板，且退出时终端恢复的是进入 overlay 前的主屏。
+   */
+  private deferredScrollback: Array<{ text: string; trailingNewline?: boolean }> = []
   /** C3 项 3：rewind overlay（/rewind 双阶段回退面板）。 */
   private rewindOverlay: RewindOverlay | null = null
   /** P2：memory 浏览器 overlay（/memory 记忆列表/过滤/删除）。 */
@@ -742,6 +747,11 @@ export class TuiApp {
 
     this.resize.onResize(() => {
       this.live.setMaxRows(Math.max(8, this.stdout.rows - 1))
+      // overlay 激活时主屏 live 不写；resize 只重绘 alt screen 面板。
+      if (this.overlay !== null && this.overlay.activeId() !== null) {
+        this.overlay.rerender()
+        return
+      }
       this.flushLiveRender()
     })
     this.input.onAnyKey((key) => { this.handleKey(key) })
@@ -761,7 +771,13 @@ export class TuiApp {
       stdout: this.stdout,
       getSize: () => ({ cols: this.stdout.columns, rows: this.stdout.rows }),
       live: this.live,
-      onOverlayChange: () => { this.renderBatcher.schedule() },
+      onOverlayChange: (active) => {
+        if (active) return
+        // 退出 alt screen 后：把 overlay 期间暂存的 scrollback 补写回主屏，
+        // 再同步重绘 live 区（不能只等 120ms ticker——主屏刚恢复时 live 区是旧帧）。
+        this.flushDeferredScrollback()
+        this.flushLiveRender()
+      },
     })
     this.overlay.register('command-palette', this.palette)
     // Ctrl+. 快捷键面板（grok-build 键位清单弹层）：静态两列表，进出 alt screen。
@@ -1620,10 +1636,26 @@ export class TuiApp {
    * 不擦则文本写在光标处（live 区底部），随后 renderLive 重绘 live 区把刚写的
    * 内容覆盖——用户消息丢失根因（assistant 流式 commit 已带 clearForCommit，
    * 非流式路径缺失导致行为不对称）。
+   * overlay 激活时只入队，退出 alt screen 后再按同一协议补写。
    */
   private commitToScrollback(entry: { text: string; trailingNewline?: boolean }): void {
+    if (this.overlay !== null && this.overlay.activeId() !== null) {
+      this.deferredScrollback.push(entry)
+      return
+    }
     this.live.clearForCommit()
     this.commit.write(entry)
+  }
+
+  /** overlay 退出后把暂存条目按 mid-stream 协议写入主屏 scrollback。 */
+  private flushDeferredScrollback(): void {
+    const pending = this.deferredScrollback
+    if (pending.length === 0) return
+    this.deferredScrollback = []
+    for (const entry of pending) {
+      this.live.clearForCommit()
+      this.commit.write(entry)
+    }
   }
 
   /**
@@ -2098,7 +2130,13 @@ export class TuiApp {
     // 面板打开：↑/↓ 移动选中，字符进面板查询，Enter 提交回填输入行。
     // type/move 后 rerender——overlay 无自动 ticker，不重绘则过滤/选中不刷新。
     if (this.palette?.isOpen() === true) {
-      if (key.name === 'return') {
+      if (key.name === 'escape' || key.name === 'ctrl_c') {
+        // 真机 A6：Esc/Ctrl+C 关闭面板（与 search/memory overlay 一致），不提交、
+        // 不回填输入行。此前只有 Enter 能关闭（会把 /命令 回填进输入行），
+        // Esc 被三个分支漏掉后直接 return 吞掉——面板底栏却提示 "Esc 关闭"。
+        this.overlay?.deactivate()
+        this.palette.close()
+      } else if (key.name === 'return') {
         const committed = this.palette.commit()
         this.overlay?.deactivate()
         this.palette.close()
@@ -2515,6 +2553,10 @@ export class TuiApp {
   /** 渲染一帧 live 区：状态行 + 流式尾巴 + 进行中工具卡 + 输入行。 */
   private renderLive(): void {
     if (this.disposed) return
+    // A6：全屏 overlay（命令面板/快捷键/搜索/rewind/memory）激活时处于
+    // alternate screen buffer——跳过主屏 live 写屏，避免流式帧逐帧盖住面板；
+    // overlay 退出后 120ms ticker 下一帧自然重绘，内部状态由事件驱动照常更新。
+    if (this.overlay !== null && this.overlay.activeId() !== null) return
     const renderStart = performance.now()
     const theme = this.theme
     const termCols = this.stdout.columns

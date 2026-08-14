@@ -1983,6 +1983,34 @@ describe('TuiApp 命令面板（Ctrl+P overlay）', () => {
     await app.dispose()
   })
 
+  it('Esc 关闭面板（不提交、不回填输入行——底栏 "Esc 关闭" 提示真实生效）', async () => {
+    const { app, stdin, stdout } = await bootPaletteApp()
+
+    stdin.emit('data', '\x10') // Ctrl+P 打开
+    await new Promise(resolve => setImmediate(resolve))
+    stdin.emit('data', '\x1b') // Esc：input-handler 经 escapeTimeoutMs(80ms) 后派发 'escape'
+    await new Promise(resolve => setTimeout(resolve, 200)) // 等派发 + ticker 补绘主屏
+
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('\x1B[?1049l')  // 退出 alternate screen buffer（面板已关闭）
+    expect(written).not.toContain('❯ /theme') // 未提交：输入行不出现 /命令 回填
+    await app.dispose()
+  })
+
+  it('Ctrl+C 关闭面板（与 Esc 同分支，不提交）', async () => {
+    const { app, stdin, stdout } = await bootPaletteApp()
+
+    stdin.emit('data', '\x10') // Ctrl+P 打开
+    await new Promise(resolve => setImmediate(resolve))
+    stdin.emit('data', '\x03') // Ctrl+C → 关闭面板（消费在面板块，不触发退出）
+    await new Promise(resolve => setTimeout(resolve, 200))
+
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('\x1B[?1049l')
+    expect(written).not.toContain('❯ /theme')
+    await app.dispose()
+  })
+
   it('↓ 移动选中，Enter 回填第二项（方向键选择路径）', async () => {
     const { app, stdin, stdout } = await bootPaletteApp()
 
@@ -5108,5 +5136,76 @@ describe('TuiApp 首帧渲染等待 settings/credentials 服务（A1/A2）', () 
     } finally {
       if (prevKey !== undefined) process.env.DEEPSEEK_API_KEY = prevKey
     }
+  })
+})
+
+describe('TuiApp 全屏 overlay 激活时 renderLive 不写屏（A6）', () => {
+  it('打开命令面板后流式 ticker 不再把 live 帧写进 alt screen（不覆盖面板）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('ov-1')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+
+    // 基线：主屏 live 帧含输入行 caret 驻停锚（\x1B[5G，见 caretCol 测试）。
+    stdout.write.mockClear()
+    // Ctrl+P（0x10）打开命令面板 → OverlayEngine 切 alternate screen。
+    stdin.emit('data', '\x10')
+    await new Promise(resolve => setTimeout(resolve, 250)) // 覆盖 2+ 个 120ms ticker 周期
+    const afterPalette = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    // 面板确实打开（进入 alt screen）。
+    expect(afterPalette).toContain('\x1B[?1049h')
+    // A6：overlay 激活时 renderLive 被跳过——ticker 周期内不再出现主屏 live
+    // 帧（caret 锚）。未修复时流式帧会逐帧写进 alt screen 盖住面板。
+    expect(afterPalette).not.toContain('\x1B[5G')
+    await app.dispose()
+  })
+
+  it('overlay 激活时 scrollback commit 不写进 alt screen，关闭后补写主屏', async () => {
+    const ctx = makeCtx()
+    const handlers = new Map<string, Array<(...args: unknown[]) => void>>()
+    ctx.on.mockImplementation((name: string, h: (...args: unknown[]) => void) => {
+      const list = handlers.get(name) ?? []
+      list.push(h)
+      handlers.set(name, list)
+      return () => { /* disposer: attach 路径由 app.dispose 覆盖 */ }
+    })
+    const agent = makeAgent('ov-commit')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    const owner = { id: app.sessionId ?? SessionId('ov-commit') }
+
+    stdin.emit('data', '\x10')
+    await new Promise(resolve => setTimeout(resolve, 50))
+    stdout.write.mockClear()
+
+    const sessionHandlers = handlers.get('session/event') ?? []
+    for (const handler of sessionHandlers) {
+      handler(owner, {
+        type: 'assistant/chunk',
+        seq: 0,
+        time: 1,
+        data: { turn: 1, step: 0, chunk: { type: 'text-delta', text: '先看目录。\n\n' } },
+      })
+    }
+    // blockWriter idleMs 180 + StreamRenderer 稳定边界 commit + 帧合并。
+    await new Promise(resolve => setTimeout(resolve, 300))
+    const duringOverlay = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(duringOverlay).not.toContain('先看目录')
+
+    stdout.write.mockClear()
+    stdin.emit('data', '\x10')
+    await new Promise(resolve => setTimeout(resolve, 50))
+    const afterClose = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(afterClose).toContain('先看目录')
+    await app.dispose()
   })
 })

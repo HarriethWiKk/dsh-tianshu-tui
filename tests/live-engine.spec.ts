@@ -5,8 +5,23 @@
  * budget ≤ 0 原样返回。
  */
 
+import type { WriteStream } from 'node:tty'
 import { describe, expect, it } from 'vitest'
-import { padDynamicRegion, type LiveRegionLine } from '../src/engine/live-engine.js'
+import { LiveEngine, padDynamicRegion, type LiveRegionLine } from '../src/engine/live-engine.js'
+
+/** 记录 stdout 写入的 LiveEngine 替身终端。 */
+function makeLiveStdout(): { stdout: WriteStream; writes: string[] } {
+  const writes: string[] = []
+  const stdout = {
+    columns: 80,
+    rows: 24,
+    write: (chunk: string) => {
+      writes.push(String(chunk))
+      return true
+    },
+  } as unknown as WriteStream
+  return { stdout, writes }
+}
 
 function L(...texts: string[]): LiveRegionLine[] {
   return texts.map(text => ({ text }))
@@ -72,5 +87,47 @@ describe('padDynamicRegion', () => {
     )
     // drop wide (3 rows) → keep=1，不垫空行补到 2
     expect(lines.map(l => l.text)).toEqual(['keep', '❯'])
+  })
+})
+
+describe('LiveEngine suppressProbe 期间不写 stdout（overlay 引擎层闸）', () => {
+  it('suppressProbe 后 render 不把主屏帧写进 stdout', () => {
+    const { stdout, writes } = makeLiveStdout()
+    const live = new LiveEngine({ stdout })
+    live.render([{ text: 'hello' }])
+    expect(writes.join('')).toContain('hello')
+    writes.length = 0
+
+    live.suppressProbe()
+    live.render([{ text: 'ghost-into-alt' }])
+    expect(writes).toHaveLength(0)
+  })
+
+  it('suppressProbe 后 clear / clearForCommit 不擦屏、不改主屏几何', () => {
+    const { stdout, writes } = makeLiveStdout()
+    const live = new LiveEngine({ stdout })
+    live.render([{ text: 'hello' }])
+    live.suppressProbe()
+    writes.length = 0
+    live.clear()
+    live.clearForCommit()
+    expect(writes).toHaveLength(0)
+
+    live.resumeProbe()
+    writes.length = 0
+    live.render([{ text: 'hello' }])
+    // 主屏 live 区仍是 overlay 进入前的帧：H2 短路，不得当空区再 append 一份。
+    expect(writes).toHaveLength(0)
+  })
+
+  it('resumeProbe 后 render 恢复写屏', () => {
+    const { stdout, writes } = makeLiveStdout()
+    const live = new LiveEngine({ stdout })
+    live.suppressProbe()
+    live.render([{ text: 'hidden' }])
+    expect(writes).toHaveLength(0)
+    live.resumeProbe()
+    live.render([{ text: 'after' }])
+    expect(writes.join('')).toContain('after')
   })
 })
