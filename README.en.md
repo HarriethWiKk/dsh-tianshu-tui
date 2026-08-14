@@ -244,3 +244,4 @@ Apache-2.0. The terminal render engine evolved from [Tianshu-Tui](https://github
 - [dsh-web-ui](https://github.com/zhu1090093659/dsh-web-ui) — Plugin and skin collection for DSH Web UI
 - [dshfind](https://dshfind.com/zh) — Chinese learning and sharing community for DeepSeek Harness
 - [deepseek-harness-ux](https://github.com/ayuanwong/deepseek-harness-ux) — Long agent tasks without transcript clutter: focused progress, auto-folded history
+- [dsh-TUI](https://github.com/ccch1mneyyy/dsh-TUI) — Claude Code-style fullscreen interactive terminal plugin

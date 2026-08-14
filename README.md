@@ -244,3 +244,4 @@ Apache-2.0。终端渲染引擎从 [天枢 Tianshu-Tui](https://github.com/huili
 - [dsh-web-ui](https://github.com/zhu1090093659/dsh-web-ui) — DSH Web UI 插件与皮肤合集
 - [dshfind](https://dshfind.com/zh) — DeepSeek Harness 中文学习与分享社区
 - [deepseek-harness-ux](https://github.com/ayuanwong/deepseek-harness-ux) — 长任务不刷屏：关键进度清晰可见，完成后自动折叠
+- [dsh-TUI](https://github.com/ccch1mneyyy/dsh-TUI) — Claude Code 风格全屏交互终端插件
