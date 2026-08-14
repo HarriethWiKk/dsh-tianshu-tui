@@ -5004,6 +5004,24 @@ describe('TuiApp cmdline 参数处理（A3）', () => {
     await app.dispose()
   })
 
+  it('--help 读 host 注入的 ctx.cmdlineArgs（非 reflect 插件纤维）', async () => {
+    const ctx = makeCtx()
+    const exit = vi.fn()
+    Object.assign(ctx, {
+      cmdlineArgs: { get: () => ['--help'] },
+      appExit: exit,
+    })
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    await app.attach()
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('dsh --profile tui --help')
+    expect(written).not.toContain('API Key')
+    expect(exit).toHaveBeenCalledWith(0)
+    expect(ctx.agents.create).not.toHaveBeenCalled()
+    await app.dispose()
+  })
+
   it('纯位置参数作为初始 prompt 发送', async () => {
     const ctx = makeCtx()
     const agent = makeAgent('arg-prompt')

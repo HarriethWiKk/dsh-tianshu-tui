@@ -295,6 +295,37 @@ const USAGE_TEXT = `dsh-tianshu-tui — DeepSeek Harness 交互式终端界面 /
 快捷键 / Keys: ctrl+n 新会话 · ctrl+s 恢复 · ctrl+p 命令面板 · / slash 命令 · ctrl+o 展开推理 · shift+tab 模式循环
 `
 
+/** dsh launcher 在 boot prepare 里 provide 的 cmdline 面（不是插件纤维）。 */
+interface CmdlineArgsService {
+  get(): string[]
+}
+
+/**
+ * 读 launcher 转发的 argv。生产路径是 host `ctx.provide('cmdlineArgs')` + inject
+ * 后的属性；`reflect.get` 只看插件纤维，读不到这条服务（真机 --help 仍进 TUI 的根因）。
+ */
+function readCmdlineArgs(ctx: Context): string[] {
+  try {
+    const injected = (ctx as Context & { cmdlineArgs?: CmdlineArgsService }).cmdlineArgs
+    if (injected !== undefined) return injected.get()
+  } catch {
+    // Cordis 4：未 inject 时属性访问抛 without inject
+  }
+  const viaReflect = ctx.reflect.get('cmdlineArgs', false) as CmdlineArgsService | undefined
+  return viaReflect?.get() ?? []
+}
+
+/** 读 launcher 的退出请求。优先 inject 属性，其次 reflect（单测 mock）。 */
+function readAppExit(ctx: Context): ((code?: number) => void) | undefined {
+  try {
+    const injected = (ctx as Context & { appExit?: (code?: number) => void }).appExit
+    if (typeof injected === 'function') return injected
+  } catch {
+    // 同上
+  }
+  return ctx.reflect.get('appExit', false) as ((code?: number) => void) | undefined
+}
+
 /** C3 项 3：写工具名判定（与 fs-snapshot 的 trackEdit 钩子同一集合）。 */
 function isWriteToolCall(name: string): boolean {
   return name === 'write' || name === 'edit' || name === 'str_replace_editor'
@@ -709,14 +740,13 @@ export class TuiApp {
     // --help/-h 输出用法、--version/-v 输出版本后经 appExit 退出；纯位置参数
     // 作为初始 prompt（attach 完成后发送）。含其它 flag 时不发 prompt（避免
     // 与 --resume 等未实现参数的组合语义冲突）。
-    const cmdline = this.ctx.reflect.get('cmdlineArgs', false) as { get(): string[] } | undefined
-    const args = cmdline?.get() ?? []
+    const args = readCmdlineArgs(this.ctx)
     const flags = args.filter(a => a.startsWith('-'))
     const wantHelp = flags.includes('--help') || flags.includes('-h')
     const wantVersion = flags.includes('--version') || flags.includes('-v')
     const initialPrompt = flags.length === 0 ? args.filter(a => !a.startsWith('-')).join(' ') : ''
     if (wantHelp || wantVersion) {
-      const exit = this.ctx.reflect.get('appExit', false) as ((code?: number) => void) | undefined
+      const exit = readAppExit(this.ctx)
       this.stdout.write(wantHelp
         ? USAGE_TEXT
         : `dsh-tianshu-tui ${readOwnVersion(fileURLToPath(new URL('.', import.meta.url))) ?? 'unknown'}\n`)
