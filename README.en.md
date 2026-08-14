@@ -245,3 +245,5 @@ Apache-2.0. The terminal render engine evolved from [Tianshu-Tui](https://github
 - [dshfind](https://dshfind.com/zh) — Chinese learning and sharing community for DeepSeek Harness
 - [deepseek-harness-ux](https://github.com/ayuanwong/deepseek-harness-ux) — Long agent tasks without transcript clutter: focused progress, auto-folded history
 - [dsh-TUI](https://github.com/ccch1mneyyy/dsh-TUI) — Claude Code-style fullscreen interactive terminal plugin
+- [DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) — Full sidebar workbench with third-party tabs, files, terminal, Git, and subagents
+- [dsh-meme-hub](https://github.com/the-beating-light-of-the-nail/dsh-meme-hub) — A tour of playful DSH plugins: 贪玩蓝鲸 / QQ2006 / whale girls / mini-games
