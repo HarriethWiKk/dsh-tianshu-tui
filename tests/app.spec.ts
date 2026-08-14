@@ -5004,4 +5004,48 @@ describe('TuiApp 全屏 overlay 激活时 renderLive 不写屏（A6）', () => {
     expect(afterPalette).not.toContain('\x1B[5G')
     await app.dispose()
   })
+
+  it('overlay 激活时 scrollback commit 不写进 alt screen，关闭后补写主屏', async () => {
+    const ctx = makeCtx()
+    const handlers = new Map<string, Array<(...args: unknown[]) => void>>()
+    ctx.on.mockImplementation((name: string, h: (...args: unknown[]) => void) => {
+      const list = handlers.get(name) ?? []
+      list.push(h)
+      handlers.set(name, list)
+      return () => { /* disposer: attach 路径由 app.dispose 覆盖 */ }
+    })
+    const agent = makeAgent('ov-commit')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    const owner = { id: app.sessionId ?? SessionId('ov-commit') }
+
+    stdin.emit('data', '\x10')
+    await new Promise(resolve => setTimeout(resolve, 50))
+    stdout.write.mockClear()
+
+    const sessionHandlers = handlers.get('session/event') ?? []
+    for (const handler of sessionHandlers) {
+      handler(owner, {
+        type: 'assistant/chunk',
+        seq: 0,
+        time: 1,
+        data: { turn: 1, step: 0, chunk: { type: 'text-delta', text: '先看目录。\n\n' } },
+      })
+    }
+    // blockWriter idleMs 180 + StreamRenderer 稳定边界 commit + 帧合并。
+    await new Promise(resolve => setTimeout(resolve, 300))
+    const duringOverlay = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(duringOverlay).not.toContain('先看目录')
+
+    stdout.write.mockClear()
+    stdin.emit('data', '\x10')
+    await new Promise(resolve => setTimeout(resolve, 50))
+    const afterClose = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(afterClose).toContain('先看目录')
+    await app.dispose()
+  })
 })
