@@ -471,9 +471,36 @@ describe('TuiApp 审查 HIGH 修复回归（177c12e）', () => {
     await app.dispose()
   })
 
-  it('ctrl_c 空输入触发 onExit 而非取消', async () => {
+  it('ctrl_c 空闲空输入：第一次不退出，窗口内第二次才 onExit', async () => {
     const ctx = makeCtx()
     const agent = makeAgent('exit-1')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const onExit = vi.fn()
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+
+    const app = new TuiApp({ ctx, stdout, stdin, onExit })
+    await app.attach()
+
+    stdin.emit('data', '\x03')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(onExit).not.toHaveBeenCalled()
+    expect(agent.cancel).not.toHaveBeenCalled()
+    const afterFirst = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(afterFirst).toContain('再按 Ctrl+C 退出')
+
+    stdin.emit('data', '\x03')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(onExit).toHaveBeenCalledTimes(1)
+    expect(agent.cancel).not.toHaveBeenCalled()
+    await app.dispose()
+  })
+
+  it('ctrl_c 空闲空输入：超过 double-press 窗口的第二次仍不退出', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('exit-window')
     const handle = makeHandle(agent)
     ctx.agents.create.mockResolvedValue(handle)
     ctx.sessions.get.mockReturnValue(agent.session)
@@ -483,11 +510,46 @@ describe('TuiApp 审查 HIGH 修复回归（177c12e）', () => {
     const app = new TuiApp({ ctx, stdout: makeStdout(), stdin, onExit })
     await app.attach()
 
-    stdin.emit('data', '\x03') // raw-mode Ctrl+C 作为 0x03 字节进入数据流
+    const now = Date.now()
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now)
+    stdin.emit('data', '\x03')
     await new Promise(resolve => setImmediate(resolve))
-
+    nowSpy.mockReturnValue(now + 2_001)
+    stdin.emit('data', '\x03')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(onExit).not.toHaveBeenCalled()
+    nowSpy.mockReturnValue(now + 2_002)
+    stdin.emit('data', '\x03')
+    await new Promise(resolve => setImmediate(resolve))
     expect(onExit).toHaveBeenCalledTimes(1)
-    expect(agent.cancel).not.toHaveBeenCalled()
+    await app.dispose()
+  })
+
+  it('agent running 时空输入 Ctrl+C → handleAbort，不 onExit', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('abort-run')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const onExit = vi.fn()
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+
+    const app = new TuiApp({ ctx, stdout, stdin, onExit })
+    await app.attach()
+    const id = app.sessionId
+    if (id === undefined) throw new Error('sessionId missing after attach')
+    const statusHandlers = (ctx.on as ReturnType<typeof vi.fn>).mock.calls
+      .filter((call: unknown[]) => call[0] === 'agent/status')
+      .map(call => call[1] as (payload: { agent: { id: SessionId }; status: string }) => void)
+    for (const handler of statusHandlers) handler({ agent: { id }, status: 'running' })
+
+    stdin.emit('data', '\x03')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(onExit).not.toHaveBeenCalled()
+    expect(agent.cancel).toHaveBeenCalledTimes(1)
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('已取消')
     await app.dispose()
   })
 
@@ -1918,6 +1980,34 @@ describe('TuiApp 命令面板（Ctrl+P overlay）', () => {
 
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     expect(written).toContain('\x1B[?1049l')
+    await app.dispose()
+  })
+
+  it('Esc 关闭面板（不提交、不回填输入行——底栏 "Esc 关闭" 提示真实生效）', async () => {
+    const { app, stdin, stdout } = await bootPaletteApp()
+
+    stdin.emit('data', '\x10') // Ctrl+P 打开
+    await new Promise(resolve => setImmediate(resolve))
+    stdin.emit('data', '\x1b') // Esc：input-handler 经 escapeTimeoutMs(80ms) 后派发 'escape'
+    await new Promise(resolve => setTimeout(resolve, 200)) // 等派发 + ticker 补绘主屏
+
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('\x1B[?1049l')  // 退出 alternate screen buffer（面板已关闭）
+    expect(written).not.toContain('❯ /theme') // 未提交：输入行不出现 /命令 回填
+    await app.dispose()
+  })
+
+  it('Ctrl+C 关闭面板（与 Esc 同分支，不提交）', async () => {
+    const { app, stdin, stdout } = await bootPaletteApp()
+
+    stdin.emit('data', '\x10') // Ctrl+P 打开
+    await new Promise(resolve => setImmediate(resolve))
+    stdin.emit('data', '\x03') // Ctrl+C → 关闭面板（消费在面板块，不触发退出）
+    await new Promise(resolve => setTimeout(resolve, 200))
+
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('\x1B[?1049l')
+    expect(written).not.toContain('❯ /theme')
     await app.dispose()
   })
 
@@ -4975,6 +5065,257 @@ describe('TuiApp 剪贴板图片与复制（opencode 接线移植）', () => {
       { type: 'text', text: 'hi' },
       { type: 'image', attachment: expect.objectContaining({ attachmentId: 'mock-att-1', mediaType: 'image/png' }) },
     ])
+    await app.dispose()
+  })
+})
+
+describe('TuiApp 首帧渲染等待 settings/credentials 服务（A1/A2）', () => {
+  it('服务已注册但未激活时，attach 等待激活后再创建会话/渲染（API Key ✓ + settings 模型生效）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('svc-1')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    ctx.sessions.list.mockReturnValue([])
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+
+    // 模拟 dsh-base 的 credentials/settings：已注册（非严格可取）但 fiber 未激活
+    // （严格取不到），随后在 attach 进行中完成激活。currentSelection 在激活前
+    // 返回 config 默认值、激活后返回 settings 值（真实行为）。
+    let activated = false
+    const credentials = { describe: vi.fn(async () => ({ configured: true, source: 'file' as const, writable: true })) }
+    ctx.agentDefaultModel.currentSelection.mockImplementation(() => activated
+      ? { provider: 'deepseek-official', model: 'deepseek' }
+      : { provider: 'deepseek-official', model: 'deepseek-v4-flash' })
+    ctx.reflect.get.mockImplementation((name: string, strict = true) => {
+      if (name === 'settings') return strict ? (activated ? {} : undefined) : {}
+      if (name === 'credentials') return strict ? (activated ? credentials : undefined) : credentials
+      return undefined
+    })
+
+    const app = new TuiApp({ ctx, stdout, stdin })
+    const attachPromise = app.attach()
+    // 服务在 attach 等待窗口内激活（真实场景：文件读 + watcher 初始化，毫秒级）。
+    setTimeout(() => { activated = true }, 50)
+    await attachPromise
+
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    // 等待生效 → refreshApiKeyReady 经 credentials.describe 读到 configured → 欢迎页 ✓
+    expect(written).toContain('API Key ✓')
+    expect(written).not.toContain('API Key ✗')
+    // A2：会话创建时快照的是 settings 的模型（deepseek），而非 config 默认
+    // （deepseek-v4-flash）——等待发生在 newSession 之前。
+    const createArg = ctx.agents.create.mock.calls[0]?.[0] as { agentOptions?: { provider: string; model: string } } | undefined
+    expect(createArg?.agentOptions).toEqual({ provider: 'deepseek-official', model: 'deepseek' })
+    await app.dispose()
+  })
+
+  it('服务未注册（mock 缺省）时 attach 不被等待阻塞，走 env 回退（API Key ✗）', async () => {
+    // 显式清掉 DEEPSEEK_API_KEY：该用例断言 env 回退路径，宿主环境可能已设
+    // 该变量（setx 持久化等），避免测试环境相关的不稳定。
+    const prevKey = process.env.DEEPSEEK_API_KEY
+    delete process.env.DEEPSEEK_API_KEY
+    try {
+      const ctx = makeCtx()
+      const agent = makeAgent('svc-2')
+      const handle = makeHandle(agent)
+      ctx.agents.create.mockResolvedValue(handle)
+      ctx.sessions.get.mockReturnValue(agent.session)
+      ctx.sessions.list.mockReturnValue([])
+      const stdin = makeStdin()
+      const stdout = makeStdout()
+
+      const app = new TuiApp({ ctx, stdout, stdin })
+      await app.attach()
+
+      const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+      // 无 credentials 服务 → process.env 回退（已清空）→ ✗
+      expect(written).toContain('API Key ✗')
+      await app.dispose()
+    } finally {
+      if (prevKey !== undefined) process.env.DEEPSEEK_API_KEY = prevKey
+    }
+  })
+})
+
+describe('TuiApp 全屏 overlay 激活时 renderLive 不写屏（A6）', () => {
+  it('打开命令面板后流式 ticker 不再把 live 帧写进 alt screen（不覆盖面板）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('ov-1')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+
+    // 基线：主屏 live 帧含输入行 caret 驻停锚（\x1B[5G，见 caretCol 测试）。
+    stdout.write.mockClear()
+    // Ctrl+P（0x10）打开命令面板 → OverlayEngine 切 alternate screen。
+    stdin.emit('data', '\x10')
+    await new Promise(resolve => setTimeout(resolve, 250)) // 覆盖 2+ 个 120ms ticker 周期
+    const afterPalette = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    // 面板确实打开（进入 alt screen）。
+    expect(afterPalette).toContain('\x1B[?1049h')
+    // A6：overlay 激活时 renderLive 被跳过——ticker 周期内不再出现主屏 live
+    // 帧（caret 锚）。未修复时流式帧会逐帧写进 alt screen 盖住面板。
+    expect(afterPalette).not.toContain('\x1B[5G')
+    await app.dispose()
+  })
+
+  it('overlay 激活时 scrollback commit 不写进 alt screen，关闭后补写主屏', async () => {
+    const ctx = makeCtx()
+    const handlers = new Map<string, Array<(...args: unknown[]) => void>>()
+    ctx.on.mockImplementation((name: string, h: (...args: unknown[]) => void) => {
+      const list = handlers.get(name) ?? []
+      list.push(h)
+      handlers.set(name, list)
+      return () => { /* disposer: attach 路径由 app.dispose 覆盖 */ }
+    })
+    const agent = makeAgent('ov-commit')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    const owner = { id: app.sessionId ?? SessionId('ov-commit') }
+
+    stdin.emit('data', '\x10')
+    await new Promise(resolve => setTimeout(resolve, 50))
+    stdout.write.mockClear()
+
+    const sessionHandlers = handlers.get('session/event') ?? []
+    for (const handler of sessionHandlers) {
+      handler(owner, {
+        type: 'assistant/chunk',
+        seq: 0,
+        time: 1,
+        data: { turn: 1, step: 0, chunk: { type: 'text-delta', text: '先看目录。\n\n' } },
+      })
+    }
+    // blockWriter idleMs 180 + StreamRenderer 稳定边界 commit + 帧合并。
+    await new Promise(resolve => setTimeout(resolve, 300))
+    const duringOverlay = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(duringOverlay).not.toContain('先看目录')
+
+    stdout.write.mockClear()
+    stdin.emit('data', '\x10')
+    await new Promise(resolve => setTimeout(resolve, 50))
+    const afterClose = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(afterClose).toContain('先看目录')
+    await app.dispose()
+  })
+})
+
+describe('TuiApp cmdline 参数处理（A3）', () => {
+  it('--help 输出用法并经 appExit(0) 退出，不进入交互', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('arg-help')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const exit = vi.fn()
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'cmdlineArgs') return { get: () => ['--help'] }
+      if (name === 'appExit') return exit
+      return undefined
+    })
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('dsh --profile tui')
+    expect(exit).toHaveBeenCalledWith(0)
+    // 未进入交互：没有创建会话/订阅（attach 提前返回）
+    expect(ctx.agents.create).not.toHaveBeenCalled()
+    await app.dispose()
+  })
+
+  it('--help 读 host 注入的 ctx.cmdlineArgs（非 reflect 插件纤维）', async () => {
+    const ctx = makeCtx()
+    const exit = vi.fn()
+    Object.assign(ctx, {
+      cmdlineArgs: { get: () => ['--help'] },
+      appExit: exit,
+    })
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    await app.attach()
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('dsh --profile tui --help')
+    expect(written).not.toContain('API Key')
+    expect(exit).toHaveBeenCalledWith(0)
+    expect(ctx.agents.create).not.toHaveBeenCalled()
+    await app.dispose()
+  })
+
+  it('纯位置参数作为初始 prompt 发送', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('arg-prompt')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'cmdlineArgs') return { get: () => ['修复这个', 'bug'] }
+      return undefined
+    })
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    expect(firstCallText(agent.followup)).toBe('修复这个 bug')
+    await app.dispose()
+  })
+
+  it('--version 输出版本并经 appExit(0) 退出', async () => {
+    const ctx = makeCtx()
+    const exit = vi.fn()
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'cmdlineArgs') return { get: () => ['--version'] }
+      if (name === 'appExit') return exit
+      return undefined
+    })
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    await app.attach()
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toMatch(/dsh-tianshu-tui \d+\.\d+/)
+    expect(written).not.toContain('API Key')
+    expect(exit).toHaveBeenCalledWith(0)
+    expect(ctx.agents.create).not.toHaveBeenCalled()
+    await app.dispose()
+  })
+
+  it('无 appExit 时 --help 写出用法后 throw', async () => {
+    const ctx = makeCtx()
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'cmdlineArgs') return { get: () => ['-h'] }
+      return undefined
+    })
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    await expect(app.attach()).rejects.toThrow('no appExit service provided')
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('dsh --profile tui --help')
+    await app.dispose()
+  })
+
+  it('位置参数与其它 flag 并存时不发送 prompt', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('arg-flags')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'cmdlineArgs') return { get: () => ['修复这个', '--resume'] }
+      return undefined
+    })
+    const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
+    await app.attach()
+    expect(agent.followup).not.toHaveBeenCalled()
     await app.dispose()
   })
 })

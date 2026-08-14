@@ -21,6 +21,7 @@
 import { randomUUID } from 'node:crypto'
 import { execSync } from 'node:child_process'
 import { writeFile } from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
 import { join, resolve } from 'node:path'
 import type { ReadStream, WriteStream } from 'node:tty'
 import type { Context } from '@deepseek-ai/cordis'
@@ -53,7 +54,7 @@ import { resolveToolViews, type ToolPresenterSource } from '../adapter/tool-view
 import { trackAgent, type LiveAgent } from '../adapter/live.js'
 import { controlsFromHandle, controlsFromRegistry, type AgentControls } from '../adapter/send.js'
 import { listSessions, flushAll, getSession, type SessionSummary } from '../adapter/sessions.js'
-import { updateNoticeText } from '../self-update.js'
+import { updateNoticeText, readOwnVersion } from '../self-update.js'
 import { getTheme, getActiveThemeName, setTheme, type RivetTheme } from '../theme.js'
 import { displayWidth, ambiguousWideEnabled } from '../width.js'
 import { detectTerminalBackground, autoThemeFor } from '../theme-detect.js'
@@ -282,6 +283,49 @@ export interface TuiAppOptions {
 /** live 区预留行（顶轨 + 输入 + 底轨 + footer）。 */
 const LIVE_RESERVED_ROWS = 4
 
+/** A3：`dsh --profile tui --help` 输出的用法文本。 */
+const USAGE_TEXT = `dsh-tianshu-tui — DeepSeek Harness 交互式终端界面 / interactive terminal UI
+
+用法 / Usage:
+  dsh --profile tui                   启动交互式 TUI / start the interactive TUI
+  dsh --profile tui "<提示词>"        启动并直接发送提示词 / start and send a prompt
+  dsh --profile tui --help            显示本帮助 / show this help
+  dsh --profile tui --version         输出版本 / print the version
+
+快捷键 / Keys: ctrl+n 新会话 · ctrl+s 恢复 · ctrl+p 命令面板 · / slash 命令 · ctrl+o 展开推理 · shift+tab 模式循环
+`
+
+/** dsh launcher 在 boot prepare 里 provide 的 cmdline 面（不是插件纤维）。 */
+interface CmdlineArgsService {
+  get(): string[]
+}
+
+/**
+ * 读 launcher 转发的 argv。生产路径是 host `ctx.provide('cmdlineArgs')` + inject
+ * 后的属性；`reflect.get` 只看插件纤维，读不到这条服务（真机 --help 仍进 TUI 的根因）。
+ */
+function readCmdlineArgs(ctx: Context): string[] {
+  try {
+    const injected = (ctx as Context & { cmdlineArgs?: CmdlineArgsService }).cmdlineArgs
+    if (injected !== undefined) return injected.get()
+  } catch {
+    // Cordis 4：未 inject 时属性访问抛 without inject
+  }
+  const viaReflect = ctx.reflect.get('cmdlineArgs', false) as CmdlineArgsService | undefined
+  return viaReflect?.get() ?? []
+}
+
+/** 读 launcher 的退出请求。优先 inject 属性，其次 reflect（单测 mock）。 */
+function readAppExit(ctx: Context): ((code?: number) => void) | undefined {
+  try {
+    const injected = (ctx as Context & { appExit?: (code?: number) => void }).appExit
+    if (typeof injected === 'function') return injected
+  } catch {
+    // 同上
+  }
+  return ctx.reflect.get('appExit', false) as ((code?: number) => void) | undefined
+}
+
 /** C3 项 3：写工具名判定（与 fs-snapshot 的 trackEdit 钩子同一集合）。 */
 function isWriteToolCall(name: string): boolean {
   return name === 'write' || name === 'edit' || name === 'str_replace_editor'
@@ -371,6 +415,11 @@ export class TuiApp {
   /** API key 就绪标志（footer 右侧段；attach 时经 credentials.describe 刷新）。 */
   private apiKeyReady = Boolean(process.env.DEEPSEEK_API_KEY)
   private overlay: OverlayController | null = null
+  /**
+   * overlay 激活期间暂存的 scrollback 条目。alt screen 下 stdout 写入会盖住
+   * 面板，且退出时终端恢复的是进入 overlay 前的主屏。
+   */
+  private deferredScrollback: Array<{ text: string; trailingNewline?: boolean }> = []
   /** C3 项 3：rewind overlay（/rewind 双阶段回退面板）。 */
   private rewindOverlay: RewindOverlay | null = null
   /** P2：memory 浏览器 overlay（/memory 记忆列表/过滤/删除）。 */
@@ -686,12 +735,52 @@ export class TuiApp {
   get sessionId(): SessionId | null { return this.activeSessionId }
 
   /**
+   * A1/A2：等待若干服务完成激活（fiber state 2，即 init 钩子已跑完、文件数据
+   * 已装载）后再做首帧渲染。credentials/settings 由 dsh-base 异步激活（读文件 +
+   * watcher），可能晚于本 runner——不等的话欢迎页会误报 API Key ✗、顶栏显示
+   * 默认模型（settings 里的 agent-default-model 未生效）。
+   *
+   * 服务未注册（不在本 profile 组成中）时跳过；有界等待避免服务缺失时挂死。
+   * @param names - 要等待的服务名。
+   * @param timeoutMs - 最大等待毫秒（缺省 5000）。
+   */
+  private async waitForServicesReady(names: readonly string[], timeoutMs = 5000): Promise<void> {
+    const deadline = Date.now() + timeoutMs
+    for (const name of names) {
+      // 未注册（非严格取不到）：本 profile 无该服务，没有数据可等，直接跳过。
+      if (this.ctx.reflect.get(name, false) === undefined) continue
+      // 已注册但 fiber 未激活（init 未完成）：有界轮询等待激活完成。
+      while (this.ctx.reflect.get(name) === undefined && Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, 25))
+      }
+    }
+  }
+
+  /**
    * 接管终端：切主题（'auto' 探测背景）、装配会话、注册键路由与 resize、启动渲染 ticker。
    * @param initialSessionId - 覆盖构造选项的起始会话；缺省用构造 initialSessionId，
    *   再缺省恢复最近会话（live store 为空才新建）。
    */
   async attach(initialSessionId?: SessionId): Promise<void> {
     if (this.disposed) throw new Error('TuiApp already disposed')
+    // A3：处理 dsh launcher 转发的命令行参数（`dsh --profile tui <args>`）：
+    // --help/-h 输出用法、--version/-v 输出版本后经 appExit 退出；纯位置参数
+    // 作为初始 prompt（attach 完成后发送）。含其它 flag 时不发 prompt（避免
+    // 与 --resume 等未实现参数的组合语义冲突）。
+    const args = readCmdlineArgs(this.ctx)
+    const flags = args.filter(a => a.startsWith('-'))
+    const wantHelp = flags.includes('--help') || flags.includes('-h')
+    const wantVersion = flags.includes('--version') || flags.includes('-v')
+    const initialPrompt = flags.length === 0 ? args.filter(a => !a.startsWith('-')).join(' ') : ''
+    if (wantHelp || wantVersion) {
+      const exit = readAppExit(this.ctx)
+      this.stdout.write(wantHelp
+        ? USAGE_TEXT
+        : `dsh-tianshu-tui ${readOwnVersion(fileURLToPath(new URL('.', import.meta.url))) ?? 'unknown'}\n`)
+      if (exit !== undefined) { exit(0); return }
+      // 无 appExit（测试/裸装配）：保持 fail loud，由调用方 dispose 收尾。
+      throw new Error('[tui-runner] --help/--version requested but no appExit service provided')
+    }
     // bracketed paste：粘贴的多行文本被终端包裹为整段（行尾 CR 不再逐行触发
     // Enter 提交）；onPaste 处理器把整段插入输入行（超阈值折叠为标记）。
     this.stdout.write(ANSI.BRACKETED_PASTE_ON)
@@ -707,6 +796,10 @@ export class TuiApp {
     }
 
     const target = initialSessionId ?? this.initialSessionId ?? this.ctx.sessions.list()[0]?.id
+    // A1/A2：创建/恢复会话与首帧渲染前，等 settings/credentials 服务激活
+    // （有界；未注册跳过）——否则 newSession/resume 在创建时快照到的是 config
+    // 默认模型（settings 未加载），且欢迎页误报 API Key ✗。
+    await this.waitForServicesReady(['settings', 'credentials'])
     if (target !== undefined) await this.switchSession(target)
     else await this.newSession()
 
@@ -716,6 +809,11 @@ export class TuiApp {
 
     this.resize.onResize(() => {
       this.live.setMaxRows(Math.max(8, this.stdout.rows - 1))
+      // overlay 激活时主屏 live 不写；resize 只重绘 alt screen 面板。
+      if (this.overlay !== null && this.overlay.activeId() !== null) {
+        this.overlay.rerender()
+        return
+      }
       this.flushLiveRender()
     })
     this.input.onAnyKey((key) => { this.handleKey(key) })
@@ -735,7 +833,13 @@ export class TuiApp {
       stdout: this.stdout,
       getSize: () => ({ cols: this.stdout.columns, rows: this.stdout.rows }),
       live: this.live,
-      onOverlayChange: () => { this.renderBatcher.schedule() },
+      onOverlayChange: (active) => {
+        if (active) return
+        // 退出 alt screen 后：把 overlay 期间暂存的 scrollback 补写回主屏，
+        // 再同步重绘 live 区（不能只等 120ms ticker——主屏刚恢复时 live 区是旧帧）。
+        this.flushDeferredScrollback()
+        this.flushLiveRender()
+      },
     })
     this.overlay.register('command-palette', this.palette)
     // Ctrl+. 快捷键面板（grok-build 键位清单弹层）：静态两列表，进出 alt screen。
@@ -770,6 +874,10 @@ export class TuiApp {
       this.pendingUpdateNotice = null
     }
     this.flushLiveRender()
+    // A3：纯位置参数作为初始 prompt（`dsh --profile tui "修复这个 bug"`）。
+    if (initialPrompt !== '') {
+      this.handleSubmit(initialPrompt)
+    }
   }
 
   /**
@@ -1594,10 +1702,26 @@ export class TuiApp {
    * 不擦则文本写在光标处（live 区底部），随后 renderLive 重绘 live 区把刚写的
    * 内容覆盖——用户消息丢失根因（assistant 流式 commit 已带 clearForCommit，
    * 非流式路径缺失导致行为不对称）。
+   * overlay 激活时只入队，退出 alt screen 后再按同一协议补写。
    */
   private commitToScrollback(entry: { text: string; trailingNewline?: boolean }): void {
+    if (this.overlay !== null && this.overlay.activeId() !== null) {
+      this.deferredScrollback.push(entry)
+      return
+    }
     this.live.clearForCommit()
     this.commit.write(entry)
+  }
+
+  /** overlay 退出后把暂存条目按 mid-stream 协议写入主屏 scrollback。 */
+  private flushDeferredScrollback(): void {
+    const pending = this.deferredScrollback
+    if (pending.length === 0) return
+    this.deferredScrollback = []
+    for (const entry of pending) {
+      this.live.clearForCommit()
+      this.commit.write(entry)
+    }
   }
 
   /**
@@ -1964,6 +2088,9 @@ export class TuiApp {
 
   /** 键路由：Enter 提交 / Ctrl-C 取消或退出 / 上下键历史 / 其余交给 InputLine。 */
   private handleKey(key: KeyPress): void {
+    if (key.name !== 'ctrl_c' && this.inputController.ctrlCPendingSince !== 0) {
+      this.inputController.ctrlCPendingSince = 0
+    }
     // C3 项 4：Shift+Tab 三态循环（Normal → Plan → Always-Approve → Normal）。
     if (key.name === 'shift_tab') {
       this.cycleMode()
@@ -1971,7 +2098,7 @@ export class TuiApp {
     }
     // C4 概念稿 A：欢迎页菜单入口快捷键——新会话 / 恢复会话 / 退出。
     // 语义与菜单行提示一致（grok menu.rs 的 ctrl+w/ctrl+s/ctrl+q 对齐）；
-    // 任意时刻可用（新会话即 /session new 语义，退出即 Ctrl+C 空输入退出）。
+    // 任意时刻可用（新会话即 /session new 语义，退出即 Ctrl+Q / 连按两次 Ctrl+C）。
     // 注意：ctrl_n 在此劫持 InputLine 的 historyNext（L791）、ctrl_p 早已被
     // 命令面板劫持（historyPrev）——输入历史导航由 ↑/↓ 承担，此处不留键。
     if (key.name === 'ctrl_n') {
@@ -2069,7 +2196,13 @@ export class TuiApp {
     // 面板打开：↑/↓ 移动选中，字符进面板查询，Enter 提交回填输入行。
     // type/move 后 rerender——overlay 无自动 ticker，不重绘则过滤/选中不刷新。
     if (this.palette?.isOpen() === true) {
-      if (key.name === 'return') {
+      if (key.name === 'escape' || key.name === 'ctrl_c') {
+        // 真机 A6：Esc/Ctrl+C 关闭面板（与 search/memory overlay 一致），不提交、
+        // 不回填输入行。此前只有 Enter 能关闭（会把 /命令 回填进输入行），
+        // Esc 被三个分支漏掉后直接 return 吞掉——面板底栏却提示 "Esc 关闭"。
+        this.overlay?.deactivate()
+        this.palette.close()
+      } else if (key.name === 'return') {
         const committed = this.palette.commit()
         this.overlay?.deactivate()
         this.palette.close()
@@ -2144,12 +2277,27 @@ export class TuiApp {
       return
     }
     if (key.name === 'ctrl_c') {
-      // raw-mode 下 Ctrl+C 是 0x03 数据字节而非 SIGINT——退出路径走这里：
-      // 输入为空退出（onExit），有输入取消当前活动（handleAbort）。
-      if (this.inputLine.value === '' && this.onExit !== undefined) {
-        this.onExit()
+      // raw-mode 下 Ctrl+C 是 0x03 数据字节而非 SIGINT。
+      // 在途：打断当前 turn。空闲空输入：连按两次才 onExit（单次 dispose
+      // 会拆掉 TUI 而 dsh 进程仍在，表现为“按 Ctrl+C 后无法继续、只能再按一次退出”）。
+      if (this.liveAgent?.state.status === 'running') {
+        this.inputController.ctrlCPendingSince = 0
+        this.handleAbort()
         return
       }
+      if (this.inputLine.value === '' && this.onExit !== undefined) {
+        const now = Date.now()
+        const pending = this.inputController.ctrlCPendingSince
+        if (pending !== 0 && now - pending < InputController.EXIT_WINDOW_MS) {
+          this.inputController.ctrlCPendingSince = 0
+          this.onExit()
+          return
+        }
+        this.inputController.ctrlCPendingSince = now
+        this.flushLiveRender()
+        return
+      }
+      this.inputController.ctrlCPendingSince = 0
       this.handleAbort()
       return
     }
@@ -2354,6 +2502,10 @@ export class TuiApp {
         this.commitSettledToolCard(event)
         break
       }
+      case 'turn/start':
+        // A5：回合开始 → 标记请求在途，静默提示生效（turn/end 由 onTurnComplete 复位）。
+        this.fluency.onTurnStart()
+        break
       case 'turn/end':
         // Phase 9d：turn 边界复位流利度信号
         this.fluency.onTurnComplete()
@@ -2467,6 +2619,10 @@ export class TuiApp {
   /** 渲染一帧 live 区：状态行 + 流式尾巴 + 进行中工具卡 + 输入行。 */
   private renderLive(): void {
     if (this.disposed) return
+    // A6：全屏 overlay（命令面板/快捷键/搜索/rewind/memory）激活时处于
+    // alternate screen buffer——跳过主屏 live 写屏，避免流式帧逐帧盖住面板；
+    // overlay 退出后 120ms ticker 下一帧自然重绘，内部状态由事件驱动照常更新。
+    if (this.overlay !== null && this.overlay.activeId() !== null) return
     const renderStart = performance.now()
     const theme = this.theme
     const termCols = this.stdout.columns
@@ -2588,6 +2744,14 @@ export class TuiApp {
         ? theme.error
         : policy.staleLevel === 'warn' ? theme.warning : theme.secondary
       lines.push({ text: color(`⏳ ${policy.staleMessage}`, staleColor) })
+    }
+    const ctrlCPendingSince = this.inputController.ctrlCPendingSince
+    if (ctrlCPendingSince !== 0) {
+      if (Date.now() - ctrlCPendingSince >= InputController.EXIT_WINDOW_MS) {
+        this.inputController.ctrlCPendingSince = 0
+      } else {
+        lines.push({ text: color('再按 Ctrl+C 退出 · Ctrl+Q 立即退出', theme.muted) })
+      }
     }
 
     // 推理展开视图（Ctrl+O 切换；scrollback append-only，全文在 live 区展示）：
