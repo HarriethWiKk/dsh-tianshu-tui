@@ -175,6 +175,11 @@ async function boot(): Promise<Booted> {
 
   const ctx = new Context()
   context = ctx
+  // 宿主服务：dsh launcher 在 boot prepare 里 provide cmdlineArgs/appExit，
+  // tui-runner 对两者是必需 inject；测试进程即宿主，补同位 provide（空 argv +
+  // 空退出），否则 TUI 纤维永不激活。
+  ctx.provide('cmdlineArgs', { get: () => [] as string[] })
+  ctx.provide('appExit', () => {})
   ctx.baseUrl = pathToFileURL(root).href + '/'
   await ctx.plugin(Loader)
   ctx.loader.builtins.include = Include
