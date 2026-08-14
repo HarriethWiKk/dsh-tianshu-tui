@@ -24,6 +24,10 @@ export interface FluencySignals {
     isError: boolean;
     isApproval: boolean;
     consecutiveRoutine: number;
+    /** 是否有请求在途。缺省按 true 处理（兼容旧信号源）；false 时静默提示不触发——
+     *  回合结束后 agent 已 idle，silentMs 仍在增长，继续提示会把已完成的回复
+     *  谎报成 "Waiting for response"。 */
+    inFlight?: boolean;
 }
 /** 策略输出：可见度、是否折叠例行事件、聚合窗口与可选停滞提示。 */
 export interface FluencyPolicy {

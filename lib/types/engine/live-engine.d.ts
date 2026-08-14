@@ -115,13 +115,16 @@ export declare class LiveEngine {
     private ambiguousWide;
     constructor(options: LiveEngineOptions);
     /**
-     * 暂停 CPR 污染检测。overlay（picker/pager 等）激活期间光标在 alt screen，
-     * CPR 响应的位置不代表主屏 live region，若照常比对会误判污染并触发 renderLive
-     * 把主屏帧写进 alt screen（picker 残影泄漏回主会话的根因）。
+     * 暂停 CPR 污染检测，并禁止 render/clear 写 stdout。
+     * overlay（picker/pager 等）激活期间光标在 alt screen，CPR 响应的位置不代表
+     * 主屏 live region；若照常比对会误判污染并触发 renderLive 把主屏帧写进 alt
+     * screen（picker 残影泄漏回主会话的根因）。即便上层漏跳过 renderLive，引擎
+     * 层也不得改写 alt screen，且不得把主屏 lastDisplayRows 清零（否则退出后
+     * 会当空区再 append 一份 live 区）。
      * 调用方应在 overlay 激活时 suppress，退出时 resume（并作废基线等下一帧重建）。
      */
     private probeSuppressed;
-    /** overlay 激活：暂停探针发送与污染判定。 */
+    /** overlay 激活：暂停探针发送与污染判定，render/clear 不再写屏。 */
     suppressProbe(): void;
     /** overlay 退出：恢复检测；基线作废，下一帧/探针重新建立，避免跨 alt screen 误判。 */
     resumeProbe(): void;
