@@ -246,4 +246,3 @@ Apache-2.0。终端渲染引擎从 [天枢 Tianshu-Tui](https://github.com/huili
 - [deepseek-harness-ux](https://github.com/ayuanwong/deepseek-harness-ux) — 长任务不刷屏：关键进度清晰可见，完成后自动折叠
 - [dsh-TUI](https://github.com/ccch1mneyyy/dsh-TUI) — Claude Code 风格全屏交互终端插件
 - [DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) — 侧边栏完整工作台，支持第三方 Tab、文件/终端/Git/子代理
-- [dsh-meme-hub](https://github.com/the-beating-light-of-the-nail/dsh-meme-hub) — DSH 趣味插件导览：贪玩蓝鲸 / QQ2006 / whale girls / 小游戏
