@@ -292,7 +292,7 @@ const USAGE_TEXT = `dsh-tianshu-tui — DeepSeek Harness 交互式终端界面 /
   dsh --profile tui --help            显示本帮助 / show this help
   dsh --profile tui --version         输出版本 / print the version
 
-快捷键 / Keys: ctrl+n 新会话 · ctrl+s 恢复 · ctrl+p 命令面板 · / slash 命令 · ctrl+o 展开推理 · shift+tab 模式循环
+快捷键 / Keys: ctrl+n 新会话 · ctrl+s 恢复 · ctrl+p 命令面板 · / slash 命令 · ctrl+o 展开推理 · shift+tab 模式循环 · ctrl+q / /exit 退出
 `
 
 /** dsh launcher 在 boot prepare 里 provide 的 cmdline 面（不是插件纤维）。 */
@@ -636,6 +636,7 @@ export class TuiApp {
       openMemoryBrowser: () => this.openMemoryBrowser(),
       switchSession: id => this.switchSession(SessionId(id)),
       exportTranscript: path => this.exportTranscript(path),
+      requestExit: () => { this.onExit?.() },
     })) {
       this.slash.register(command)
     }
@@ -3111,6 +3112,9 @@ export class TuiApp {
     // 最后一次挂载后直接退出的路径）。
     this.taskSurfaceDisposer?.()
     this.taskSurfaceDisposer = null
+    // overlay 若仍在 alt screen，先退回主屏（1049l），否则进程退出后部分
+    // 终端会把用户留在备用屏。
+    this.overlay?.deactivate()
     this.stdout.write(ANSI.BRACKETED_PASTE_OFF)
     this.pasteDisposer?.()
     this.pasteDisposer = null
@@ -3119,6 +3123,9 @@ export class TuiApp {
     this.glance.dispose()
     this.perfMonitor.stop()
     this.live.clear()
+    // live.clear / 每帧渲染都会 HIDE_CURSOR；必须在全部写屏之后恢复，
+    // 否则 Ctrl+Q / /exit 把 TTY 还给 shell 时硬件光标仍隐藏（#22）。
+    this.stdout.write(ANSI.SHOW_CURSOR)
   }
 
   /**

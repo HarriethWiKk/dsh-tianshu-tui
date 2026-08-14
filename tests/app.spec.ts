@@ -4487,6 +4487,16 @@ describe('C4 概念稿 菜单快捷键与三行底部区（提交后审查补测
     await app.dispose()
   })
 
+  it('/exit 触发 onExit（与 Ctrl+Q 同一退出路径）', async () => {
+    const onExit = vi.fn()
+    const { app } = boot({ onExit })
+    await app.attach()
+    app.handleSubmit('/exit')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(onExit).toHaveBeenCalledTimes(1)
+    await app.dispose()
+  })
+
   it('三行底部区：输入行下方渲染 footer（模式/快捷键）与 metrics 行', async () => {
     const ctx = makeCtx()
     const agent = makeAgent('c4-bottom')
@@ -4848,6 +4858,18 @@ describe('bracketed paste 接线（多行/长文本粘贴不逐行提交）', ()
     await app.dispose()
     written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     expect(written).toContain('\x1b[?2004l') // DECSET 2004 off
+  })
+
+  it('dispose 在 live.clear 藏光标之后写出 SHOW_CURSOR（#22 退出后终端无光标）', async () => {
+    const { stdout, app } = boot()
+    await app.attach()
+    stdout.write.mockClear()
+    await app.dispose()
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    const show = '\x1B[?25h'
+    const hide = '\x1B[?25l'
+    expect(written).toContain(show)
+    expect(written.lastIndexOf(show)).toBeGreaterThan(written.lastIndexOf(hide))
   })
 
   it('多行粘贴整段进入输入行（不逐行提交）', async () => {

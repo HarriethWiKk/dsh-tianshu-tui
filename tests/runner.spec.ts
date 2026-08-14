@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import type { WriteStream } from 'node:tty'
 import type { Session } from '@deepseek-ai/dsh-session'
@@ -38,6 +38,7 @@ function makeStdin(): NodeJS.ReadStream {
 function makeCtx(): Context & {
   sessions: { list: ReturnType<typeof vi.fn>; get: ReturnType<typeof vi.fn>; flush: ReturnType<typeof vi.fn> }
   effect: ReturnType<typeof vi.fn>
+  reflect: { get: ReturnType<typeof vi.fn> }
 } {
   const ctx = {
     sessions: {
@@ -54,6 +55,7 @@ function makeCtx(): Context & {
     on: vi.fn(() => () => { }),
     get: vi.fn(),
     provide: vi.fn(() => () => { }),
+    reflect: { get: vi.fn(() => undefined) },
     // effect 立即求值回调，返回其 cleanup——与 cordis 的插件卸载语义一致。
     effect: vi.fn((cb: () => () => void) => cb()),
     // inject 立即执行回调（mock 的 sessions/agents 已可用），与 effect 语义一致；
@@ -62,6 +64,7 @@ function makeCtx(): Context & {
   } as unknown as Context & {
     sessions: { list: ReturnType<typeof vi.fn>; get: ReturnType<typeof vi.fn>; flush: ReturnType<typeof vi.fn> }
     effect: ReturnType<typeof vi.fn>
+    reflect: { get: ReturnType<typeof vi.fn> }
   }
   return ctx
 }
@@ -74,6 +77,10 @@ function makeSession(id: string): Session {
     events: [],
   } as unknown as Session
 }
+
+beforeEach(() => {
+  vi.spyOn(process, 'exit').mockImplementation((() => undefined) as typeof process.exit)
+})
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -152,5 +159,43 @@ describe('index apply() 装配与退出生命周期', () => {
     const cleanup = ctx.effect.mock.results[0]?.value as (() => void) | undefined
     cleanup?.()
     expect(disposeResolved).toBe(true)
+  })
+
+  it('插件卸载不 process.exit（宿主自己收尾）', async () => {
+    const ctx = makeCtx()
+    vi.spyOn(TuiApp.prototype, 'attach').mockResolvedValue(undefined)
+    vi.spyOn(TuiApp.prototype, 'dispose').mockResolvedValue(undefined)
+    apply(ctx, { stdin: makeStdin(), stdout: makeStdout() })
+    const cleanup = ctx.effect.mock.results[0]?.value as (() => void) | undefined
+    cleanup?.()
+    await new Promise(resolve => setImmediate(resolve))
+    expect(process.exit).not.toHaveBeenCalled()
+  })
+
+  it('SIGINT dispose 后经 appExit(0) 退出（#22 把 TTY 还给 shell）', async () => {
+    const ctx = makeCtx()
+    const appExit = vi.fn()
+    ctx.reflect.get.mockImplementation((name: string) => name === 'appExit' ? appExit : undefined)
+    vi.spyOn(TuiApp.prototype, 'attach').mockResolvedValue(undefined)
+    vi.spyOn(TuiApp.prototype, 'dispose').mockResolvedValue(undefined)
+    const stdin = makeStdin()
+    apply(ctx, { stdin, stdout: makeStdout() })
+    stdin.emit('SIGINT')
+    await vi.waitFor(() => {
+      expect(appExit).toHaveBeenCalledWith(0)
+    })
+    expect(process.exit).not.toHaveBeenCalled()
+  })
+
+  it('用户退出且无 appExit 时 process.exit(0)', async () => {
+    const ctx = makeCtx()
+    vi.spyOn(TuiApp.prototype, 'attach').mockResolvedValue(undefined)
+    vi.spyOn(TuiApp.prototype, 'dispose').mockResolvedValue(undefined)
+    const stdin = makeStdin()
+    apply(ctx, { stdin, stdout: makeStdout() })
+    stdin.emit('SIGINT')
+    await vi.waitFor(() => {
+      expect(process.exit).toHaveBeenCalledWith(0)
+    })
   })
 })
