@@ -40,7 +40,7 @@ pnpm 可能提示 peer missing，可忽略：peer 由官方 `dsh` 宿主提供�
 npx -y @deepseek-ai/dsh --profile tui
 ```
 
-看到欢迎页品牌 **dsh-tianshu-tui** 即成功。`Ctrl+Q` 退出。
+看到欢迎页品牌 **dsh-tianshu-tui** 即成功。`Ctrl+Q` 或 `/exit` 退出。
 
 已全局安装官方 CLI 且 `dsh --version` 为 `0.1.0-rc.6` 时，把上面的 `npx -y @deepseek-ai/dsh` 换成 `dsh` 即可。
 
@@ -57,7 +57,18 @@ DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh --profile tui
 
 ## 更新说明
 
-当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.1-rc.6`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.1-rc.6)）。
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.6`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.6)）。
+
+### 0.1.2-rc.6（2026-08-14）
+
+退出时恢复终端光标并把 TTY 还给 shell；新增 `/exit`。
+
+- `Ctrl+Q` / `/exit` 退出后恢复硬件光标，经宿主退出把终端还给 shell（[#22](https://github.com/huiliyi37/dsh-tianshu-tui/issues/22)）
+- 无 launcher 宿主服务时 TUI 不再静默卡死
+- 全屏 overlay 不再被流式输出盖住；Esc/Ctrl+C 关闭命令面板时不误提交
+- 空闲空输入需连按两次 Ctrl+C 才退出；等待回复提示不再在回合结束后误显示
+
+已装 `0.1.1-rc.6` 的用户下次启动会自动写入 profile。看到「插件已更新到 …，请重启 dsh 后生效」后重启即可。
 
 ### 0.1.1-rc.6（2026-08-14）
 
@@ -186,7 +197,7 @@ npx -y @deepseek-ai/dsh --profile tui
 |---|---|
 | `Ctrl+N` | 新会话 |
 | `Ctrl+S` | 恢复最近会话 |
-| `Ctrl+Q` | 退出 |
+| `Ctrl+Q` | 退出（同 `/exit`） |
 | `Ctrl+P` | 命令面板 |
 | `Ctrl+.` | 键位表 overlay |
 | `Ctrl+F` | 历史搜索（`n`/`N` 跳转） |

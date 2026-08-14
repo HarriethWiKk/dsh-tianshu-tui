@@ -235,6 +235,7 @@ export declare class TuiApp {
      * 默认模型（settings 里的 agent-default-model 未生效）。
      *
      * 服务未注册（不在本 profile 组成中）时跳过；有界等待避免服务缺失时挂死。
+     * 超时仍未激活则 warn 后继续（fail-soft：启动不挂死，但模型/API Key 可能仍是缺省）。
      * @param names - 要等待的服务名。
      * @param timeoutMs - 最大等待毫秒（缺省 5000）。
      */

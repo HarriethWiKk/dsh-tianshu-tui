@@ -40,7 +40,7 @@ You can also install from Git: `npx -y @deepseek-ai/dsh plugin --profile tui add
 npx -y @deepseek-ai/dsh --profile tui
 ```
 
-Success looks like a welcome screen branded **dsh-tianshu-tui**. Quit with `Ctrl+Q`.
+Success looks like a welcome screen branded **dsh-tianshu-tui**. Quit with `Ctrl+Q` or `/exit`.
 
 If the official CLI is installed globally and `dsh --version` is `0.1.0-rc.6`, you can use `dsh` in place of `npx -y @deepseek-ai/dsh`.
 
@@ -57,7 +57,18 @@ The companion vision plugin lives in `vision-ask/` if you need image re-interrog
 
 ## Release notes
 
-Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.1-rc.6`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.1-rc.6)).
+Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.6`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.6)).
+
+### 0.1.2-rc.6 (2026-08-14)
+
+Quitting restores the terminal cursor and gives the TTY back to the shell. New `/exit` command.
+
+- `Ctrl+Q` / `/exit` show the hardware cursor again and exit the host so the shell can take the TTY ([#22](https://github.com/huiliyi37/dsh-tianshu-tui/issues/22))
+- The TUI no longer hangs silently when launcher host services are missing
+- Full-screen overlays are no longer overwritten by streamed output; Esc/Ctrl+C closes the command palette without committing
+- Idle empty Ctrl+C requires a double-press to quit; the waiting hint no longer fires after a completed turn
+
+Users already on `0.1.1-rc.6` pick this up on the next launch. Restart after you see `插件已更新到 …，请重启 dsh 后生效`.
 
 ### 0.1.1-rc.6 (2026-08-14)
 
@@ -186,7 +197,7 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 |---|---|
 | `Ctrl+N` | New session |
 | `Ctrl+S` | Restore the most recent session |
-| `Ctrl+Q` | Quit |
+| `Ctrl+Q` | Quit (same as `/exit`) |
 | `Ctrl+P` | Command palette |
 | `Ctrl+.` | Keymap overlay |
 | `Ctrl+F` | History search (`n`/`N` to jump) |
