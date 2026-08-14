@@ -2101,7 +2101,13 @@ export class TuiApp {
     // 面板打开：↑/↓ 移动选中，字符进面板查询，Enter 提交回填输入行。
     // type/move 后 rerender——overlay 无自动 ticker，不重绘则过滤/选中不刷新。
     if (this.palette?.isOpen() === true) {
-      if (key.name === 'return') {
+      if (key.name === 'escape' || key.name === 'ctrl_c') {
+        // 真机 A6：Esc/Ctrl+C 关闭面板（与 search/memory overlay 一致），不提交、
+        // 不回填输入行。此前只有 Enter 能关闭（会把 /命令 回填进输入行），
+        // Esc 被三个分支漏掉后直接 return 吞掉——面板底栏却提示 "Esc 关闭"。
+        this.overlay?.deactivate()
+        this.palette.close()
+      } else if (key.name === 'return') {
         const committed = this.palette.commit()
         this.overlay?.deactivate()
         this.palette.close()
