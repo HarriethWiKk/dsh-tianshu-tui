@@ -50,6 +50,32 @@ DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh --profile tui
 
 需要图片再询问能力时，再装配同仓伴生包 `vision-ask/`。
 
+## 更新说明
+
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.1-rc.6`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.1-rc.6)）。
+
+### 0.1.1-rc.6（2026-08-14）
+
+启动时对照 npm `latest`，把 profile 里的本包升到新版本，提示重启后生效。
+
+**从 `0.1.0-rc.6` 升级：** 那一版还没有自更新，需要手动加一次才会带上新逻辑：
+
+```sh
+npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+npx -y @deepseek-ai/dsh --profile tui
+```
+
+之后再发新版本，启动时会自动写入 profile。看到「插件已更新到 …，请重启 dsh 后生效」后重启即可。不想联网检查时设 `DSH_TUI_SKIP_UPDATE=1`。`github:` / `link:` 安装不会改写成 npm 包。
+
+本版本还包含此前已上 `main` 的显示层对齐：
+
+- 创建会话写入 `meta.cwd`，Web UI 能列出 TUI 会话
+- 欢迎页 / 状态行按 credentials 分层判断 API key
+- `/model` 后 footer glance 与视觉能力跟实际模型走
+- `Ctrl+S` 可恢复磁盘上的会话
+
+第一版本基线见 [docs/BASELINE-v0.1.0-rc.6.md](docs/BASELINE-v0.1.0-rc.6.md)。
+
 ## 亮点
 
 - **终端内的完整会话工作区** — 实时渲染、只增滚动转录、启动时会话恢复、`/fork` 探索分支、`/rewind` 回退（会话截断 + 可选文件回退）、`/export` 导出 Markdown 转录、中轮转向（`/steer` / `Ctrl+T`）。

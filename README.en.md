@@ -50,6 +50,32 @@ Do not run tsdown for this package from the DeepSeek Harness workspace root: it 
 
 The companion vision plugin lives in `vision-ask/` if you need image re-interrogation.
 
+## Release notes
+
+Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.1-rc.6`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.1-rc.6)).
+
+### 0.1.1-rc.6 (2026-08-14)
+
+On launch the plugin checks npm `latest`, writes a newer version into the profile, and asks you to restart.
+
+**Upgrading from `0.1.0-rc.6`:** that build has no self-update. Add the plugin once more to pick up the new logic:
+
+```sh
+npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+npx -y @deepseek-ai/dsh --profile tui
+```
+
+Later releases write themselves into the profile on launch. Restart after you see `插件已更新到 …，请重启 dsh 后生效`. Set `DSH_TUI_SKIP_UPDATE=1` to skip the check. `github:` / `link:` installs are left alone.
+
+This release also includes display-layer fixes already on `main`:
+
+- New sessions write `meta.cwd`, so the Web UI can list TUI sessions
+- Welcome / status line judge the API key via credentials
+- After `/model`, the footer glance and vision capability follow the real model
+- `Ctrl+S` can restore a session from disk
+
+The first public baseline is recorded in [docs/BASELINE-v0.1.0-rc.6.md](docs/BASELINE-v0.1.0-rc.6.md).
+
 ## Highlights
 
 - **Full session workspace in a terminal** — live rendering, append-only scrollback, session restore on startup, `/fork` exploration branches, `/rewind` rollback (session truncation + optional file rollback), `/export` to Markdown transcripts, and mid-turn steering (`/steer` / `Ctrl+T`).
