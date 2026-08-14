@@ -5021,4 +5021,52 @@ describe('TuiApp cmdline 参数处理（A3）', () => {
     expect(firstCallText(agent.followup)).toBe('修复这个 bug')
     await app.dispose()
   })
+
+  it('--version 输出版本并经 appExit(0) 退出', async () => {
+    const ctx = makeCtx()
+    const exit = vi.fn()
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'cmdlineArgs') return { get: () => ['--version'] }
+      if (name === 'appExit') return exit
+      return undefined
+    })
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    await app.attach()
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toMatch(/dsh-tianshu-tui \d+\.\d+/)
+    expect(written).not.toContain('API Key')
+    expect(exit).toHaveBeenCalledWith(0)
+    expect(ctx.agents.create).not.toHaveBeenCalled()
+    await app.dispose()
+  })
+
+  it('无 appExit 时 --help 写出用法后 throw', async () => {
+    const ctx = makeCtx()
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'cmdlineArgs') return { get: () => ['-h'] }
+      return undefined
+    })
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    await expect(app.attach()).rejects.toThrow('no appExit service provided')
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('dsh --profile tui --help')
+    await app.dispose()
+  })
+
+  it('位置参数与其它 flag 并存时不发送 prompt', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('arg-flags')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'cmdlineArgs') return { get: () => ['修复这个', '--resume'] }
+      return undefined
+    })
+    const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
+    await app.attach()
+    expect(agent.followup).not.toHaveBeenCalled()
+    await app.dispose()
+  })
 })
