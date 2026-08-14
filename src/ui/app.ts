@@ -21,6 +21,7 @@
 import { randomUUID } from 'node:crypto'
 import { execSync } from 'node:child_process'
 import { writeFile } from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
 import { join, resolve } from 'node:path'
 import type { ReadStream, WriteStream } from 'node:tty'
 import type { Context } from '@deepseek-ai/cordis'
@@ -53,7 +54,7 @@ import { resolveToolViews, type ToolPresenterSource } from '../adapter/tool-view
 import { trackAgent, type LiveAgent } from '../adapter/live.js'
 import { controlsFromHandle, controlsFromRegistry, type AgentControls } from '../adapter/send.js'
 import { listSessions, flushAll, getSession, type SessionSummary } from '../adapter/sessions.js'
-import { updateNoticeText } from '../self-update.js'
+import { updateNoticeText, readOwnVersion } from '../self-update.js'
 import { getTheme, getActiveThemeName, setTheme, type RivetTheme } from '../theme.js'
 import { displayWidth, ambiguousWideEnabled } from '../width.js'
 import { detectTerminalBackground, autoThemeFor } from '../theme-detect.js'
@@ -281,6 +282,49 @@ export interface TuiAppOptions {
 
 /** live 区预留行（顶轨 + 输入 + 底轨 + footer）。 */
 const LIVE_RESERVED_ROWS = 4
+
+/** A3：`dsh --profile tui --help` 输出的用法文本。 */
+const USAGE_TEXT = `dsh-tianshu-tui — DeepSeek Harness 交互式终端界面 / interactive terminal UI
+
+用法 / Usage:
+  dsh --profile tui                   启动交互式 TUI / start the interactive TUI
+  dsh --profile tui "<提示词>"        启动并直接发送提示词 / start and send a prompt
+  dsh --profile tui --help            显示本帮助 / show this help
+  dsh --profile tui --version         输出版本 / print the version
+
+快捷键 / Keys: ctrl+n 新会话 · ctrl+s 恢复 · ctrl+p 命令面板 · / slash 命令 · ctrl+o 展开推理 · shift+tab 模式循环
+`
+
+/** dsh launcher 在 boot prepare 里 provide 的 cmdline 面（不是插件纤维）。 */
+interface CmdlineArgsService {
+  get(): string[]
+}
+
+/**
+ * 读 launcher 转发的 argv。生产路径是 host `ctx.provide('cmdlineArgs')` + inject
+ * 后的属性；`reflect.get` 只看插件纤维，读不到这条服务（真机 --help 仍进 TUI 的根因）。
+ */
+function readCmdlineArgs(ctx: Context): string[] {
+  try {
+    const injected = (ctx as Context & { cmdlineArgs?: CmdlineArgsService }).cmdlineArgs
+    if (injected !== undefined) return injected.get()
+  } catch {
+    // Cordis 4：未 inject 时属性访问抛 without inject
+  }
+  const viaReflect = ctx.reflect.get('cmdlineArgs', false) as CmdlineArgsService | undefined
+  return viaReflect?.get() ?? []
+}
+
+/** 读 launcher 的退出请求。优先 inject 属性，其次 reflect（单测 mock）。 */
+function readAppExit(ctx: Context): ((code?: number) => void) | undefined {
+  try {
+    const injected = (ctx as Context & { appExit?: (code?: number) => void }).appExit
+    if (typeof injected === 'function') return injected
+  } catch {
+    // 同上
+  }
+  return ctx.reflect.get('appExit', false) as ((code?: number) => void) | undefined
+}
 
 /** C3 项 3：写工具名判定（与 fs-snapshot 的 trackEdit 钩子同一集合）。 */
 function isWriteToolCall(name: string): boolean {
@@ -719,6 +763,24 @@ export class TuiApp {
    */
   async attach(initialSessionId?: SessionId): Promise<void> {
     if (this.disposed) throw new Error('TuiApp already disposed')
+    // A3：处理 dsh launcher 转发的命令行参数（`dsh --profile tui <args>`）：
+    // --help/-h 输出用法、--version/-v 输出版本后经 appExit 退出；纯位置参数
+    // 作为初始 prompt（attach 完成后发送）。含其它 flag 时不发 prompt（避免
+    // 与 --resume 等未实现参数的组合语义冲突）。
+    const args = readCmdlineArgs(this.ctx)
+    const flags = args.filter(a => a.startsWith('-'))
+    const wantHelp = flags.includes('--help') || flags.includes('-h')
+    const wantVersion = flags.includes('--version') || flags.includes('-v')
+    const initialPrompt = flags.length === 0 ? args.filter(a => !a.startsWith('-')).join(' ') : ''
+    if (wantHelp || wantVersion) {
+      const exit = readAppExit(this.ctx)
+      this.stdout.write(wantHelp
+        ? USAGE_TEXT
+        : `dsh-tianshu-tui ${readOwnVersion(fileURLToPath(new URL('.', import.meta.url))) ?? 'unknown'}\n`)
+      if (exit !== undefined) { exit(0); return }
+      // 无 appExit（测试/裸装配）：保持 fail loud，由调用方 dispose 收尾。
+      throw new Error('[tui-runner] --help/--version requested but no appExit service provided')
+    }
     // bracketed paste：粘贴的多行文本被终端包裹为整段（行尾 CR 不再逐行触发
     // Enter 提交）；onPaste 处理器把整段插入输入行（超阈值折叠为标记）。
     this.stdout.write(ANSI.BRACKETED_PASTE_ON)
@@ -812,6 +874,10 @@ export class TuiApp {
       this.pendingUpdateNotice = null
     }
     this.flushLiveRender()
+    // A3：纯位置参数作为初始 prompt（`dsh --profile tui "修复这个 bug"`）。
+    if (initialPrompt !== '') {
+      this.handleSubmit(initialPrompt)
+    }
   }
 
   /**
