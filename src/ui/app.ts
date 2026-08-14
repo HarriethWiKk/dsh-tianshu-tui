@@ -1964,6 +1964,9 @@ export class TuiApp {
 
   /** 键路由：Enter 提交 / Ctrl-C 取消或退出 / 上下键历史 / 其余交给 InputLine。 */
   private handleKey(key: KeyPress): void {
+    if (key.name !== 'ctrl_c' && this.inputController.ctrlCPendingSince !== 0) {
+      this.inputController.ctrlCPendingSince = 0
+    }
     // C3 项 4：Shift+Tab 三态循环（Normal → Plan → Always-Approve → Normal）。
     if (key.name === 'shift_tab') {
       this.cycleMode()
@@ -1971,7 +1974,7 @@ export class TuiApp {
     }
     // C4 概念稿 A：欢迎页菜单入口快捷键——新会话 / 恢复会话 / 退出。
     // 语义与菜单行提示一致（grok menu.rs 的 ctrl+w/ctrl+s/ctrl+q 对齐）；
-    // 任意时刻可用（新会话即 /session new 语义，退出即 Ctrl+C 空输入退出）。
+    // 任意时刻可用（新会话即 /session new 语义，退出即 Ctrl+Q / 连按两次 Ctrl+C）。
     // 注意：ctrl_n 在此劫持 InputLine 的 historyNext（L791）、ctrl_p 早已被
     // 命令面板劫持（historyPrev）——输入历史导航由 ↑/↓ 承担，此处不留键。
     if (key.name === 'ctrl_n') {
@@ -2144,12 +2147,27 @@ export class TuiApp {
       return
     }
     if (key.name === 'ctrl_c') {
-      // raw-mode 下 Ctrl+C 是 0x03 数据字节而非 SIGINT——退出路径走这里：
-      // 输入为空退出（onExit），有输入取消当前活动（handleAbort）。
-      if (this.inputLine.value === '' && this.onExit !== undefined) {
-        this.onExit()
+      // raw-mode 下 Ctrl+C 是 0x03 数据字节而非 SIGINT。
+      // 在途：打断当前 turn。空闲空输入：连按两次才 onExit（单次 dispose
+      // 会拆掉 TUI 而 dsh 进程仍在，表现为“按 Ctrl+C 后无法继续、只能再按一次退出”）。
+      if (this.liveAgent?.state.status === 'running') {
+        this.inputController.ctrlCPendingSince = 0
+        this.handleAbort()
         return
       }
+      if (this.inputLine.value === '' && this.onExit !== undefined) {
+        const now = Date.now()
+        const pending = this.inputController.ctrlCPendingSince
+        if (pending !== 0 && now - pending < InputController.EXIT_WINDOW_MS) {
+          this.inputController.ctrlCPendingSince = 0
+          this.onExit()
+          return
+        }
+        this.inputController.ctrlCPendingSince = now
+        this.flushLiveRender()
+        return
+      }
+      this.inputController.ctrlCPendingSince = 0
       this.handleAbort()
       return
     }
@@ -2592,6 +2610,14 @@ export class TuiApp {
         ? theme.error
         : policy.staleLevel === 'warn' ? theme.warning : theme.secondary
       lines.push({ text: color(`⏳ ${policy.staleMessage}`, staleColor) })
+    }
+    const ctrlCPendingSince = this.inputController.ctrlCPendingSince
+    if (ctrlCPendingSince !== 0) {
+      if (Date.now() - ctrlCPendingSince >= InputController.EXIT_WINDOW_MS) {
+        this.inputController.ctrlCPendingSince = 0
+      } else {
+        lines.push({ text: color('再按 Ctrl+C 退出 · Ctrl+Q 立即退出', theme.muted) })
+      }
     }
 
     // 推理展开视图（Ctrl+O 切换；scrollback append-only，全文在 live 区展示）：

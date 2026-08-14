@@ -210,6 +210,8 @@ export class InputController {
   }
   /** 输入历史（最新在前，submit 时更新 + 持久化） */
   inputHistory: string[] = []
+  /** 空闲时空输入 Ctrl+C 连按退出的时间窗（ms）。 */
+  static readonly EXIT_WINDOW_MS = 2000
   /** Ctrl+C double-press window start timestamp (ms), 0 = inactive */
   ctrlCPendingSince = 0
   /** ESC double-press: last ESC timestamp (ms), 0 = inactive */
