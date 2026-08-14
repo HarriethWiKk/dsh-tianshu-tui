@@ -1,5 +1,10 @@
 # dsh-tianshu-tui — DeepSeek Harness coding 终端 
 
+[![npm](https://img.shields.io/npm/v/@huiliyi37/dsh-tianshu-tui.svg)](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)
+[![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![node](https://img.shields.io/node/v/@huiliyi37/dsh-tianshu-tui.svg)](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)
+[![release](https://img.shields.io/github/v/release/huiliyi37/dsh-tianshu-tui?include_prereleases)](https://github.com/huiliyi37/dsh-tianshu-tui/releases)
+
 中文 | [English](README.en.md)
 
 ![dsh-tianshu-tui](docs/tui-screenshot.jpg)
@@ -233,3 +238,8 @@ NO_COLOR=1 pnpm vitest run packages/tui/tui/tests/
 ## 许可与来源
 
 Apache-2.0。终端渲染引擎从 [天枢 Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) 演进而来（Apache-2.0）；逐文件来源与修改声明见 [SOURCE-MAP.md](SOURCE-MAP.md) 与 [NOTICE](NOTICE)。
+
+## 友情链接
+
+- [dsh-web-ui](https://github.com/zhu1090093659/dsh-web-ui) — DSH Web UI 插件与皮肤合集
+- [dshfind](https://dshfind.com/zh) — DeepSeek Harness 中文学习与分享社区

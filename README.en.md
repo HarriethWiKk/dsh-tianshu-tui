@@ -1,5 +1,10 @@
 # dsh-tianshu-tui — Terminal UI for DeepSeek Harness
 
+[![npm](https://img.shields.io/npm/v/@huiliyi37/dsh-tianshu-tui.svg)](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)
+[![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![node](https://img.shields.io/node/v/@huiliyi37/dsh-tianshu-tui.svg)](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)
+[![release](https://img.shields.io/github/v/release/huiliyi37/dsh-tianshu-tui?include_prereleases)](https://github.com/huiliyi37/dsh-tianshu-tui/releases)
+
 [中文](README.md) | English
 
 ![dsh-tianshu-tui](docs/tui-screenshot.jpg)
@@ -233,3 +238,8 @@ None directly; user input submitted through the TUI becomes ordinary logged mess
 ## License & Provenance
 
 Apache-2.0. The terminal render engine evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) (Apache-2.0); per-file provenance and modification statements live in [SOURCE-MAP.md](SOURCE-MAP.md) and [NOTICE](NOTICE).
+
+## Friends
+
+- [dsh-web-ui](https://github.com/zhu1090093659/dsh-web-ui) — Plugin and skin collection for DSH Web UI
+- [dshfind](https://dshfind.com/zh) — Chinese learning and sharing community for DeepSeek Harness
