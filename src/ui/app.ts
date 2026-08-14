@@ -301,27 +301,30 @@ interface CmdlineArgsService {
 }
 
 /**
- * 读 launcher 转发的 argv。生产路径是 host `ctx.provide('cmdlineArgs')` + inject
- * 后的属性；`reflect.get` 只看插件纤维，读不到这条服务（真机 --help 仍进 TUI 的根因）。
+ * 读 launcher 转发的 argv。生产路径是 host `ctx.provide('cmdlineArgs')` 在注入
+ * 属性上可见（attach 前 waitForHostServices 已给就绪窗口）；`reflect.get` 兜底
+ * （同树 provide 非严格可读；单测走此路径）。两者皆无 → 无参数（降级启动）。
  */
 function readCmdlineArgs(ctx: Context): string[] {
   try {
     const injected = (ctx as Context & { cmdlineArgs?: CmdlineArgsService }).cmdlineArgs
     if (injected !== undefined) return injected.get()
-  } catch {
-    // Cordis 4：未 inject 时属性访问抛 without inject
+  } catch (err) {
+    // 只吞 Cordis 的 "without inject"（未声明注入的属性访问）；getter 真实错误上抛。
+    if (!(err instanceof Error) || !err.message.includes('without inject')) throw err
   }
   const viaReflect = ctx.reflect.get('cmdlineArgs', false) as CmdlineArgsService | undefined
   return viaReflect?.get() ?? []
 }
 
-/** 读 launcher 的退出请求。优先 inject 属性，其次 reflect（单测 mock）。 */
+/** 读 launcher 的退出请求。优先注入属性，其次 reflect（单测 mock）。 */
 function readAppExit(ctx: Context): ((code?: number) => void) | undefined {
   try {
     const injected = (ctx as Context & { appExit?: (code?: number) => void }).appExit
     if (typeof injected === 'function') return injected
-  } catch {
-    // 同上
+  } catch (err) {
+    // 同上：只吞 "without inject"
+    if (!(err instanceof Error) || !err.message.includes('without inject')) throw err
   }
   return ctx.reflect.get('appExit', false) as ((code?: number) => void) | undefined
 }
@@ -416,10 +419,10 @@ export class TuiApp {
   private apiKeyReady = Boolean(process.env.DEEPSEEK_API_KEY)
   private overlay: OverlayController | null = null
   /**
-   * overlay 激活期间暂存的 scrollback 条目。alt screen 下 stdout 写入会盖住
-   * 面板，且退出时终端恢复的是进入 overlay 前的主屏。
+   * overlay 激活期间暂存的 scrollback 条目（文本条目或原始字节序列）。
+   * alt screen 下 stdout 写入会盖住面板，且退出时终端恢复的是进入 overlay 前的主屏。
    */
-  private deferredScrollback: Array<{ text: string; trailingNewline?: boolean }> = []
+  private deferredScrollback: Array<{ text: string; trailingNewline?: boolean } | { raw: string }> = []
   /** C3 项 3：rewind overlay（/rewind 双阶段回退面板）。 */
   private rewindOverlay: RewindOverlay | null = null
   /** P2：memory 浏览器 overlay（/memory 记忆列表/过滤/删除）。 */
@@ -757,12 +760,36 @@ export class TuiApp {
   }
 
   /**
+   * 宿主服务（cmdlineArgs/appExit）就绪窗口：launcher 在 boot prepare 里
+   * provide，正常时序下 attach 时已注册（0 等待）；仅当检测到宿主特征
+   * （任一服务已注册）时为缺失方做短窗口轮询，覆盖 provide 略晚于装配的
+   * 罕见时序。两服务均未注册 = 非宿主环境，立即返回。
+   * @param timeoutMs - 最大等待毫秒（缺省 200）。
+   */
+  private async waitForHostServices(timeoutMs = 200): Promise<void> {
+    const reflect = this.ctx.reflect
+    if (reflect.get('cmdlineArgs', false) === undefined && reflect.get('appExit', false) === undefined) return
+    const deadline = Date.now() + timeoutMs
+    for (const name of ['cmdlineArgs', 'appExit']) {
+      while (reflect.get(name, false) === undefined && Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, 25))
+      }
+    }
+  }
+
+  /**
    * 接管终端：切主题（'auto' 探测背景）、装配会话、注册键路由与 resize、启动渲染 ticker。
    * @param initialSessionId - 覆盖构造选项的起始会话；缺省用构造 initialSessionId，
    *   再缺省恢复最近会话（live store 为空才新建）。
    */
   async attach(initialSessionId?: SessionId): Promise<void> {
     if (this.disposed) throw new Error('TuiApp already disposed')
+    // 宿主服务就绪窗口：cmdlineArgs/appExit 由 launcher 在 boot prepare 提供，
+    // 正常时序下 attach 时已就绪（0 等待）；个别宿主 provide 略晚时短窗口补读。
+    // 宿主特征 = 任一服务已注册（reflect 非严格可读）——两服务均未注册视为
+    // 非宿主环境，立即返回（不拖慢测试/其它宿主装配）。读不到按无参数降级，
+    // 绝不阻塞 TUI 启动（fail-open，与必选 inject 的静默卡死语义相反）。
+    await this.waitForHostServices()
     // A3：处理 dsh launcher 转发的命令行参数（`dsh --profile tui <args>`）：
     // --help/-h 输出用法、--version/-v 输出版本后经 appExit 退出；纯位置参数
     // 作为初始 prompt（attach 完成后发送）。含其它 flag 时不发 prompt（避免
@@ -1720,7 +1747,8 @@ export class TuiApp {
     this.deferredScrollback = []
     for (const entry of pending) {
       this.live.clearForCommit()
-      this.commit.write(entry)
+      if ('raw' in entry) this.commit.writeRaw(entry.raw)
+      else this.commit.write(entry)
     }
   }
 
@@ -1812,6 +1840,12 @@ export class TuiApp {
       }
       if (!seq) return
       // 与 commitToScrollback 同协议：先清 live 区再写，写完立即重绘。
+      // overlay 激活（alt screen）时入队，退出后按同一协议补写（与文本条目
+      // 同队列，顺序保持）；否则字节会写进 alt screen 且退出后丢失。
+      if (this.overlay !== null && this.overlay.activeId() !== null) {
+        this.deferredScrollback.push({ raw: seq })
+        return
+      }
       this.live.clearForCommit()
       this.commit.writeRaw(seq)
       this.flushLiveRender()
@@ -3058,6 +3092,10 @@ export class TuiApp {
     this.interactionDisposer?.()
     this.interactionDisposer = null
     if (this.question.isPending) this.question.cancel()
+    // overlay 打开期间暂存的 scrollback 条目：退出前按同一协议补写主屏
+    // （会话日志是权威数据，scrollback 是展示层——丢条目只影响本次显示，
+    // 补写成本低且避免"发了消息但屏上不见"的观感）。
+    this.flushDeferredScrollback()
     await this.detachProjections()
     // P1：/btw 侧问收尾——未决侧问直接销毁 btw agent（done 态答案未折叠则
     // 丢弃，退出即弃；订阅随 teardown 释放，防 dispose 后事件回调泄漏）。

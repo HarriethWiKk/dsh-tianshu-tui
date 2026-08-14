@@ -108,6 +108,7 @@
 | src/restore-session.ts | restore-session.ts | modified |
 | src/ring-buffer.ts | ring-buffer.ts | modified |
 | src/scrollback-transcript.ts | scrollback-transcript.ts | modified |
+| src/self-update.ts | — | new（启动自更新：对照 npm latest 写 profile，dsh 原创） |
 | src/skill-panel.ts | — | new |
 | src/status-panel.ts | — | new |
 | src/statusline.ts | statusline.ts | modified（追加工作流投影层 + WorkflowStatusLine） |

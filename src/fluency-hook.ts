@@ -65,6 +65,9 @@ export class FluencyTracker {
     this.lastIsError = event.isError
     this.lastIsApproval = false
     this.phase = 'tool'
+    // 与 setPhase 同语义：工具结果本身是活动在途证据（恢复中的会话首事件
+    // 可能就是 tool/result，没有 turn/start——不复位会让静默提示被错误抑制）。
+    this.inFlight = true
   }
 
   /** 记录一次审批交互：置审批标记并清零连续 routine 计数。 */
