@@ -61,12 +61,14 @@ export function apply(ctx: Context, config: TuiRunnerConfig = {}): void {
   // 服务隔离：sessions/agents/agentDefaultModel/goals/subagents 是注入属性，访问前必须
   // 声明依赖（Cordis 4 注入语义，未声明访问抛 "without inject"；web-app 同款
   // 模式）。cmdlineArgs/appExit 是 launcher 在 boot prepare 里 provide 的宿主服务，
-  // 必须 inject 后才能从 runtimeCtx 读到——reflect.get 只看插件纤维，读不到。
+  // **不加入必选 inject**：Cordis inject 要求全部服务可用才执行回调，宿主未提供时
+  // tui-runner 会静默永不激活（无报错、无 TUI，比降级更糟）。读取走 attach 内
+  // 的注入属性/reflect 双通道 + 宿主特征感知的短窗口等待（见 TuiApp.attach）。
   // goals/subagents 为可选服务：goal/subagent 插件未装配时注入代理不阻塞
   // 装配，/goal 命令经 reflect.get('goals')、委派树经 reflect.get('subagents')
   // 读到 undefined 时报不可用/面板降级（fails loud）。
   // 装配与 attach 在注入作用域内执行；生命周期仍注册在外层插件 ctx（随插件卸载）。
-  ctx.inject(['sessions', 'agents', 'agentDefaultModel', 'goals', 'subagents', 'cmdlineArgs', 'appExit'], (runtimeCtx) => {
+  ctx.inject(['sessions', 'agents', 'agentDefaultModel', 'goals', 'subagents'], (runtimeCtx) => {
     // 退出生命周期：stdin SIGINT、Ctrl+C 空输入（onExit）与插件卸载（effect cleanup）
     // 走同一 async dispose 路径——teardown await flushAll，退出不丢会话数据。
     // teardown 依赖 app、onExit 依赖 teardown：闭包延迟求值打破循环引用。

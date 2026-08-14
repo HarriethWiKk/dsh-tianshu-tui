@@ -228,13 +228,25 @@ const PHASE_LABELS: Record<WorkflowPhase, string> = {
   wrapup: '收尾',
 }
 
+/** 授权/模式徽标后缀：[plan…] / [plan] / [auto] / [preset] / [yolo] / [ask]。 */
+function formatStatusSuffix(
+  planActive = false,
+  planPending = false,
+  alwaysApprove = false,
+  approvalPolicy: 'ask' | 'never' | null = null,
+  permissionPreset: string | null = null,
+): string {
+  const badge = planPending ? ' [plan…]' : planActive ? ' [plan]' : ''
+  const auto = alwaysApprove ? ' [auto]' : ''
+  const preset = permissionPreset !== null ? ` [${permissionPreset}]` : ''
+  const policy = preset === '' && approvalPolicy !== null
+    ? (approvalPolicy === 'never' ? ' [yolo]' : ' [ask]')
+    : ''
+  return `${badge}${auto}${preset}${policy}`
+}
+
 /**
- * 渲染 statusline 文本：`阶段 · 工具名`，无活动时仅阶段。
- * plan 投影 active 时带 [plan] 徽标（T1.4）；pending 切换待生效时显示
- * [plan…]（A1：轮内 /plan 的意图在下一请求边界才落地，需给用户反馈）。
- * 授权模式徽标：permission preset 装配时显示预设名（如 [danger-full-access]，
- * 即 yolo 语义的全放行预设）；否则按 approval/policy 折叠值显示 [yolo]
- * （'never' = 不询问，sandbox 越界仍拒绝）或 [ask]（显式记录时）。
+ * 渲染 statusline：`阶段 · 工具名`，无活动时仅阶段；后缀为授权/模式徽标。
  * @param view - 工作流视图。
  * @param planActive - plan 模式已生效（渲染 [plan]）。
  * @param planPending - plan 切换待请求边界落地（渲染 [plan…]，优先于 planActive）。
@@ -252,13 +264,7 @@ export function formatStatusLine(
   permissionPreset: string | null = null,
 ): string {
   const phase = PHASE_LABELS[view.phase]
-  const badge = planPending ? ' [plan…]' : planActive ? ' [plan]' : ''
-  const auto = alwaysApprove ? ' [auto]' : ''
-  const preset = permissionPreset !== null ? ` [${permissionPreset}]` : ''
-  const policy = preset === '' && approvalPolicy !== null
-    ? (approvalPolicy === 'never' ? ' [yolo]' : ' [ask]')
-    : ''
-  const suffix = `${badge}${auto}${preset}${policy}`
+  const suffix = formatStatusSuffix(planActive, planPending, alwaysApprove, approvalPolicy, permissionPreset)
   return view.activity === undefined ? `${phase}${suffix}` : `${phase}${suffix} · ${view.activity.name}`
 }
 
@@ -339,11 +345,28 @@ export class WorkflowStatusLine {
 
   private emit(): void {
     // turn/end completed 把相位留在 wrapup（收尾）是工作流事实；agent 已 idle
-    // 时继续展示会让状态行永远停在 ◆ 收尾，像请求还在途。空闲不占位。
+    // 时继续展示会让状态行永远停在 ◆ 收尾，像请求还在途。空闲不占位——
+    // 但授权/模式徽标（[plan]/[auto]/[danger-full-access] 等）仍要保留：
+    // 它们是安全可见性反馈，回合间消失会让 Shift+Tab / preset 切换无感知。
     if (this.agentIdle && this.view.phase === 'wrapup') {
-      if (this.lastText !== null) {
-        this.lastText = null
-        this.onUpdate(null)
+      const suffix = formatStatusSuffix(
+        this.planState.active,
+        this.planState.pending,
+        this.alwaysApprove,
+        this.approvalPolicy,
+        this.permissionPreset,
+      )
+      if (suffix === '') {
+        if (this.lastText !== null) {
+          this.lastText = null
+          this.onUpdate(null)
+        }
+        return
+      }
+      const text = suffix.trim()
+      if (this.lastText !== text) {
+        this.lastText = text
+        this.onUpdate(text)
       }
       return
     }

@@ -326,4 +326,39 @@ describe('WorkflowStatusLine (自包含事件订阅)', () => {
     expect(line.current).toBeNull()
     expect(updates[updates.length - 1]).toBeNull()
   })
+
+  it('A5：idle+wrapup 时授权/模式徽标仍保留（不整体清空——安全反馈不消失）', () => {
+    const { ctx, handlers } = fakeCtx()
+    const updates: (string | null)[] = []
+    const line = new WorkflowStatusLine(ctx, sid, text => updates.push(text))
+    const sessionHandler = handlers.get('session/event')?.[0]
+    const statusHandler = handlers.get('agent/status')?.[0]
+    if (sessionHandler === undefined) throw new Error('session/event handler not registered')
+    if (statusHandler === undefined) throw new Error('agent/status handler not registered')
+
+    sessionHandler({ id: sid }, turnStart(1, 1))
+    sessionHandler({ id: sid }, turnEnd(2, 1))
+    // 无徽标：空闲不占位（与既有 A5 语义一致）
+    expect(line.current).toBeNull()
+
+    // always-approve 开启：徽标在 idle+wrapup 下仍可见，但"收尾"阶段文本隐藏
+    line.setAlwaysApprove(true)
+    expect(line.current).toContain('[auto]')
+    expect(line.current).not.toContain('收尾')
+
+    // plan 徽标同理
+    line.setPlanState({ active: true, pending: false })
+    expect(line.current).toContain('[plan]')
+    expect(line.current).not.toContain('收尾')
+
+    // permission preset 徽标（安全可见性关键）在 idle 下保留
+    sessionHandler({ id: sid }, ev({ seq: 3, time: 1002, type: 'permission/preset', data: { preset: 'danger-full-access' } }))
+    expect(line.current).toContain('[danger-full-access]')
+
+    // running 恢复后回到完整阶段文本（收尾 + 徽标）
+    statusHandler({ agent: { id: sid }, status: 'running' })
+    expect(line.current).toContain('收尾')
+    expect(line.current).toContain('[plan]')
+    expect(line.current).toContain('[danger-full-access]')
+  })
 })
