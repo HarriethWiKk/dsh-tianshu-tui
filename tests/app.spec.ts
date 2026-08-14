@@ -4978,3 +4978,30 @@ describe('TuiApp 剪贴板图片与复制（opencode 接线移植）', () => {
     await app.dispose()
   })
 })
+
+describe('TuiApp 全屏 overlay 激活时 renderLive 不写屏（A6）', () => {
+  it('打开命令面板后流式 ticker 不再把 live 帧写进 alt screen（不覆盖面板）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('ov-1')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+
+    // 基线：主屏 live 帧含输入行 caret 驻停锚（\x1B[5G，见 caretCol 测试）。
+    stdout.write.mockClear()
+    // Ctrl+P（0x10）打开命令面板 → OverlayEngine 切 alternate screen。
+    stdin.emit('data', '\x10')
+    await new Promise(resolve => setTimeout(resolve, 250)) // 覆盖 2+ 个 120ms ticker 周期
+    const afterPalette = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    // 面板确实打开（进入 alt screen）。
+    expect(afterPalette).toContain('\x1B[?1049h')
+    // A6：overlay 激活时 renderLive 被跳过——ticker 周期内不再出现主屏 live
+    // 帧（caret 锚）。未修复时流式帧会逐帧写进 alt screen 盖住面板。
+    expect(afterPalette).not.toContain('\x1B[5G')
+    await app.dispose()
+  })
+})

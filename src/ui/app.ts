@@ -2467,6 +2467,10 @@ export class TuiApp {
   /** 渲染一帧 live 区：状态行 + 流式尾巴 + 进行中工具卡 + 输入行。 */
   private renderLive(): void {
     if (this.disposed) return
+    // A6：全屏 overlay（命令面板/快捷键/搜索/rewind/memory）激活时处于
+    // alternate screen buffer——跳过主屏 live 写屏，避免流式帧逐帧盖住面板；
+    // overlay 退出后 120ms ticker 下一帧自然重绘，内部状态由事件驱动照常更新。
+    if (this.overlay !== null && this.overlay.activeId() !== null) return
     const renderStart = performance.now()
     const theme = this.theme
     const termCols = this.stdout.columns
