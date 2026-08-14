@@ -2354,6 +2354,10 @@ export class TuiApp {
         this.commitSettledToolCard(event)
         break
       }
+      case 'turn/start':
+        // A5：回合开始 → 标记请求在途，静默提示生效（turn/end 由 onTurnComplete 复位）。
+        this.fluency.onTurnStart()
+        break
       case 'turn/end':
         // Phase 9d：turn 边界复位流利度信号
         this.fluency.onTurnComplete()
