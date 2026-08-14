@@ -1,7 +1,10 @@
 # dsh-tui 发布计划（内部文档，不随包分发）
 
-> 状态：**GitHub 已公开**（https://github.com/huiliyi37/dsh-tianshu-tui）。
-> npm **尚未发布**（`private: true` 仍保留）。本文件是 npm 发布时的操作清单。
+> **后续发版不要按本文步骤执行。** 操作手册是 [RELEASE.md](RELEASE.md)。
+>
+> 本文保留 2026-08-13 首次公开前的筹备记录。此后已发布：
+> `@huiliyi37/dsh-tianshu-tui@0.1.0-rc.6`、`0.1.1-rc.6`（npm `latest`）。
+> 主仓 https://github.com/huiliyi37/dsh-tianshu-tui ，组织 fork https://github.com/omdsh-dev/dsh-tianshu-tui 。
 
 ## 当前状态（2026-08-13）
 

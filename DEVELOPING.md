@@ -1,7 +1,7 @@
 # dsh-tui 独立基线仓 — 开发说明
 
-本仓库是 dsh 公开版插件的独立基线仓（local-only，不配置 remote），当前含两个独立插件：
-`@deepseek-ai/dsh-tianshu-tui`（终端 UI，本仓根部）与 `@deepseek-ai/dsh-vision-ask`（视觉副驾：
+本仓库是 dsh 公开版插件的独立基线仓，当前含两个独立插件：
+`@huiliyi37/dsh-tianshu-tui`（终端 UI，本仓根部）与 `@deepseek-ai/dsh-vision-ask`（视觉副驾：
 会话图片注册表 + ask_image 工具，`vision-ask/` 子目录，将来可整体拆独立仓）。
 
 ## 来源
@@ -18,9 +18,9 @@
 ```
 src/                插件源码（tui-runner 入口见 src/index.ts）
 tests/              vitest 测试套件（app.spec.ts 黑盒 + 装配测试等）
-docs/               内部文档（PUBLISH-PLAN.md 发布计划；projection-layer.md 等）
+docs/               内部文档（RELEASE.md 发版手册；PUBLISH-PLAN.md 历史筹备；projection-layer.md 等）
 cordis.patch.yml    bundle patch：`dsh plugin add` 装配层
-package.json        包清单（发布形态已就绪；private 有意保留，见发布计划）
+package.json        包清单（@huiliyi37/dsh-tianshu-tui；发版见 docs/RELEASE.md）
 tsdown.config.ts    打包配置（lib/types/*.js → lib/index.js + lib/invariant.js）
 vision-ask/         独立插件 @deepseek-ai/dsh-vision-ask（自有 package.json/tsconfig/src/tests）
 ```
@@ -45,5 +45,10 @@ tsc -p vision-ask/tsconfig.json --noEmit
 
 ## 发布
 
-GitHub 公开仓：https://github.com/huiliyi37/dsh-tianshu-tui  
-`package.json` 仍保留 `"private": true`，避免误 npm publish。npm 发布步骤见 `docs/PUBLISH-PLAN.md`。
+发版按 [docs/RELEASE.md](docs/RELEASE.md)（主仓 + `omdsh-dev` fork 双推、npm `--tag latest`）。
+
+- 主仓：https://github.com/huiliyi37/dsh-tianshu-tui（remote `github`）
+- 组织 fork：https://github.com/omdsh-dev/dsh-tianshu-tui（remote `omdsh`）
+- `origin` 是本地 bundle，不要推
+
+历史筹备清单：`docs/PUBLISH-PLAN.md`（已过期）。
