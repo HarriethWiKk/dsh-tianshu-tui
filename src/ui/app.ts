@@ -744,11 +744,13 @@ export class TuiApp {
    * 默认模型（settings 里的 agent-default-model 未生效）。
    *
    * 服务未注册（不在本 profile 组成中）时跳过；有界等待避免服务缺失时挂死。
+   * 超时仍未激活则 warn 后继续（fail-soft：启动不挂死，但模型/API Key 可能仍是缺省）。
    * @param names - 要等待的服务名。
    * @param timeoutMs - 最大等待毫秒（缺省 5000）。
    */
   private async waitForServicesReady(names: readonly string[], timeoutMs = 5000): Promise<void> {
     const deadline = Date.now() + timeoutMs
+    const stale: string[] = []
     for (const name of names) {
       // 未注册（非严格取不到）：本 profile 无该服务，没有数据可等，直接跳过。
       if (this.ctx.reflect.get(name, false) === undefined) continue
@@ -756,6 +758,10 @@ export class TuiApp {
       while (this.ctx.reflect.get(name) === undefined && Date.now() < deadline) {
         await new Promise(resolve => setTimeout(resolve, 25))
       }
+      if (this.ctx.reflect.get(name) === undefined) stale.push(name)
+    }
+    if (stale.length > 0) {
+      console.warn(`[tui-runner] timed out waiting for ${stale.join(', ')} after ${String(timeoutMs)}ms; continuing with possibly stale defaults`)
     }
   }
 
@@ -808,6 +814,10 @@ export class TuiApp {
       // 无 appExit（测试/裸装配）：保持 fail loud，由调用方 dispose 收尾。
       throw new Error('[tui-runner] --help/--version requested but no appExit service provided')
     }
+    // A1/A2：终端接管与会话创建之前等 settings/credentials 激活（有界；未注册
+    // 跳过）。放在 paste/OSC 11 之前，避免半初始化终端上空等；否则 newSession
+    // 快照到 config 默认模型，欢迎页误报 API Key ✗。
+    await this.waitForServicesReady(['settings', 'credentials'])
     // bracketed paste：粘贴的多行文本被终端包裹为整段（行尾 CR 不再逐行触发
     // Enter 提交）；onPaste 处理器把整段插入输入行（超阈值折叠为标记）。
     this.stdout.write(ANSI.BRACKETED_PASTE_ON)
@@ -823,10 +833,6 @@ export class TuiApp {
     }
 
     const target = initialSessionId ?? this.initialSessionId ?? this.ctx.sessions.list()[0]?.id
-    // A1/A2：创建/恢复会话与首帧渲染前，等 settings/credentials 服务激活
-    // （有界；未注册跳过）——否则 newSession/resume 在创建时快照到的是 config
-    // 默认模型（settings 未加载），且欢迎页误报 API Key ✗。
-    await this.waitForServicesReady(['settings', 'credentials'])
     if (target !== undefined) await this.switchSession(target)
     else await this.newSession()
 
@@ -1072,7 +1078,7 @@ export class TuiApp {
   /** 当前会话工作区：header.cwd 优先，缺省回退启动目录。 */
   private sessionCwd(): string {
     if (this.activeSessionId === null) return process.cwd()
-    const cwd = getSession(this.ctx, this.activeSessionId)?.header.cwd
+    const cwd = getSession(this.ctx, this.activeSessionId)?.header?.cwd
     return cwd === undefined || cwd === '' ? process.cwd() : cwd
   }
 

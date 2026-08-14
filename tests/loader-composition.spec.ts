@@ -96,7 +96,8 @@ interface Booted {
 
 /**
  * Boot the real tui composition (example cordis.yml minus the real adapter)
- * through an in-process Loader.
+ * through an in-process Loader. Does not provide launcher cmdlineArgs/appExit —
+ * tui-runner must activate without those host services.
  * @returns the booted root context, fake streams, and the tui plugin fiber handle.
  */
 async function boot(): Promise<Booted> {
@@ -180,11 +181,6 @@ async function boot(): Promise<Booted> {
 
   const ctx = new Context()
   context = ctx
-  // 宿主服务：dsh launcher 在 boot prepare 里 provide cmdlineArgs/appExit，
-  // tui-runner 对两者是必需 inject；测试进程即宿主，补同位 provide（空 argv +
-  // 空退出），否则 TUI 纤维永不激活。
-  ctx.provide('cmdlineArgs', { get: () => [] as string[] })
-  ctx.provide('appExit', () => {})
   ctx.baseUrl = pathToFileURL(root).href + '/'
   await ctx.plugin(Loader)
   ctx.loader.builtins.include = Include
@@ -210,6 +206,13 @@ async function boot(): Promise<Booted> {
 }
 
 describe('tui real Loader composition through cordis.yml', () => {
+  it('tui-runner fiber activates without launcher cmdlineArgs/appExit', async () => {
+    const { stdout } = await boot()
+    await vi.waitFor(() => {
+      expect(stdout.text()).toContain('📁')
+    }, { timeout: 10_000 })
+  }, 15_000)
+
   it('mounts over the real spine, renders on events, and releases every listener on fiber dispose', async () => {
     const { ctx, stdout, stdin, tuiCtx } = await boot()
 

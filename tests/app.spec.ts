@@ -5137,6 +5137,57 @@ describe('TuiApp 首帧渲染等待 settings/credentials 服务（A1/A2）', () 
       if (prevKey !== undefined) process.env.DEEPSEEK_API_KEY = prevKey
     }
   })
+
+  it('已注册服务超时未激活：warn 后仍创建会话（不静默吞掉）', async () => {
+    vi.useFakeTimers()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const ctx = makeCtx()
+      const agent = makeAgent('svc-timeout')
+      ctx.agents.create.mockResolvedValue(makeHandle(agent))
+      ctx.sessions.get.mockReturnValue(agent.session)
+      ctx.sessions.list.mockReturnValue([])
+      ctx.reflect.get.mockImplementation((name: string, strict = true) => {
+        if (name === 'settings' || name === 'credentials') return strict ? undefined : {}
+        return undefined
+      })
+      const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
+      const attachPromise = app.attach()
+      await vi.advanceTimersByTimeAsync(5_100)
+      await attachPromise
+      expect(warn.mock.calls.some(call => String(call[0]).includes('settings'))).toBe(true)
+      expect(ctx.agents.create).toHaveBeenCalled()
+      await app.dispose()
+    } finally {
+      warn.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('服务等待发生在终端接管之前：等待期间不写 bracketed paste', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('svc-order')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    ctx.sessions.list.mockReturnValue([])
+    let activated = false
+    ctx.reflect.get.mockImplementation((name: string, strict = true) => {
+      if (name === 'settings' || name === 'credentials') return strict ? (activated ? {} : undefined) : {}
+      return undefined
+    })
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    const attachPromise = app.attach()
+    await new Promise(resolve => setTimeout(resolve, 40))
+    const duringWait = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(duringWait).not.toContain('\x1B[?2004h')
+    activated = true
+    await attachPromise
+    const after = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(after).toContain('\x1B[?2004h')
+    await app.dispose()
+  })
 })
 
 describe('TuiApp 全屏 overlay 激活时 renderLive 不写屏（A6）', () => {

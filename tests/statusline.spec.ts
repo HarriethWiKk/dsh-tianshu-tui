@@ -308,7 +308,7 @@ describe('WorkflowStatusLine (自包含事件订阅)', () => {
     expect(line.current).toBeNull()
   })
 
-  it('A5：agent running 时 turn/end 仍显示收尾；idle 后清除', () => {
+  it('A5：agent running 时 turn/end 仍显示收尾；completed 后清除', () => {
     const { ctx, handlers } = fakeCtx()
     const updates: (string | null)[] = []
     const line = new WorkflowStatusLine(ctx, sid, text => updates.push(text))
@@ -322,7 +322,7 @@ describe('WorkflowStatusLine (自包含事件订阅)', () => {
     sessionHandler({ id: sid }, turnEnd(2, 1))
     expect(line.current).toContain('收尾')
 
-    statusHandler({ agent: { id: sid }, status: 'idle' })
+    statusHandler({ agent: { id: sid }, status: 'completed' })
     expect(line.current).toBeNull()
     expect(updates[updates.length - 1]).toBeNull()
   })
