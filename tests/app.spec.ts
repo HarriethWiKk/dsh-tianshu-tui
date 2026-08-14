@@ -2502,6 +2502,36 @@ describe('TuiApp 会话交互 UX 对齐（显示层 = 实际能力）', () => {
     expect(firstCallText(agent.followup)).toContain('会话工作区笔记')
     await app.dispose()
   })
+
+  it('notifyPluginUpdated：attach 后写入重启提示', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('upd-after')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    await app.attach()
+    app.notifyPluginUpdated('0.1.0-rc.7')
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('插件已更新到 0.1.0-rc.7，请重启 dsh 后生效')
+    await app.dispose()
+  })
+
+  it('notifyPluginUpdated：attach 前排队，attach 后才出现', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('upd-queue')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    app.notifyPluginUpdated('0.1.0-rc.7')
+    const before = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(before).not.toContain('插件已更新到')
+    await app.attach()
+    const after = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(after).toContain('插件已更新到 0.1.0-rc.7，请重启 dsh 后生效')
+    await app.dispose()
+  })
 })
 
 describe('TuiApp forkSession（A3 会话分叉）', () => {

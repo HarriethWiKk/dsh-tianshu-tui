@@ -25,6 +25,8 @@ npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
 
 pnpm may warn about missing peers; ignore that. Peers come from the official `dsh` host.
 
+After an npm install, each launch checks npm `latest` and writes a newer version into the profile, then asks you to restart. Set `DSH_TUI_SKIP_UPDATE=1` to skip the check. `github:` / `link:` installs are left alone.
+
 You can also install from Git: `npx -y @deepseek-ai/dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui` (the repository ships `lib/index.js`; no rebuild).
 
 ### 3. Start

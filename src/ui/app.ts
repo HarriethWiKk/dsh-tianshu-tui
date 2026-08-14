@@ -53,6 +53,7 @@ import { resolveToolViews, type ToolPresenterSource } from '../adapter/tool-view
 import { trackAgent, type LiveAgent } from '../adapter/live.js'
 import { controlsFromHandle, controlsFromRegistry, type AgentControls } from '../adapter/send.js'
 import { listSessions, flushAll, getSession, type SessionSummary } from '../adapter/sessions.js'
+import { updateNoticeText } from '../self-update.js'
 import { getTheme, getActiveThemeName, setTheme, type RivetTheme } from '../theme.js'
 import { displayWidth, ambiguousWideEnabled } from '../width.js'
 import { detectTerminalBackground, autoThemeFor } from '../theme-detect.js'
@@ -485,6 +486,9 @@ export class TuiApp {
   private tick = 0
   private ticker: ReturnType<typeof setInterval> | null = null
   private disposed = false
+  /** attach() 完成后才往 scrollback 写更新提示（避免欢迎页之前的空窗）。 */
+  private attached = false
+  private pendingUpdateNotice: string | null = null
   /** bracketed paste 处理器 disposer（attach 注册，dispose 释放）。 */
   private pasteDisposer: (() => void) | null = null
   /** 渲染帧合并器：事件路径走 schedule（16ms 合并），critical 路径走 flushLiveRender。 */
@@ -760,6 +764,26 @@ export class TuiApp {
         ask: request => this.handleQuestionRequest(request),
       })
     }
+    this.attached = true
+    if (this.pendingUpdateNotice !== null) {
+      this.commitToScrollback({ text: this.pendingUpdateNotice, trailingNewline: true })
+      this.pendingUpdateNotice = null
+    }
+    this.flushLiveRender()
+  }
+
+  /**
+   * 自更新落盘后的用户提示。模块已加载，新代码要重启才生效。
+   * attach 完成前调用则排队，完成后写入 scrollback。
+   */
+  notifyPluginUpdated(version: string): void {
+    if (this.disposed) return
+    const text = updateNoticeText(version)
+    if (!this.attached) {
+      this.pendingUpdateNotice = text
+      return
+    }
+    this.commitToScrollback({ text, trailingNewline: true })
     this.flushLiveRender()
   }
 

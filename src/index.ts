@@ -9,10 +9,12 @@
  * @module @deepseek-ai/dsh-tianshu-tui
  */
 
+import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ReadStream, WriteStream } from 'node:tty'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { KeyName } from './engine/input-handler.ts'
+import { runSelfUpdate } from './self-update.ts'
 import { TuiApp } from './ui/app.ts'
 
 /** Stable Cordis plugin name the bundle patch inserts. */
@@ -87,6 +89,11 @@ export function apply(ctx: Context, config: TuiRunnerConfig = {}): void {
     void app.attach().catch((err: unknown) => {
       // attach 失败：恢复终端（dispose 幂等）后上报，避免半初始化终端残留。
       void app.dispose().finally(() => { console.error('[tui-runner] attach failed:', err) })
+    })
+    // 启动自更新：对照 npm latest，写入 profile。已加载模块不热替换，提示重启。
+    // CI/VITEST/非 npm 安装会 noop，不挡 attach。
+    void runSelfUpdate({ startDir: fileURLToPath(new URL('.', import.meta.url)) }).then((result) => {
+      if (result.kind === 'updated') app.notifyPluginUpdated(result.version)
     })
   })
 }
