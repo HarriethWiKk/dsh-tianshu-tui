@@ -1,4 +1,4 @@
-# dsh-tianshu-tui — DeepSeek Harness 终端 UI
+# dsh-tianshu-tui — DeepSeek Harness coding 终端 
 
 中文 | [English](README.en.md)
 
