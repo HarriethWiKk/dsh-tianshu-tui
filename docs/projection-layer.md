@@ -15,8 +15,6 @@
 | `turn-summary.ts` | turn 内工具统计模型（数量/耗时/家族分布） | **已接线**：`handleStreamEvent` fold → `turn/end`（非 aborted 且有工具调用）经 `format/turn-summary.ts` 渲染摘要行进 scrollback（`turn N · 读X 改Y · elapsed`）；读/改计数复用 `format/tool-meta.ts` 的 read\|find\|write 家族 |
 | `summary-state.ts` | 会话级跨 turn 汇总 | **已接线**：`handleStreamEvent` fold + `mountSession` 经 `summarizeSession` 从事件日志重放重建 → `/status` 面板「Σ 会话」段（`render/live-snapshot.ts` 的 `sessionTotals` 字段）；不依赖宿主投影总线，总线缺失时仍有数据 |
 
-设计曾承诺、至今未落地的模块：`cache-telemetry.ts`、`cache-panel-source.ts`、`history-replay.ts`、`adapter/projections.ts`——处置见 [README《已知限制与待办》](../README.md#已知限制与待办)。
-
 ## 关键契约
 
 - **工具家族分布**（turn-summary/summary-state 的 `byFamily`）复用 `format/tool-family.ts` 的 `getToolColorFamily`（file/shell/search/edit/network/other）——同一个「工具名 → 功能域」映射，投影不重复造轮子。

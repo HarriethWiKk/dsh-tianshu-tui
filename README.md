@@ -201,7 +201,7 @@ npx -y @deepseek-ai/dsh --profile tui
 | `Ctrl+Q` | 退出（同 `/exit`） |
 | `Ctrl+P` | 命令面板 |
 | `Ctrl+.` | 键位表 overlay |
-| `Ctrl+F` | 历史搜索（`n`/`N` 跳转） |
+| `Ctrl+F` | 历史搜索（`n`/`N` 下一个，`p`/`P` 上一个） |
 | `Ctrl+O` | 展开/收起最近推理块 |
 | `Ctrl+E` | 用 `$EDITOR` 打开输入行（可经 `editorKey` 配置） |
 | `Ctrl+T` | 中轮转向 |
@@ -213,6 +213,7 @@ npx -y @deepseek-ai/dsh --profile tui
 | `↑`/`↓` | 输入历史（slash 菜单打开时为选择） |
 | `PageUp`/`PageDown` | slash 菜单翻页 |
 | `Esc` | 关闭菜单/overlay；取消挂起提问 |
+| `a` | 审批卡：本会话放行（always-approve + 结算当前请求） |
 
 ## 装配
 

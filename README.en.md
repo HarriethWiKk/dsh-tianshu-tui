@@ -200,7 +200,7 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 | `Ctrl+Q` | Quit (same as `/exit`) |
 | `Ctrl+P` | Command palette |
 | `Ctrl+.` | Keymap overlay |
-| `Ctrl+F` | History search (`n`/`N` to jump) |
+| `Ctrl+F` | History search (`n`/`N` next, `p`/`P` previous) |
 | `Ctrl+O` | Expand/collapse the latest reasoning block |
 | `Ctrl+E` | Open the input line in `$EDITOR` (configurable via `editorKey`) |
 | `Ctrl+T` | Mid-turn steering |
@@ -212,6 +212,7 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 | `↑`/`↓` | Input history (selection while the slash menu is open) |
 | `PageUp`/`PageDown` | Slash menu paging |
 | `Esc` | Close menu/overlay; cancel a pending question |
+| `a` | Approval card: allow this session (always-approve + settle the current request) |
 
 ## Assembly
 
