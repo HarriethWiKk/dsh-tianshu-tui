@@ -37,11 +37,14 @@ vision-ask 的附件引用均为 type-only：行为测试可在任一解析 dsh-
 ## 构建
 
 ```sh
-tsc -p tsconfig.json --noEmit   # 类型检查（需 peer 已安装）
-tsdown --config tsdown.config.ts  # 产出 lib/index.js + lib/invariant.js
+npm run typecheck   # tsc --noEmit（src + tests）
+npm run build       # 两段：tsc -p tsconfig.build.json（src → lib/types/*.js+.d.ts）→ tsdown（lib/types → lib/index.js + lib/invariant.js）
+npm test            # vitest run tests/
 # vision-ask（独立 tsconfig/打包）
 tsc -p vision-ask/tsconfig.json --noEmit
 ```
+
+**不要只跑裸 `tsdown`**：它的 entry 是 `lib/types/*.js`（tsc 产物），跳过 tsc 会把旧产物重新打包成新旧混合的 bundle（docs/PUBLISH-PLAN.md 已记录该坑）。
 
 ## 发布
 

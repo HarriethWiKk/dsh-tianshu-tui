@@ -219,10 +219,16 @@ export declare class TuiApp {
     private lastInputFocusAt;
     /** 主控模型是否原生支持识图（图片附件气泡提示；装配方经 options.vision 注入）。 */
     private supportsVision;
-    /** 是否配置独立识图桥模型（主控不识图时经桥转文字描述后发送）。 */
+    /** 是否配置独立识图桥模型（主控不识图时经桥转文字描述后发送）。
+     *  装配方经 options.vision 注入；未注入时提交图片前按 visionBridge 服务
+     *  存在性探测补齐（resolveVisionBridge）。 */
     private visionBridgeEnabled;
     /** 识图桥来源（'configured' / 'auto' / 'none'；气泡提示文案用）。 */
     private visionBridgeSource;
+    /** 投影层：turn 级工具统计 fold（turn/end 摘要行数据源；mountSession 复位）。 */
+    private turnSummary;
+    /** 投影层：会话级跨 turn 汇总 fold（/status 会话段数据源；mountSession 重放重建）。 */
+    private sessionSummary;
     constructor(options: TuiAppOptions);
     /** Phase 8：审批 answerer 订阅的 disposer（dispose 时解绑）。 */
     private approvalDisposer;
@@ -282,6 +288,14 @@ export declare class TuiApp {
      * @param bridgeSource - 识图桥来源（configured/auto/none；气泡提示文案用）
      */
     setVisionInfo(supportsVision: boolean, bridgeEnabled: boolean, bridgeSource?: 'configured' | 'auto' | 'none'): void;
+    /**
+     * 宿主视觉桥探测：视觉桥插件（dsh-vision-bridge）装配时应 provide('visionBridge')
+     * 服务，存在即视为桥可用（来源按 configured 处理，装配方注入过 bridgeSource 时
+     * 保留注入值）。显式注入 vision.bridgeEnabled 时短路；否则每次提交图片前补探，
+     * 覆盖桥插件晚于 tui-runner 激活的装配时序（reflect.get 是字典读，代价可忽略）。
+     * @returns 当前是否有可用识图桥。
+     */
+    private resolveVisionBridge;
     /** T3.1：结算挂起的提问（用户选择/取消）——薄转发。 */
     private settleQuestion;
     /** T3.1：取消挂起的提问（Esc/Ctrl+C）——薄转发。 */
@@ -418,6 +432,8 @@ export declare class TuiApp {
     private fillCredentials;
     /** T3.3：刷新 skill 快照（ctx.skills.list；服务缺失时空数组）。 */
     private refreshSkillItems;
+    /** 回显一条警告行到 scrollback（可选服务缺失的 fails-loud 提示共用出口）。 */
+    private echoWarn;
     /** 当前主题（动态读取，切主题后立即生效）。 */
     private get theme();
     /**
@@ -523,7 +539,7 @@ export declare class TuiApp {
      * 若按投影判断会在 Always-Approve 态误走回 Plan 分支。
      */
     private cycleMode;
-    /** C3 项 4：经 planMode 服务切换 plan 状态（未装配或未挂载时静默降级）。 */
+    /** C3 项 4：经 planMode 服务切换 plan 状态（服务缺失时回显警告，不再静默）。 */
     private setPlanMode;
     /** 键路由：Enter 提交 / Ctrl-C 取消或退出 / 上下键历史 / 其余交给 InputLine。 */
     private handleKey;
@@ -568,6 +584,13 @@ export declare class TuiApp {
     private discardReasoning;
     /** 流式收尾：吐尽节流缓冲，并把 StreamRenderer 剩余 pending commit 进 scrollback。 */
     private flushStream;
+    /**
+     * turn 结束摘要行（投影层：turn-summary 模型 → format/turn-summary 渲染半）：
+     * `turn N · 读X 改Y · elapsed` 单行 dim 落 scrollback。读/改计数复用
+     * tool-meta 的 read|find/write 家族（投影不重复造「工具名 → 域」映射）。
+     * @param summary - 该 turn 的统计快照（fold 于 handleStreamEvent，调用点取定）。
+     */
+    private commitTurnSummaryLine;
     /** wrapping-aware display rows（空行计 1）。 */
     private displayRowsFor;
     /** critical 路径同步穿透：用户交互（提交/审批/按键）不等 16ms 帧边界。 */

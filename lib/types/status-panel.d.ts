@@ -39,6 +39,15 @@ export interface GoalStatusLabel {
     color: 'green' | 'yellow' | 'red' | 'blue';
     stage: GoalPhase;
 }
+/** 会话级汇总段输入（summary-state 模型的展示投影）。 */
+export interface SessionTotalsInput {
+    /** 已完成轮数（turn/end 累计）。 */
+    turns: number;
+    /** 已完成轮的工具调用总数。 */
+    toolCalls: number;
+    /** 已完成轮的工具耗时合计（真实毫秒）。 */
+    elapsedMs: number;
+}
 /**
  * 状态 → (文本, 颜色, 阶段) 三元组映射（grok-build status_label 模式）。
  * @param phase - goal 投影单元的状态阶段。
@@ -50,9 +59,10 @@ export declare function goalStatusLabel(phase: GoalPhase): GoalStatusLabel;
  * @param goal - goal 投影快照；null（从未写入）→ 目标段不渲染。
  * @param todos - 任务快照；null → 任务段不渲染，空数组 → 渲染占位。
  * @param plan - plan 投影快照；null → 计划段不渲染。
- * @param opts - 渲染选项（含行截断宽度预算）。
- * @returns 面板行数组（三段按目标/任务/计划顺序拼接）。
+ * @param opts - 渲染选项（含行截断宽度预算与可选会话汇总段）。
+ * @returns 面板行数组（段按目标/任务/计划/会话顺序拼接）。
  */
 export declare function projectStatusPanel(goal: GoalProjectionInput | null, todos: TaskItem[] | null, plan: PlanProjectionInput | null, opts: {
     width: number;
+    sessionTotals?: SessionTotalsInput | null;
 }): string[];

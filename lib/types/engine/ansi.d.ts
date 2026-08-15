@@ -10,54 +10,54 @@
 /** ANSI 转义序列原始常量。直接用模板字面量拼接到输出字符串。 */
 export declare const ANSI: {
     /** 保存当前光标位置 */
-    readonly SAVE_CURSOR: "\u001B[s";
+    readonly SAVE_CURSOR: '\u001B[s';
     /** 恢复之前保存的光标位置 */
-    readonly RESTORE_CURSOR: "\u001B[u";
+    readonly RESTORE_CURSOR: '\u001B[u';
     /** 从光标处擦除到行尾 (Erase to End of Line) */
-    readonly ERASE_LINE_END: "\u001B[0K";
+    readonly ERASE_LINE_END: '\u001B[0K';
     /** 擦除整行 (Erase Entire Line) */
-    readonly ERASE_LINE: "\u001B[2K";
+    readonly ERASE_LINE: '\u001B[2K';
     /** 从光标处擦除到屏幕末尾 (Erase to End of Screen) */
-    readonly ERASE_SCREEN_END: "\u001B[0J";
+    readonly ERASE_SCREEN_END: '\u001B[0J';
     /** 擦除整个屏幕 (Erase Entire Screen) */
-    readonly ERASE_SCREEN: "\u001B[2J";
+    readonly ERASE_SCREEN: '\u001B[2J';
     /** 进入 alternate screen buffer（全屏 overlay 用） */
-    readonly ALT_SCREEN_ON: "\u001B[?1049h";
+    readonly ALT_SCREEN_ON: '\u001B[?1049h';
     /** 退出 alternate screen buffer，恢复主屏 */
-    readonly ALT_SCREEN_OFF: "\u001B[?1049l";
+    readonly ALT_SCREEN_OFF: '\u001B[?1049l';
     /**
      * 开始同步输出（CSI 2026 / DECSET 2026）。
      * 终端会缓冲后续输出，直到 END_SYNC 才一次性原子刷新 → 防止增量重绘撕裂/闪烁。
      * 不支持的终端会静默忽略此私有模式（无副作用）。
      */
-    readonly BEGIN_SYNC: "\u001B[?2026h";
+    readonly BEGIN_SYNC: '\u001B[?2026h';
     /** 结束同步输出，原子刷新本帧。 */
-    readonly END_SYNC: "\u001B[?2026l";
+    readonly END_SYNC: '\u001B[?2026l';
     /** 启用 bracketed paste（DECSET 2004：粘贴文本被 200~/201~ 包裹，
    不触发按键） */
-    readonly BRACKETED_PASTE_ON: "\u001B[?2004h";
+    readonly BRACKETED_PASTE_ON: '\u001B[?2004h';
     /** 关闭 bracketed paste（退出时恢复终端默认） */
-    readonly BRACKETED_PASTE_OFF: "\u001B[?2004l";
+    readonly BRACKETED_PASTE_OFF: '\u001B[?2004l';
     /** 隐藏光标 */
-    readonly HIDE_CURSOR: "\u001B[?25l";
+    readonly HIDE_CURSOR: '\u001B[?25l';
     /** 显示光标 */
-    readonly SHOW_CURSOR: "\u001B[?25h";
+    readonly SHOW_CURSOR: '\u001B[?25h';
     /** 重置所有 SGR 属性 */
-    readonly RESET: "\u001B[0m";
+    readonly RESET: '\u001B[0m';
     /** 粗体 */
-    readonly BOLD: "\u001B[1m";
+    readonly BOLD: '\u001B[1m';
     /** 细体/暗色 */
-    readonly DIM: "\u001B[2m";
+    readonly DIM: '\u001B[2m';
     /** 斜体 */
-    readonly ITALIC: "\u001B[3m";
+    readonly ITALIC: '\u001B[3m';
     /** 下划线 */
-    readonly UNDERLINE: "\u001B[4m";
+    readonly UNDERLINE: '\u001B[4m';
     /** 闪烁（慢） */
-    readonly BLINK: "\u001B[5m";
+    readonly BLINK: '\u001B[5m';
     /** 反色 */
-    readonly REVERSE: "\u001B[7m";
+    readonly REVERSE: '\u001B[7m';
     /** 删除线 */
-    readonly STRIKETHROUGH: "\u001B[9m";
+    readonly STRIKETHROUGH: '\u001B[9m';
 };
 /**
  * 将光标向上移动 n 行。

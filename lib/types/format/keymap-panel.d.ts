@@ -15,7 +15,9 @@ export interface KeymapEntry {
     /** 动作说明（如 '命令面板'）。 */
     action: string;
 }
-/** 当前实现的完整快捷键表（新增键位时在此登记，面板自动跟随）。 */
+/** 当前实现的完整快捷键表（新增键位时在此登记，面板自动跟随）。
+ *  与 README 快捷键表同源维护；审批卡的 y/N/a/Ctrl+C 为上下文键位，
+ *  由审批卡自带提示承担，不在此列。 */
 export declare const KEYMAP_ENTRIES: KeymapEntry[];
 /**
  * 渲染快捷键面板为行数组：标题 + 两列对齐条目。

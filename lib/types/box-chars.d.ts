@@ -21,41 +21,41 @@ export interface BoxCharSet {
  */
 export declare const INPUT_BOX_CHARS: {
     readonly thin: {
-        readonly tl: "╭";
-        readonly tr: "╮";
-        readonly bl: "╰";
-        readonly br: "╯";
-        readonly h: "─";
-        readonly v: "│";
-        readonly m: "┬";
+        readonly tl: '╭';
+        readonly tr: '╮';
+        readonly bl: '╰';
+        readonly br: '╯';
+        readonly h: '─';
+        readonly v: '│';
+        readonly m: '┬';
     };
     readonly thick: {
-        readonly tl: "┏";
-        readonly tr: "┓";
-        readonly bl: "┗";
-        readonly br: "┛";
-        readonly h: "━";
-        readonly v: "┃";
-        readonly m: "┳";
+        readonly tl: '┏';
+        readonly tr: '┓';
+        readonly bl: '┗';
+        readonly br: '┛';
+        readonly h: '━';
+        readonly v: '┃';
+        readonly m: '┳';
     };
     readonly dots: {
-        readonly tl: "╭";
-        readonly tr: "╮";
-        readonly bl: "╰";
-        readonly br: "╯";
-        readonly h: "┄";
-        readonly v: "┊";
-        readonly m: "┬";
+        readonly tl: '╭';
+        readonly tr: '╮';
+        readonly bl: '╰';
+        readonly br: '╯';
+        readonly h: '┄';
+        readonly v: '┊';
+        readonly m: '┬';
     };
     /** Kimi Code 风格：圆角 thin 字面 + 顶框内嵌模型名标签。字面量与 thin 一致。 */
     readonly kimi: {
-        readonly tl: "╭";
-        readonly tr: "╮";
-        readonly bl: "╰";
-        readonly br: "╯";
-        readonly h: "─";
-        readonly v: "│";
-        readonly m: "┬";
+        readonly tl: '╭';
+        readonly tr: '╮';
+        readonly bl: '╰';
+        readonly br: '╯';
+        readonly h: '─';
+        readonly v: '│';
+        readonly m: '┬';
     };
     /**
      * legacy conhost 降级档：GBK 点阵字体把框线字符按 2 列渲染（或缺字形出
@@ -63,13 +63,13 @@ export declare const INPUT_BOX_CHARS: {
      * 逐帧重影。ASCII 字符宽度确定为 1 列，任何字体/代码页下都不折行。
      */
     readonly ascii: {
-        readonly tl: "+";
-        readonly tr: "+";
-        readonly bl: "+";
-        readonly br: "+";
-        readonly h: "-";
-        readonly v: "|";
-        readonly m: "+";
+        readonly tl: '+';
+        readonly tr: '+';
+        readonly bl: '+';
+        readonly br: '+';
+        readonly h: '-';
+        readonly v: '|';
+        readonly m: '+';
     };
 };
 /**

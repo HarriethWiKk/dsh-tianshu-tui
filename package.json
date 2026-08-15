@@ -32,7 +32,8 @@
     "url": "https://github.com/huiliyi37/dsh-tianshu-tui/issues"
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsc -p tsconfig.build.json && tsdown",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "engines": {
@@ -76,6 +77,7 @@
     "@deepseek-ai/dsh-agent": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-agent-default-model": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-agent-spine-demo": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-attachment": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-credentials-local": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-invariants": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-llm": "^0.1.0-rc.6",
@@ -90,9 +92,10 @@
     "@deepseek-ai/dsh-user-approval": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-user-questions": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-workflow": "^0.1.0-rc.6",
-    "@deepseek-ai/dsh-attachment": "^0.1.0-rc.6",
+    "@types/node": "24",
     "tsdown": "0.22.14",
-    "@types/node": "24"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
   },
   "dependencies": {
     "chalk": "^6.0.0",

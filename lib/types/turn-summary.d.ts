@@ -42,7 +42,8 @@ export declare function emptyTurnSummary(turn: number): TurnSummaryState;
  */
 export declare function applyTurnEvent(state: TurnSummaryState, event: SessionEvent): TurnSummaryState;
 /**
- * 轮级摘要文本：`N tools · elapsed · file×k edit×k · N failed`（elapsed 秒一位小数）。
+ * 轮级摘要文本：`N tools · elapsed · file×k edit×k · N failed`（elapsed 秒一位小数；
+ * totalElapsedMs 为真实毫秒——SessionEvent.time 是 epoch 毫秒）。
  * @param state - 轮级统计状态。
  * @returns 摘要文本（零值段省略）。
  */

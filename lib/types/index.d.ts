@@ -30,7 +30,9 @@ export interface TuiRunnerConfig {
     vision?: {
         /** 主控模型是否原生支持识图（图片直发）。 */
         supportsVision?: boolean;
-        /** 是否配置了独立识图桥模型（主控不识图时经桥转文字描述）。 */
+        /** 是否配置了独立识图桥模型（主控不识图时经桥转文字描述）。
+         *  未传入时按宿主 `visionBridge` 服务（dsh-vision-bridge 装配时应 provide）
+         *  的存在性自动探测。 */
         bridgeEnabled?: boolean;
         /** 识图桥来源（configured=显式配置 / auto=自动选用）。 */
         bridgeSource?: 'configured' | 'auto' | 'none';
