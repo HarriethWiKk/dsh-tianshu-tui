@@ -10,7 +10,7 @@
 |---|---|---|---|---|
 | P0-1 | 宿主视觉桥契约对齐 | 0.5d（宿主仓） | dsh-vision-bridge 所在仓 | 待排期（本仓侧已落地：resolveVisionBridge 探测 + 单测） |
 | P1-1 | 平台层静默降级 → 可见提示 | 0.5d | 无 | ✅ 已完成（2e3a2de / 55f3dd0） |
-| P1-2 | 仓卫生（CI / lockfile / scratch 目录） | 1d | 无 | 部分完成（lockfile 已跟踪 adc6155；CI 已加 23f4df2；scratch 处置待确认） |
+| P1-2 | 仓卫生（CI / lockfile / scratch 目录） | 1d | 无 | ✅ 已完成（lockfile 跟踪 adc6155；CI 23f4df2；scratch 归档 1409720） |
 | P1-3 | 文档承诺模块处置 | 0.5h | 无 | ✅ 已完成（e546796） |
 | P2-1 | activity-status / activity-store 接线 | 1d | 需真实消费方（决策点） | 暂缓 |
 | P2-2 | vision-ask 伴生包改进 | 各自独立 | 见项内 | 待排期 |
