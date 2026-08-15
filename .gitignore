@@ -16,3 +16,8 @@ docs/superpowers/
 .rivet/
 .rivet.md
 .rivet-config.json
+
+# 本地自包含启动运行时（从 npx 缓存拷入的官方 CLI 依赖树，不进仓库；见 scripts/dev.sh）
+vendor/
+.dsh-dev/
+.pnpm-store/
