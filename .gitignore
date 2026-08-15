@@ -7,3 +7,7 @@ lib/types/**/*.js.map
 .DS_Store
 coverage/
 .npmrc
+
+# scratch 目录（superpowers 工作流产物；有价值文档已归档进 docs/）
+.superpowers/
+docs/superpowers/
