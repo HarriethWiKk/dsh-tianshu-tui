@@ -56,7 +56,7 @@ export interface SlashParse {
  * /subagents、/workflow、/tasks 的命令定义在 createBuiltinCommands（deps 注入
  * TuiApp 的显隐切换）；/status 保持 TuiApp 内注册。
  */
-export declare const BUILTIN_COMMAND_NAMES: readonly ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'tasks', 'density', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit'];
+export declare const BUILTIN_COMMAND_NAMES: readonly ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'tasks', 'density', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'yolo'];
 /**
  * 最小唯一前缀解析：`/` 前缀 + 命令名 `startsWith` 匹配。
  * 歧义（多命令同前缀）或未知名返回 null——不猜命令。
@@ -149,6 +149,8 @@ export interface BuiltinCommandDeps {
     exportTranscript(path?: string): Promise<string>;
     /** /exit：请求退出 TUI（与 Ctrl+Q 同一 onExit 路径）。 */
     requestExit(): void;
+    /** /yolo：开启/关闭全放行模式（approval always-approve 快捷入口；返回开启后提示）。 */
+    setYoloMode(flag: boolean): void;
 }
 /**
  * 装配内置命令（/theme /session /clear /compact）。

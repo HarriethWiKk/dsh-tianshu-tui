@@ -49,7 +49,7 @@ export interface FormatGlanceBarInput {
 export function glanceBarSegments(input: FormatGlanceBarInput): string[] {
   const segs: string[] = []
   if (input.modelName !== undefined) segs.push(input.modelName)
-  if (input.effort !== undefined) segs.push(`effort:${input.effort}`)
+  if (input.effort !== undefined) segs.push(`◎${input.effort}`)
   if (input.cacheHitRate !== undefined) segs.push(`缓存 ${Math.round(input.cacheHitRate * 100)}%`)
   if (input.contextRatio !== undefined) segs.push(`上下文 ${Math.round(input.contextRatio * 100)}%`)
   if (input.tokens !== undefined) {

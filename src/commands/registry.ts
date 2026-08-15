@@ -118,7 +118,7 @@ interface MemoryFacet {
  * /subagents、/workflow、/tasks 的命令定义在 createBuiltinCommands（deps 注入
  * TuiApp 的显隐切换）；/status 保持 TuiApp 内注册。
  */
-export const BUILTIN_COMMAND_NAMES = ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'tasks', 'density', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit'] as const
+export const BUILTIN_COMMAND_NAMES = ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'tasks', 'density', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'yolo'] as const
 
 /**
  * /model 一键切换别名（TUI 便捷层）：展开为已注册的 deepseek-official
@@ -261,6 +261,8 @@ export interface BuiltinCommandDeps {
   exportTranscript(path?: string): Promise<string>
   /** /exit：请求退出 TUI（与 Ctrl+Q 同一 onExit 路径）。 */
   requestExit(): void
+  /** /yolo：开启/关闭全放行模式（approval always-approve 快捷入口；返回开启后提示）。 */
+  setYoloMode(flag: boolean): void
 }
 
 /**
@@ -779,6 +781,26 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
       name: 'exit',
       description: '退出 TUI（与 Ctrl+Q 相同）',
       run: () => { deps.requestExit() },
+    },
+    {
+      name: 'yolo',
+      description: '全放行模式：审批不再逐项询问（on 开启 / off 关闭；等价 Shift+Tab 进 always-approve）',
+      argsHint: 'on|off',
+      run: ({ text, echo }) => {
+        const arg = text.trim().toLowerCase()
+        if (arg === 'off' || arg === '0' || arg === 'false') {
+          deps.setYoloMode(false)
+          echo('全放行模式已关闭（恢复逐项审批）')
+          return
+        }
+        // on / 缺省（无参）均视为开启——与 Shift+Tab 进 always-approve 同语义。
+        if (arg !== '' && arg !== 'on' && arg !== '1' && arg !== 'true') {
+          echo('用法: /yolo [on|off]（缺省 on；off 关闭全放行）')
+          return
+        }
+        deps.setYoloMode(true)
+        echo('全放行模式已开启：后续审批请求自动放行（/yolo off 关闭，退出会话复位）')
+      },
     },
   ]
 }

@@ -69,6 +69,7 @@ function commandByName(name: string) {
     switchSession: vi.fn(async () => undefined),
     exportTranscript: vi.fn(async (path?: string) => path ?? '/tmp/dsh-export-s1.md'),
     requestExit: vi.fn(),
+    setYoloMode: vi.fn(),
   }
   const commands = createBuiltinCommands(deps)
   const cmd = commands.find(c => c.name === name)
@@ -590,6 +591,36 @@ describe('内置命令 — /exit', () => {
     await cmd.run(args)
     expect(deps.requestExit).toHaveBeenCalledTimes(1)
     expect(echo).not.toHaveBeenCalled()
+  })
+})
+
+describe('内置命令 — /yolo', () => {
+  it('内置命令集含 /yolo', () => {
+    expect(BUILTIN_COMMAND_NAMES).toContain('yolo')
+  })
+
+  it('/yolo 无参默认开启全放行（调用 setYoloMode(true)）', async () => {
+    const { cmd, deps } = commandByName('yolo')
+    const { args, echo } = makeArgs()
+    await cmd.run(args)
+    expect(deps.setYoloMode).toHaveBeenCalledWith(true)
+    expect(echo).toHaveBeenCalled()
+  })
+
+  it('/yolo on 开启；/yolo off 关闭', async () => {
+    const { cmd, deps } = commandByName('yolo')
+    await cmd.run(makeArgs({ text: 'on' }).args)
+    expect(deps.setYoloMode).toHaveBeenLastCalledWith(true)
+    await cmd.run(makeArgs({ text: 'off' }).args)
+    expect(deps.setYoloMode).toHaveBeenLastCalledWith(false)
+  })
+
+  it('/yolo 未知参数回显用法，不调 setYoloMode', async () => {
+    const { cmd, deps } = commandByName('yolo')
+    const { args, echo } = makeArgs({ text: 'maybe' })
+    await cmd.run(args)
+    expect(deps.setYoloMode).not.toHaveBeenCalled()
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('用法'))
   })
 })
 
@@ -1189,6 +1220,7 @@ describe('内置命令 — /effort', () => {
       switchSession: vi.fn(async () => undefined),
       exportTranscript: vi.fn(async (path?: string) => path ?? '/tmp/dsh-export-s1.md'),
       requestExit: vi.fn(),
+      setYoloMode: vi.fn(),
     }
     const cmd = createBuiltinCommands(deps).find(c => c.name === 'effort')
     if (cmd === undefined) throw new Error('builtin command not found: effort')
