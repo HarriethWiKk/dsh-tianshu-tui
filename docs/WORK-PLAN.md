@@ -8,13 +8,13 @@
 
 | # | 项 | 预估 | 阻塞/依赖 | 状态 |
 |---|---|---|---|---|
-| P0-1 | 宿主视觉桥契约对齐 | 0.5d（宿主仓） | dsh-vision-bridge 所在仓 | 待排期 |
-| P1-1 | 平台层静默降级 → 可见提示 | 0.5d | 无 | 待排期 |
-| P1-2 | 仓卫生（CI / lockfile / scratch 目录） | 1d | 无 | 待排期 |
-| P1-3 | 文档承诺模块处置 | 0.5h | 无 | 待排期 |
+| P0-1 | 宿主视觉桥契约对齐 | 0.5d（宿主仓） | dsh-vision-bridge 所在仓 | 待排期（本仓侧已落地：resolveVisionBridge 探测 + 单测） |
+| P1-1 | 平台层静默降级 → 可见提示 | 0.5d | 无 | ✅ 已完成（2e3a2de / 55f3dd0） |
+| P1-2 | 仓卫生（CI / lockfile / scratch 目录） | 1d | 无 | 部分完成（lockfile 已跟踪 adc6155；CI 已加 23f4df2；scratch 处置待确认） |
+| P1-3 | 文档承诺模块处置 | 0.5h | 无 | ✅ 已完成（e546796） |
 | P2-1 | activity-status / activity-store 接线 | 1d | 需真实消费方（决策点） | 暂缓 |
 | P2-2 | vision-ask 伴生包改进 | 各自独立 | 见项内 | 待排期 |
-| P2-3 | app.ts 拆分（C4 后续波次） | 3-5d | P1-2 的 CI 先行 | 待排期 |
+| P2-3 | app.ts 拆分（C4 后续波次） | 3-5d | P1-2 的 CI 先行（CI 已就位） | 待排期（可提前） |
 
 ---
 
@@ -85,5 +85,5 @@
 
 ## 杂项（随时可带）
 
-- README 快捷键表补审批卡 `a`（本会话放行）与历史搜索 `p/P` 行（代码已接线，文档缺）。
+- README 快捷键表补审批卡 `a` 与历史搜索 `p/P` 行 ✅ 已完成（e546796）。
 - `docs/superpowers/specs/2026-08-15-dsh-kernel-collab-design.md` 的 spark 推理尾部截断协议「本仓尚未接通」——属未来 kernel 协作功能，跟随 harness 侧排期，不在本计划内单列。
