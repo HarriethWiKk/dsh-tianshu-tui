@@ -101,7 +101,13 @@ import {
   renderLspPanel,
 } from '../render/live-panels.js'
 import type { LiveSnapshot } from '../render/live-snapshot.js'
-import { createLspBridge, type LspBridge, type LspDiagnosticSource, type LspDiagnosticView } from '../lsp/lsp-bridge.js'
+import {
+  createLspBridge,
+  officialLspSource,
+  type LspBridge,
+  type LspDiagnosticView,
+  type OfficialLspServiceFacet,
+} from '../lsp/lsp-bridge.js'
 import type { MultiLspOptions } from '../lsp/multi-manager.js'
 import { lspBadgeText } from '../format/lsp-diagnostics.js'
 /** T1.1：5 域投影 key（与 sessionProjections 注册表的 wire key 对齐）。 */
@@ -1244,16 +1250,18 @@ export class TuiApp {
    */
   private ensureLspBridge(): LspBridge {
     if (this.lspBridge !== null) return this.lspBridge
-    // 双数据源：伴生插件（dsh-tui-lsp）provide('lsp') 服务存在时消费它——
-    // 与模型工具面共享同一 LSP server 集（不双份 spawn）；未装配时回落
-    // 内置桥（降级路径，保持现状行为）。探测语义同视觉桥 resolveVisionBridge。
-    const lspService = this.ctx.reflect.get('lsp', false) as LspDiagnosticSource | undefined
+    // 双数据源：官方 ctx.lsp 服务（deepseek-harness 的 dsh-lsp seam，经
+    // officialLspSource 适配 getDiagnostics 操作）存在时消费它——与模型工具面
+    // （官方 lsp 工具）共享同一 provider/server 集，不双份 spawn；未装配时
+    // 回落内置桥（降级路径，保持现状行为）。探测语义同视觉桥 resolveVisionBridge。
+    const cwd = this.sessionCwd()
+    const lspService = this.ctx.reflect.get('lsp', false) as OfficialLspServiceFacet | undefined
     this.lspBridge = createLspBridge({
-      cwd: this.sessionCwd(),
+      cwd,
       ...(this.lspConfig.timeoutMs === undefined ? {} : { timeoutMs: this.lspConfig.timeoutMs }),
       ...(this.lspConfig.spawnFor === undefined ? {} : { spawnFor: this.lspConfig.spawnFor }),
       ...(this.lspConfig.which === undefined ? {} : { which: this.lspConfig.which }),
-      ...(lspService === undefined ? {} : { source: lspService }),
+      ...(lspService === undefined ? {} : { source: officialLspSource(lspService, cwd) }),
     })
     this.lspBridge.onUpdate(() => { this.renderBatcher.schedule() })
     return this.lspBridge

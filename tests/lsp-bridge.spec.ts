@@ -6,7 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PassThrough } from 'node:stream'
 import type { ChildProcess } from 'node:child_process'
-import { createLspBridge, type LspBridge } from '../src/lsp/lsp-bridge.js'
+import { createLspBridge, officialLspSource, type LspBridge } from '../src/lsp/lsp-bridge.js'
 import type { LspServerDef } from '../src/lsp/server-registry.js'
 import { decodeMessages, encodeMessage } from '../src/lsp/rpc.js'
 import type { LspDiagnostic } from '../src/lsp/manager.js'
@@ -231,6 +231,60 @@ describe('LspBridge 外部源（伴生插件 provide lsp 服务）', () => {
     }
     const bridge = createLspBridge({ cwd, timeoutMs: 200, source })
     expect(bridge.isAvailable()).toBe(false)
+    bridge.dispose()
+  })
+})
+
+describe('officialLspSource（官方 ctx.lsp 服务适配）', () => {
+  const cwd = '/work'
+
+  it('把官方 query(getDiagnostics) 结果适配为诊断源', async () => {
+    const query = vi.fn(async () => ({
+      kind: 'diagnostics',
+      diagnostics: [
+        { range: { start: { line: 0, character: 1 }, end: { line: 0, character: 7 } }, severity: 1, message: '官方诊断' },
+      ],
+    }))
+    const source = officialLspSource({ query }, cwd)
+    const diags = await source.getDiagnostics('src/a.ts', 500)
+    expect(query).toHaveBeenCalledWith(
+      { operation: 'getDiagnostics', filePath: 'src/a.ts', workspaceRoot: cwd },
+      expect.any(AbortSignal),
+    )
+    expect(diags).toEqual([
+      { range: { start: { line: 0, character: 1 }, end: { line: 0, character: 7 } }, severity: 1, message: '官方诊断' },
+    ])
+    // 所有权归官方服务：适配器 dispose 是 no-op
+    source.dispose()
+    expect(source.isAvailable()).toBe(true)
+  })
+
+  it('官方服务错误（无 provider / 不支持 / 超时）静默返回空', async () => {
+    const query = vi.fn(async () => { throw new Error('LSP_UNAVAILABLE') })
+    const source = officialLspSource({ query }, cwd)
+    await expect(source.getDiagnostics('src/a.ts', 500)).resolves.toEqual([])
+  })
+
+  it('非 diagnostics kind 的结果返回空', async () => {
+    const query = vi.fn(async () => ({ kind: 'hover', hover: null }))
+    const source = officialLspSource({ query }, cwd)
+    await expect(source.getDiagnostics('src/a.ts', 500)).resolves.toEqual([])
+  })
+
+  it('与 LspBridge 组合：官方服务作为 source 消费', async () => {
+    const query = vi.fn(async () => ({
+      kind: 'diagnostics',
+      diagnostics: [{ range: { start: { line: 2, character: 0 }, end: { line: 2, character: 4 } }, severity: 2, message: 'warn' }],
+    }))
+    const bridge = createLspBridge({
+      cwd, timeoutMs: 200,
+      source: officialLspSource({ query }, cwd),
+    })
+    bridge.touchFile('src/a.ts')
+    await vi.waitFor(() => {
+      expect(bridge.diagnosticsFor('src/a.ts')?.length).toBe(1)
+    })
+    expect(bridge.diagnosticsFor('src/a.ts')?.[0]).toMatchObject({ severity: 2, message: 'warn', line: 3 })
     bridge.dispose()
   })
 })

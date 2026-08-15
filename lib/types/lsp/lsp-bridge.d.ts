@@ -47,6 +47,33 @@ export interface LspDiagnosticSource {
     isAvailable(): boolean;
     dispose(): void;
 }
+/**
+ * 官方 `ctx.lsp` 服务（@deepseek-ai/dsh-lsp，deepseek-harness 主仓）的最小读面——
+ * 结构类型适配，TUI 不跨包依赖官方包。官方 seam 暴露五操作（含本 TUI 桥消费的
+ * `getDiagnostics`）；未装配官方 lsp-stdio provider 时 query 抛 LSP_UNAVAILABLE，
+ * 适配器 catch 为静默空。
+ */
+export interface OfficialLspServiceFacet {
+    query(request: {
+        operation: 'getDiagnostics';
+        filePath: string;
+        workspaceRoot: string;
+    }, signal?: AbortSignal): Promise<{
+        kind: string;
+        diagnostics?: readonly LspDiagnostic[];
+    }>;
+}
+/**
+ * 把官方 `ctx.lsp` 服务适配为 {@link LspDiagnosticSource}（TUI 桥消费面）。
+ * 诊断走官方 seam 的 `getDiagnostics` 操作（与模型工具面 lsp 工具共享同一
+ * provider/server 集）；超时用 AbortSignal.timeout 交官方 query 取消；错误
+ * （无 provider / 不支持 / 超时）一律静默返回空。所有权归官方服务——适配器
+ * 的 dispose 是 no-op（TUI 不销毁宿主服务）。
+ * @param service - 官方 ctx.lsp 服务（结构类型）。
+ * @param workspaceRoot - 官方 seam 的 workspaceRoot（会话 cwd）。
+ * @returns TUI 桥可直接消费的诊断源。
+ */
+export declare function officialLspSource(service: OfficialLspServiceFacet, workspaceRoot: string): LspDiagnosticSource;
 export interface LspBridge {
     /** 通知桥「agent 触碰了该文件」：异步拉诊断并入缓存；不阻塞调用方。 */
     touchFile(path: string): void;
