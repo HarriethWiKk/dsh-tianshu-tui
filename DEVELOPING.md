@@ -1,5 +1,7 @@
 # dsh-tui 独立基线仓 — 开发说明
 
+> 目录内自包含启动方式（`./scripts/dev.sh`）、当前环境快照与踩坑记录见 [docs/LOCAL-DEV.md](docs/LOCAL-DEV.md)。
+
 本仓库是 dsh 公开版插件的独立基线仓，当前含两个独立插件：
 `@huiliyi37/dsh-tianshu-tui`（终端 UI，本仓根部）与 `@deepseek-ai/dsh-vision-ask`（视觉副驾：
 会话图片注册表 + ask_image 工具，`vision-ask/` 子目录，将来可整体拆独立仓）。
