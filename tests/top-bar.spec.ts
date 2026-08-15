@@ -44,6 +44,21 @@ describe('formatTopBar', () => {
     expect(line).toContain('(main)')
   })
 
+  it('未提交改动：dirty > 0 → 分支段 (branch ●N)', () => {
+    const [line] = plain(formatTopBar(base({ branch: 'main', dirty: 3 }), fakeTheme()))
+    expect(line).toContain('(main ●3)')
+  })
+
+  it('dirty = 0 / 缺省 → 无 ●N 后缀', () => {
+    expect(plain(formatTopBar(base({ branch: 'main', dirty: 0 }), fakeTheme()))[0]).toContain('(main)')
+    expect(plain(formatTopBar(base({ branch: 'main' }), fakeTheme()))[0]).not.toContain('●')
+  })
+
+  it('无分支时 dirty 不渲染（无从归属）', () => {
+    const [line] = plain(formatTopBar(base({ dirty: 2 }), fakeTheme()))
+    expect(line).not.toContain('●')
+  })
+
   it('无分支：不渲染分支段', () => {
     const [line] = plain(formatTopBar(base(), fakeTheme()))
     expect(line).not.toContain('(')

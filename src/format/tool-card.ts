@@ -297,6 +297,8 @@ export interface FormatToolCardLiveInput {
   elapsedMs?: number
   /** 末尾输出显示行数 */
   tailLines?: number
+  /** 展开态（A5：空输入 Enter 切换）：标题下渲染工具参数 JSON 行。 */
+  expanded?: boolean
   /** 终端列数 */
   columns: number
   /** 动画帧序号；提供时用 spinner 替代静态 bullet */
@@ -327,6 +329,12 @@ export function formatToolCardLive(input: FormatToolCardLiveInput, theme: RivetT
   const lines: string[] = [header]
   // 紧凑模式（/compact-mode）：仅标题行，省略输出 tail——高密度渲染。
   if (input.compact === true) return lines
+  // A5：展开态在标题下渲染工具参数 JSON（标题摘要不够时的细节面；
+  // 单行截断——live 区每帧重绘，多行参数会推挤输入框）。
+  if (input.expanded === true && input.toolInput !== undefined && Object.keys(input.toolInput).length > 0) {
+    const argsText = JSON.stringify(input.toolInput)
+    lines.push(`${color(BODY_FIRST_PREFIX, theme.dim)}${color(truncateToDisplayWidth(argsText, Math.max(10, input.columns - 6)), theme.muted)}`)
+  }
   const tailRows = input.outputTailLines ?? (() => {
     const tail = (input.outputTail ?? '').replace(/\n+$/, '')
     return tail ? tail.split('\n') : undefined

@@ -1812,11 +1812,11 @@ describe('TuiApp Phase 6.1 slash 命令系统', () => {
 
     const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
     await app.newSession()
-    app.handleSubmit('/help')
+    app.handleSubmit('/zzz')
     await new Promise(resolve => setImmediate(resolve))
 
     expect(agent.followup).not.toHaveBeenCalled()
-    expect(stdout.write.mock.calls.map(c => `${c[0]}`).join('')).toContain('未知命令: /help')
+    expect(stdout.write.mock.calls.map(c => `${c[0]}`).join('')).toContain('未知命令: /zzz')
     await app.dispose()
   })
 
@@ -4693,6 +4693,97 @@ describe('TuiApp 监听器生命周期（?? 短路 + 泄漏回归）', () => {
     expect(written).toContain('Fetch')
     const plain = written.replace(/\x1B\[[0-9;?]*[ -/]*[@-~]/g, '')
     expect((plain.match(/⎿  …/g) ?? []).length).toBe(1)
+    await app.dispose()
+  })
+
+  it('A5：空输入 Enter 展开最后一张进行中工具卡（参数 JSON 行），再按收起', async () => {
+    // 键盘链路注册在 attach（onAnyKey）——bootEventApp 走 newSession 无键盘，
+    // 此处用 attach 模式（2466 同款）构造。
+    const ctx = makeCtx()
+    const handlers = new Map<string, Array<(...args: unknown[]) => void>>()
+    ctx.on.mockImplementation((name: string, h: (...args: unknown[]) => void) => {
+      const list = handlers.get(name) ?? []
+      list.push(h)
+      handlers.set(name, list)
+      return () => { }
+    })
+    ctx.agents.create.mockImplementation(({ sessionId }: { sessionId: string }) => {
+      const agent = makeAgent(sessionId)
+      ctx.sessions.get.mockReturnValue(agent.session)
+      return makeHandle(agent)
+    })
+    const stdout = makeStdout()
+    const stdin = makeStdin()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    // session id 对齐（bootEventApp 同款）：attach 铸造 id 与 transcript 过滤一致
+    const owner = { id: app.sessionId ?? SessionId('a5-key') }
+    const fire = (name: string, ...args: unknown[]) => {
+      for (const h of handlers.get(name) ?? []) h(...args)
+    }
+    stdout.rows = 40
+    fire('session/event', owner, {
+      type: 'tool/call',
+      seq: 0,
+      time: 1,
+      data: { callId: 't1', name: 'bash', arguments: '{"command":"ls -la","cwd":"/app"}', turn: 1, step: 0 },
+    })
+    app.handleSubmit('刷新渲染')
+    await new Promise(resolve => setTimeout(resolve, 30))
+    // 初始：最新一张展开尾部（3 行），无参数 JSON 行
+    let written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).not.toContain('"command":"ls -la"')
+    // 空输入 Enter → 展开（参数行出现；展开态保持，后续 ticker 帧也含）
+    stdin.emit('data', '\r')
+    await new Promise(resolve => setTimeout(resolve, 30))
+    written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('"command":"ls -la"')
+    // 再按 Enter → 收起（收起后的新帧不含参数行）
+    const beforeCollapse = stdout.write.mock.calls.length
+    stdin.emit('data', '\r')
+    await new Promise(resolve => setTimeout(resolve, 30))
+    const collapsed = stdout.write.mock.calls.slice(beforeCollapse).map(c => `${c[0]}`).join('')
+    expect(collapsed).not.toContain('"command":"ls -la"')
+    await app.dispose()
+  })
+
+  it('A5：输入行非空时 Enter 仍是提交，不触发工具卡展开', async () => {
+    const ctx = makeCtx()
+    const handlers = new Map<string, Array<(...args: unknown[]) => void>>()
+    ctx.on.mockImplementation((name: string, h: (...args: unknown[]) => void) => {
+      const list = handlers.get(name) ?? []
+      list.push(h)
+      handlers.set(name, list)
+      return () => { }
+    })
+    ctx.agents.create.mockImplementation(({ sessionId }: { sessionId: string }) => {
+      const agent = makeAgent(sessionId)
+      ctx.sessions.get.mockReturnValue(agent.session)
+      return makeHandle(agent)
+    })
+    const stdout = makeStdout()
+    const stdin = makeStdin()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    const owner = { id: app.sessionId ?? SessionId('a5-key') }
+    const fire = (name: string, ...args: unknown[]) => {
+      for (const h of handlers.get(name) ?? []) h(...args)
+    }
+    stdout.rows = 40
+    fire('session/event', owner, {
+      type: 'tool/call',
+      seq: 0,
+      time: 1,
+      data: { callId: 't1', name: 'bash', arguments: '{"command":"ls"}', turn: 1, step: 0 },
+    })
+    app.handleSubmit('刷新渲染')
+    await new Promise(resolve => setTimeout(resolve, 30))
+    // 输入行有文本后 Enter：提交路径（followup），不展开工具卡
+    for (const ch of 'hi') stdin.emit('data', ch)
+    stdin.emit('data', '\r')
+    await new Promise(resolve => setTimeout(resolve, 30))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).not.toContain('"command":"ls"')
     await app.dispose()
   })
 })

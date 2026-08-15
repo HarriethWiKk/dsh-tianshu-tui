@@ -19,6 +19,8 @@ export interface FormatTopBarInput {
   cwd: string
   /** git 分支名（可检测时；缺省不渲染分支段）。 */
   branch?: string
+  /** 未提交改动文件数（>0 时分支段追加 ●N；缺省不渲染）。 */
+  dirty?: number
   /** 模型显示名（provider/model；缺省不渲染）。 */
   modelName?: string
   /** legacy 终端：📁 降级为 `~`。 */
@@ -35,18 +37,21 @@ function truncateTo(text: string, columns: number): string {
 }
 
 /**
- * 渲染顶部栏单行：段顺序 cwd → model → branch，超宽丢尾段。
- * @param input - 宽度、cwd、可选分支/模型/ascii。
- * @param theme - 当前主题（cwd secondary、分支 brandColor）。
+ * 渲染顶部栏单行：段顺序 cwd → model → branch(●N)，超宽丢尾段。
+ * @param input - 宽度、cwd、可选分支/未提交数/模型/ascii。
+ * @param theme - 当前主题（cwd secondary、分支 brandColor、●N warning）。
  * @returns 单行 ANSI；任何宽度下 ≤ width。
  */
 export function formatTopBar(input: FormatTopBarInput, theme: RivetTheme): string[] {
-  const { width, cwd, branch, modelName, ascii } = input
+  const { width, cwd, branch, dirty, modelName, ascii } = input
   const icon = ascii === true ? '~' : '📁'
   const base = `${icon} ${cwd}`
   const tail: string[] = []
   if (modelName !== undefined && modelName !== '') tail.push(modelName)
-  if (branch !== undefined && branch !== '') tail.push(`(${branch})`)
+  // 分支 + 未提交数同段（(branch ●N)）；无分支时不渲染 dirty（无从归属）。
+  if (branch !== undefined && branch !== '') {
+    tail.push(dirty !== undefined && dirty > 0 ? `(${branch} ●${dirty})` : `(${branch})`)
+  }
   // 从后往前丢段直到放得下（base 恒保留）。
   let segs = tail
   for (;;) {
@@ -54,7 +59,8 @@ export function formatTopBar(input: FormatTopBarInput, theme: RivetTheme): strin
     if (displayWidth(text) <= width) {
       const parts = [color(base, theme.secondary)]
       for (const s of segs) {
-        parts.push(color(s, s.startsWith('(') ? theme.brandColor : theme.secondary))
+        // 含 ●N 的分支段用 warning 强调（未提交改动）；纯分支 brandColor。
+        parts.push(color(s, s.includes('●') ? theme.warning : theme.brandColor))
       }
       return [parts.join(' · ')]
     }

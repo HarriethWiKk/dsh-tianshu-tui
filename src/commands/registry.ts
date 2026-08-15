@@ -32,6 +32,7 @@ import { getActiveThemeName, setTheme, THEME_NAMES } from '../theme.js'
 import { listSessions, loadHistory } from '../adapter/sessions.js'
 import { sessionTitleFor } from '../adapter/session-title.js'
 import { collectDoctorReport, getDoctorFixGuidance } from '../format/doctor-report.js'
+import { formatWireSurface, wirePhaseLabel, wireToolNames } from '../preset-surface.js'
 
 /**
  * Slash 命令执行上下文——TuiApp 在分发时注入。
@@ -140,7 +141,7 @@ interface MemoryFacet {
  * /subagents、/workflow、/tasks 的命令定义在 createBuiltinCommands（deps 注入
  * TuiApp 的显隐切换）；/status 保持 TuiApp 内注册。
  */
-export const BUILTIN_COMMAND_NAMES = ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'yolo'] as const
+export const BUILTIN_COMMAND_NAMES = ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'yolo', 'help'] as const
 
 /**
  * /model 一键切换别名（TUI 便捷层）：展开为已注册的 deepseek-official
@@ -507,7 +508,19 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
               : ` — ${preset.description}`
             echo(` ${mark} ${name} (${preset.id})${desc}`)
           }
-          echo(current === undefined ? '当前: 未装配（host 默认）' : `当前: ${current}`)
+          // 当前预设行追加 wire 工具面（最近 request/header 的实际工具 schema，
+          // 含 preset 过滤器作用后的最终面——日志事实，非插件内部状态）。
+          // 梁神类两阶段 preset 下：双工具面 = 锚定面，run_code = PTC 面。
+          let currentLine = current === undefined ? '当前: 未装配（host 默认）' : `当前: ${current}`
+          if (agent !== null) {
+            const wire = wireToolNames(agent.session.events)
+            const surface = formatWireSurface(wire)
+            if (surface !== undefined) {
+              const phase = wirePhaseLabel(wire)
+              currentLine += ` · wire: ${surface}${phase === undefined ? '' : `（${phase}）`}`
+            }
+          }
+          echo(currentLine)
           return
         }
         const agent = deps.currentAgent()
@@ -887,6 +900,36 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
         }
         deps.setYoloMode(true)
         echo('全放行模式已开启：后续审批请求自动放行（/yolo off 关闭，退出会话复位）')
+      },
+    },
+    {
+      name: 'help',
+      description: '列出全部命令与用法（/help <cmd> 查看单条详情）',
+      argsHint: '[cmd]',
+      run: ({ text, echo, ctx }) => {
+        // 注册表经 ctx.provide('tui.commands') 暴露（L183）；取不到时 fails loud。
+        const registry = (ctx as unknown as { tui?: { commands?: { list(): SlashCommand[] } } })
+          .tui?.commands
+        if (registry === undefined) {
+          echo('⚠ 命令注册表服务不可用')
+          return
+        }
+        const all = registry.list()
+        const target = text.trim()
+        if (target !== '') {
+          const command = all.find(c => c.name === target)
+          if (command === undefined) {
+            echo(`未知命令: /${target}（/help 查看全部命令）`)
+            return
+          }
+          echo(`/${command.name}${command.argsHint === undefined ? '' : ` ${command.argsHint}`} — ${command.description}`)
+          return
+        }
+        echo(`全部命令（${all.length} 条）:`)
+        for (const command of all) {
+          echo(`  /${command.name}${command.argsHint === undefined ? '' : ` ${command.argsHint}`} — ${command.description}`)
+        }
+        echo('快捷键见 Ctrl+. 键位表')
       },
     },
   ]

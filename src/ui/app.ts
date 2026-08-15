@@ -64,6 +64,7 @@ import { formatSteerMessage } from '../format/steer-message.js'
 import { formatToolCardLive, toolCardTitle } from '../format/tool-card.js'
 import { formatToolViewCard } from '../format/tool-view-card.js'
 import { formatReasoningBlock, formatReasoningLive, reasoningTailBudget } from '../format/reasoning.js'
+import { estimateCost } from '../format/pricing.js'
 import { renderKeymapPanel } from '../format/keymap-panel.js'
 import { renderSessionExport } from '../format/export.js'
 import type { TaskItem } from '../format/task-panel.js'
@@ -427,6 +428,23 @@ function gitBranch(): string | undefined {
 }
 
 /**
+ * git 未提交改动文件数（`git status --short` 非空行计数；footer ●N 数据源）。
+ * 非仓库/命令失败返回 0（静默降级，同 gitBranch）。
+ * @returns 未提交文件数；0 = 干净或不可检测。
+ */
+function gitDirtyCount(): number {
+  try {
+    const out = execSync('git status --short', {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf-8',
+    })
+    return out.split('\n').filter(l => l.trim() !== '').length
+  } catch {
+    return 0
+  }
+}
+
+/**
  * 解析 slash 命令（最小唯一前缀匹配，委托 registry 解析核心）。
  * 兼容导出（steer.spec.ts 消费）；TuiApp 内部走实例注册表（含扩展命令）。
  * @param input - 输入行提交的原始文本（已 trim）。
@@ -497,6 +515,10 @@ export class TuiApp {
   private usageFold: TokenUsage | null = null
   /** 当前模型路由的上下文窗口（request/context 事件折叠；adapter 未报时 null）。 */
   private contextWindow: number | null = null
+  /** git 未提交改动文件数（gitDirtyCount 快照；attach + turn/end 刷新，0 = 干净/非仓库）。 */
+  private gitDirty = 0
+  /** A5：手动展开的进行中工具卡 callId（空输入 Enter 切换；turn/end 复位）。 */
+  private expandedToolCallId: string | null = null
 
 
   private transcript: Transcript | null = null
@@ -1393,6 +1415,8 @@ export class TuiApp {
     // 最顶一行（对齐 grok top_bar）；分支经 gitBranch() 一次读取（静默）。
     const current = this.ctx.agentDefaultModel.currentSelection()
     const branch = gitBranch()
+    // git 未提交计数快照（footer ●N 数据源）：attach 一次 + 每 turn/end 刷新。
+    this.gitDirty = gitDirtyCount()
     for (const line of formatTopBar({
       width: cols - gutter,
       cwd: this.sessionCwd(),
@@ -2472,6 +2496,17 @@ export class TuiApp {
     if (key.name !== 'ctrl_c' && this.inputController.ctrlCPendingSince !== 0) {
       this.inputController.ctrlCPendingSince = 0
     }
+    // A5：空输入 Enter 切换最后一张进行中工具卡的展开/收起（非空时 Enter 是
+    // 提交路径，不劫持；工具卡已结算时 callId 不匹配自然失效）。
+    if (key.name === 'return' && this.inputLine.value === '') {
+      const pending = this.transcript?.view.tools.filter(t => t.result === undefined) ?? []
+      const latest = pending[pending.length - 1]
+      if (latest !== undefined) {
+        this.expandedToolCallId = this.expandedToolCallId === latest.callId ? null : latest.callId
+        this.flushLiveRender()
+        return
+      }
+    }
     // C3 项 4：Shift+Tab 三态循环（Normal → Plan → Always-Approve → Normal）。
     if (key.name === 'shift_tab') {
       this.cycleMode()
@@ -2796,6 +2831,9 @@ export class TuiApp {
           input.tokens = { used: billed, max: this.contextWindow }
         }
       }
+      // 成本估算：定价表命中才显示（未知模型不猜价，与缓存% 诚实降级同款）。
+      const cost = estimateCost(modelName, usage)
+      if (cost !== undefined) input.cost = cost
     }
     if (view.turn >= 0) {
       input.turnCount = view.turn + 1
@@ -2904,6 +2942,10 @@ export class TuiApp {
       case 'turn/end': {
         // Phase 9d：turn 边界复位流利度信号
         this.fluency.onTurnComplete()
+        // A3：回合边界刷新 git 未提交计数（footer ●N；不逐帧 spawn）。
+        this.gitDirty = gitDirtyCount()
+        // A5：回合结束复位工具卡展开态（工具已结算，展开无意义）。
+        this.expandedToolCallId = null
         if (event.data.reason.kind !== 'aborted') {
           // 错误终止的 turn 可能没有 assistant/message——落底已累积的推理
           //（durable log 已含这些 chunk，与「模型可见 ⟺ 已记录」一致）。
@@ -3273,6 +3315,7 @@ export class TuiApp {
         tailLines: compactLive || !latest ? 0 : (tightViewport ? 1 : 3),
         tick: this.tick,
         compact: compactLive,
+        expanded: this.expandedToolCallId === tool.callId,
       }, theme)
       for (const line of rows) lines.push({ text: line })
     }
@@ -3383,10 +3426,12 @@ export class TuiApp {
 
     // C4：footer 一行——左模式/快捷键、右 token/模型/API。任意宽度右对齐合并，
     // 放不下从右丢段；不再纵排 theme.primary 的第二行 metrics（窄屏折行变蓝）。
+    // A3：git 未提交 ●N 段置于右段末尾（丢段从右丢 → ●N 最次要先丢，不挤 metrics）。
     const bottomMetrics = this.glanceMetrics()
+    const dirtySeg = this.gitDirty > 0 ? `●${this.gitDirty}` : null
     const rightSegments = bottomMetrics === null
-      ? undefined
-      : [...glanceBarSegments({ ...bottomMetrics, width: cols }), `API ${this.apiKeyReady ? '✓' : '✗'}`]
+      ? (dirtySeg === null ? undefined : [`API ${this.apiKeyReady ? '✓' : '✗'}`, dirtySeg])
+      : [...glanceBarSegments({ ...bottomMetrics, width: cols }), `API ${this.apiKeyReady ? '✓' : '✗'}`, ...(dirtySeg === null ? [] : [dirtySeg])]
     const footerLines = formatPromptFooter({
       width: cols,
       planActive: planProj?.active === true,

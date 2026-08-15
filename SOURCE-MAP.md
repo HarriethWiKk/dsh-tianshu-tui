@@ -75,6 +75,7 @@
 | src/format/markdown.ts | format/markdown.ts | modified |
 | src/format/memory-overlay.ts | — | new |
 | src/format/permission-diff.ts | format/permission-diff.ts | modified |
+| src/format/pricing.ts | — | new（成本估算：内置 $/MTok 定价表 + estimateCost 纯函数，$cost 段数据源） |
 | src/format/prompt-footer.ts | — | new（C4 概念稿底部 footer：模式徽标 + 快捷键提示，纯渲染） |
 | src/format/reasoning.ts | — | new（think 推理两态渲染：live shimmer 头行 + 尾巴、结算全文块，纯渲染） |
 | src/format/rewind-overlay.ts | — | new |
@@ -114,6 +115,7 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 | src/pi/latex-block.ts | pi/latex-block.ts | modified |
 | src/pi/latex-to-unicode.ts | pi/latex-to-unicode.ts | modified |
 | src/port.ts | — | new |
+| src/preset-surface.ts | — | new（agent 预设展示面纯投影：preset 名 = header 创建值 + agent-preset/selected 切换值 fold（官方 resolveSessionPreset 等价）；wire 工具面 = 最近 request/header 的 tools 集合（foldRequestHeader）；只消费日志事实，不重放 preset 插件私有晋升逻辑） |
 | src/question-panel.ts | — | new |
 | src/render/live-panels.ts | — | new |
 | src/render/live-snapshot.ts | — | new |

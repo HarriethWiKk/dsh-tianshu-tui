@@ -132,7 +132,8 @@ describe('resolveSlashCommand — / 前缀检测与最小唯一前缀解析', ()
   })
 
   it('未知名命令返回 null', () => {
-    expect(resolveSlashCommand('/help', BUILTIN_COMMAND_NAMES)).toBeNull()
+    expect(resolveSlashCommand('/zzz', BUILTIN_COMMAND_NAMES)).toBeNull()
+    expect(resolveSlashCommand('/xyzzy', BUILTIN_COMMAND_NAMES)).toBeNull()
   })
 
   it('参数尾随空格 trim 掉', () => {
@@ -711,6 +712,45 @@ describe('内置命令 — /yolo', () => {
     await cmd.run(args)
     expect(deps.setYoloMode).not.toHaveBeenCalled()
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('用法'))
+  })
+})
+
+describe('内置命令 — /help', () => {
+  it('内置命令集含 /help', () => {
+    expect(BUILTIN_COMMAND_NAMES).toContain('help')
+  })
+
+  it('/help 无参：经注册表列出全部命令（名 + argsHint + 描述）', async () => {
+    const { cmd } = commandByName('help')
+    const registry = new SlashCommandRegistry()
+    for (const c of createBuiltinCommands(commandByName('help').deps)) registry.register(c)
+    const ctx = { tui: { commands: registry } } as unknown as Context
+    const { args, echo } = makeArgs({ ctx })
+    await cmd.run(args)
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('全部命令'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('/theme <name> — 切换主题'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('/help [cmd] — 列出全部命令'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('Ctrl+.'))
+  })
+
+  it('/help <cmd>：单条详情；未知命令回显提示', async () => {
+    const { cmd } = commandByName('help')
+    const registry = new SlashCommandRegistry()
+    for (const c of createBuiltinCommands(commandByName('help').deps)) registry.register(c)
+    const ctx = { tui: { commands: registry } } as unknown as Context
+    const detail = makeArgs({ text: 'model', ctx })
+    await cmd.run(detail.args)
+    expect(detail.echo).toHaveBeenCalledWith('/model [provider/model | spark-flash | spark-pro] — 查看或切换模型（默认 + 当前会话热切；spark-flash / spark-pro 映射到官方 flash / pro）')
+    const unknown = makeArgs({ text: 'nope', ctx })
+    await cmd.run(unknown.args)
+    expect(unknown.echo).toHaveBeenCalledWith('未知命令: /nope（/help 查看全部命令）')
+  })
+
+  it('注册表缺失：回显警告（fails loud）', async () => {
+    const { cmd } = commandByName('help')
+    const { args, echo } = makeArgs() // makeCtx 无 tui 属性
+    await cmd.run(args)
+    expect(echo).toHaveBeenCalledWith('⚠ 命令注册表服务不可用')
   })
 })
 
