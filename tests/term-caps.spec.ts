@@ -18,11 +18,22 @@ describe('supportsOsc52', () => {
     }
   })
 
-  it('无 TERM_PROGRAM 时按 TERM 启发式（xterm/screen/tmux/linux 兼容）', () => {
+  it('无 TERM_PROGRAM 时按 TERM 启发式（xterm/screen/tmux 兼容）', () => {
     expect(supportsOsc52({ TERM: 'xterm-256color' })).toBe(true)
     expect(supportsOsc52({ TERM: 'screen-256color' })).toBe(true)
     expect(supportsOsc52({ TERM: 'tmux-256color' })).toBe(true)
-    expect(supportsOsc52({ TERM: 'linux' })).toBe(true)
+  })
+
+  it('VTE 系终端（gnome-terminal 等，TERM=xterm 兼容）不支持', () => {
+    expect(supportsOsc52({ TERM: 'xterm-256color', VTE_VERSION: '6800' })).toBe(false)
+  })
+
+  it('GNU screen（STY 会话变量）不支持', () => {
+    expect(supportsOsc52({ TERM: 'screen-256color', STY: '1234.pts-0.tty' })).toBe(false)
+  })
+
+  it('内核 VT（TERM=linux）不支持', () => {
+    expect(supportsOsc52({ TERM: 'linux' })).toBe(false)
   })
 
   it('未知/受限终端按不支持处理（dumb、空 env）', () => {

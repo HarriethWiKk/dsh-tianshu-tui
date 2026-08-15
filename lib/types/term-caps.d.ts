@@ -20,8 +20,10 @@ export declare function isLegacyWindowsConsole(env?: NodeJS.ProcessEnv, platform
 /**
  * 是否支持 OSC52（写系统剪贴板）。
  * 启发式：TERM_PROGRAM 白名单命中 → 支持；Apple Terminal 显式排除
- * （macOS Terminal.app 不写 OSC52，即使 TERM 是 xterm 兼容）；无
- * TERM_PROGRAM 时按 TERM 兼容性（xterm/screen/tmux/linux 系大多支持）。
+ * （macOS Terminal.app 不写 OSC52，即使 TERM 是 xterm 兼容）；VTE 系
+ * （gnome-terminal 等设 VTE_VERSION）与 GNU screen（设 STY）不支持；
+ * 内核 VT（TERM=linux）无剪贴板概念。其余按 TERM 兼容性
+ * （xterm/screen/tmux 系大多支持）。
  * @param env - 环境变量（测试注入用，缺省 process.env）。
  * @returns 是否支持 OSC52。
  */

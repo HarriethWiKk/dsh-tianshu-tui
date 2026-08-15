@@ -5117,7 +5117,7 @@ describe('TuiApp 剪贴板图片与复制（opencode 接线移植）', () => {
     stdin.emit('data', '\x16') // ctrl_v
     await new Promise(resolve => setTimeout(resolve, 30))
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).toContain('剪贴板读图不可用（需 osascript / wl-paste / xclip / PowerShell）')
+    expect(written).toContain('剪贴板无内容可粘贴（读图需 osascript / wl-paste / xclip / PowerShell）')
     await app.dispose()
   })
 

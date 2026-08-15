@@ -34,7 +34,7 @@
 |---|---|---|
 | `Ctrl+V` 剪贴板读图 | 全平台工具链缺失时按键无反应（`src/engine/clipboard-image.ts:133` 返回 null → `src/ui/app.ts` 文本回退分支） | 无图且无文本时回显「剪贴板读图不可用（需 osascript / wl-paste / xclip / PowerShell）」 |
 | `Ctrl+E` 外部编辑器 | spawn 失败返回 null 后无任何提示（`src/external-editor.ts:69` → `src/ui/app.ts` 编辑器分支） | 回显「外部编辑器启动失败（$EDITOR=…）：原因」 |
-| OSC52 复制 | 终端不支持时序列被无害忽略（`src/engine/ansi.ts` OSC52 组装处） | 每会话首次 `Alt+W` 且终端不支持时提示一次（检测走 `src/term-caps.ts`），后续静默 |
+| OSC52 复制 | 终端不支持时序列被无害忽略（`src/engine/ansi.ts` OSC52 组装处） | 每进程首次 Alt+W 且终端不支持时提示一次（检测走 `src/term-caps.ts`，VTE/screen/内核 VT 排除），后续静默 |
 | 自更新失败 | 只在 updated 时通知，failed 完全静默（`src/index.ts:110`） | failed 时在 attach 后写一行 warning（附 `DSH_TUI_SKIP_UPDATE=1` 提示） |
 
 **验收**：每条路径一个行为测试；全量测试绿；不改变降级本身（只是可见）。

@@ -6,7 +6,7 @@
  * 不 mock child_process——行为契约以真实进程为证。
  */
 import { existsSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterAll, describe, expect, it } from 'vitest'
 import {
@@ -74,11 +74,12 @@ describe('createTempFile / readAndCleanup', () => {
     expect(path.endsWith('RIVET_INPUT.md')).toBe(true)
   })
 
-  it('readAndCleanup 读回内容并删除文件', () => {
+  it('readAndCleanup 读回内容并删除文件（含 mkdtemp 目录，审查 #2）', () => {
     const path = createTempFile('原始内容')
     const content = readAndCleanup(path)
     expect(content).toBe('原始内容')
     expect(existsSync(path)).toBe(false)
+    expect(existsSync(dirname(path))).toBe(false)
   })
 })
 

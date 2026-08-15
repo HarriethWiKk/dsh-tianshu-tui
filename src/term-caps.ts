@@ -35,8 +35,10 @@ const OSC52_TERM_PROGRAMS = new Set(['iTerm.app', 'WezTerm', 'kitty', 'Hyper', '
 /**
  * 是否支持 OSC52（写系统剪贴板）。
  * 启发式：TERM_PROGRAM 白名单命中 → 支持；Apple Terminal 显式排除
- * （macOS Terminal.app 不写 OSC52，即使 TERM 是 xterm 兼容）；无
- * TERM_PROGRAM 时按 TERM 兼容性（xterm/screen/tmux/linux 系大多支持）。
+ * （macOS Terminal.app 不写 OSC52，即使 TERM 是 xterm 兼容）；VTE 系
+ * （gnome-terminal 等设 VTE_VERSION）与 GNU screen（设 STY）不支持；
+ * 内核 VT（TERM=linux）无剪贴板概念。其余按 TERM 兼容性
+ * （xterm/screen/tmux 系大多支持）。
  * @param env - 环境变量（测试注入用，缺省 process.env）。
  * @returns 是否支持 OSC52。
  */
@@ -44,8 +46,13 @@ export function supportsOsc52(env: NodeJS.ProcessEnv = process.env): boolean {
   const prog = env.TERM_PROGRAM
   if (prog === 'Apple_Terminal') return false
   if (prog !== undefined && OSC52_TERM_PROGRAMS.has(prog)) return true
+  // VTE 系（gnome-terminal 等）不写 OSC52 剪贴板；GNU screen 默认不转发；
+  // 内核 VT 无剪贴板——均按不支持处理，避免复制静默失败（P1-1 反例）。
+  if (env.VTE_VERSION !== undefined) return false
+  if (env.STY !== undefined) return false
   const term = env.TERM ?? ''
-  return /(^|-)xterm|screen|tmux|linux/i.test(term)
+  if (term === 'linux') return false
+  return /(^|-)xterm|screen|tmux/i.test(term)
 }
 
 /**

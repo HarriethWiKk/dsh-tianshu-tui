@@ -29,7 +29,7 @@ export declare function getEditorCommand(env?: NodeJS.ProcessEnv): string;
  */
 export declare function createTempFile(content: string): string;
 /**
- * 读取编辑结果并清理临时文件（unlink 失败 best-effort）。
+ * 读取编辑结果并清理临时目录（文件与 mkdtemp 目录一并删除；失败 best-effort）。
  * @param path - createTempFile 返回的临时文件路径。
  * @returns 文件内容（utf-8）。
  */

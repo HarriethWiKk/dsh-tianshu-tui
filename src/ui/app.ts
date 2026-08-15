@@ -1082,8 +1082,9 @@ export class TuiApp {
       this.inputLine.insertText(text)
       this.flushLiveRender()
     } else {
-      // P1-1：无图且无文本——回显读图不可用（剪贴板为空或平台工具链缺失均落此）
-      this.echoWarn('⚠ 剪贴板读图不可用（需 osascript / wl-paste / xclip / PowerShell）')
+      // P1-1：无图且无文本——回显一行提示。「无内容」覆盖剪贴板为空与读图/读文
+      // 失败两种情形，不误指为工具链缺失；括号保留读图工具链的诊断信息。
+      this.echoWarn('⚠ 剪贴板无内容可粘贴（读图需 osascript / wl-paste / xclip / PowerShell）')
     }
   }
 

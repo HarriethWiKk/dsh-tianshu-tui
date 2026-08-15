@@ -12,7 +12,7 @@
  * @module @deepseek-ai/dsh-tianshu-tui/external-editor
  */
 
-import { writeFileSync, readFileSync, unlinkSync, mkdtempSync, rmSync } from 'node:fs'
+import { writeFileSync, readFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
@@ -47,13 +47,13 @@ export function createTempFile(content: string): string {
 }
 
 /**
- * 读取编辑结果并清理临时文件（unlink 失败 best-effort）。
+ * 读取编辑结果并清理临时目录（文件与 mkdtemp 目录一并删除；失败 best-effort）。
  * @param path - createTempFile 返回的临时文件路径。
  * @returns 文件内容（utf-8）。
  */
 export function readAndCleanup(path: string): string {
   const content = readFileSync(path, 'utf-8')
-  try { unlinkSync(path) } catch { /* best effort */ }
+  try { rmSync(dirname(path), { recursive: true, force: true }) } catch { /* best effort */ }
   return content
 }
 
