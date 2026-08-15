@@ -1,0 +1,15 @@
+dsh-lsp NOTICE
+
+This product includes software ported from Tianshu (https://github.com/huiliyi37/Tianshu-Tui),
+licensed under the Apache License, Version 2.0:
+
+  Copyright 2025-2026 Tianshu Contributors
+
+Files ported: src/rpc.ts, src/manager.ts, src/multi-manager.ts, src/server-registry.ts
+(original locations: Tianshu src/lsp/). Modifications: multi-manager spawn path
+simplified (plain child_process.spawn instead of the desktop-bundle spawnHidden /
+resolve-node-cli adapters). Per-file mapping and modification notes are recorded
+in the upstream package's SOURCE-MAP.md.
+
+The remainder of this package is original and distributed under the MIT license
+(see LICENSE).

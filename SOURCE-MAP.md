@@ -103,10 +103,10 @@
 | src/lsp/rpc.ts | lsp/rpc.ts | ported（JSON-RPC over stdio：Content-Length 帧编解码 + 请求/通知分发） |
 | src/lsp/server-registry.ts | lsp/server-registry.ts | ported（语言 → server 映射：typescript 经 npx / pyright / gopls / rust-analyzer / clangd / jdtls + which 探测） |
 
-伴生包 `lsp/`（@huiliyi37/dsh-tui-lsp，独立发布单元）复用同一批移植文件（rpc/manager/
-multi-manager/server-registry 复制自本包 src/lsp/，同源 Apache-2.0）；`lsp/src/service.ts`
-（LspService 封装）、`lsp/src/tools.ts`（三个模型工具）、`lsp/src/index.ts`（插件入口）
-为 `new`。
+独立插件 `@deepseek-ai/dsh-lsp`（omdsh-dev/dsh-lsp 独立仓，源码镜像于本仓 lsp/）复用
+同一批移植文件（rpc/manager/multi-manager/server-registry 复制自本包 src/lsp/，同源
+Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型工具）、`index.ts`
+（插件入口）为 `new`。TUI 展示桥经 `ctx.reflect.get('lsp')` 探测消费该插件服务。
 | src/invariant.ts | — | new |
 | src/live-tail-cap.ts | live-tail-cap.ts | modified |
 | src/mention-expand.ts | — | new |
