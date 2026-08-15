@@ -15,6 +15,7 @@
  * @module @deepseek-ai/dsh-tianshu-tui/commands
  */
 import type { Context } from '@deepseek-ai/cordis';
+import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { SessionId } from '@deepseek-ai/dsh-session';
 import { getActiveThemeName } from '../theme.js';
 /**
@@ -56,7 +57,7 @@ export interface SlashParse {
  * /subagents、/workflow、/tasks 的命令定义在 createBuiltinCommands（deps 注入
  * TuiApp 的显隐切换）；/status 保持 TuiApp 内注册。
  */
-export declare const BUILTIN_COMMAND_NAMES: readonly ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'tasks', 'density', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit'];
+export declare const BUILTIN_COMMAND_NAMES: readonly ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit'];
 /**
  * 最小唯一前缀解析：`/` 前缀 + 命令名 `startsWith` 匹配。
  * 歧义（多命令同前缀）或未知名返回 null——不猜命令。
@@ -149,6 +150,10 @@ export interface BuiltinCommandDeps {
     exportTranscript(path?: string): Promise<string>;
     /** /exit：请求退出 TUI（与 Ctrl+Q 同一 onExit 路径）。 */
     requestExit(): void;
+    /** /preset：当前会话的 agent（recompose/composedPreset 的 agentCtx 来源；无会话为 null）。 */
+    currentAgent(): Agent | null;
+    /** /preset：当前会话是否 blank（无消息且无进行中工具调用）——recompose 的调用方契约。 */
+    isBlankSession(): boolean;
 }
 /**
  * 装配内置命令（/theme /session /clear /compact）。

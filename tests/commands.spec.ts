@@ -10,6 +10,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import {
   BUILTIN_COMMAND_NAMES,
@@ -20,7 +21,7 @@ import {
 import { getActiveThemeName, setTheme } from '../src/theme.js'
 
 /** 最小 ctx 替身：/session list 需要的 sessions.list + get('sessionPersistence')。 */
-function makeCtx(overrides: Partial<Record<'sessions' | 'agents' | 'compact' | 'agentDefaultModel' | 'goals' | 'tasks', unknown>> = {}): Context {
+function makeCtx(overrides: Partial<Record<'sessions' | 'agents' | 'compact' | 'agentDefaultModel' | 'goals' | 'tasks' | 'agentPresets', unknown>> = {}): Context {
   const ctx = {
     sessions: {
       list: vi.fn(() => []),
@@ -69,6 +70,8 @@ function commandByName(name: string) {
     switchSession: vi.fn(async () => undefined),
     exportTranscript: vi.fn(async (path?: string) => path ?? '/tmp/dsh-export-s1.md'),
     requestExit: vi.fn(),
+    currentAgent: vi.fn<() => Agent | null>(() => null),
+    isBlankSession: vi.fn(() => true),
   }
   const commands = createBuiltinCommands(deps)
   const cmd = commands.find(c => c.name === name)
@@ -1189,6 +1192,8 @@ describe('内置命令 — /effort', () => {
       switchSession: vi.fn(async () => undefined),
       exportTranscript: vi.fn(async (path?: string) => path ?? '/tmp/dsh-export-s1.md'),
       requestExit: vi.fn(),
+      currentAgent: vi.fn(() => null),
+      isBlankSession: vi.fn(() => true),
     }
     const cmd = createBuiltinCommands(deps).find(c => c.name === 'effort')
     if (cmd === undefined) throw new Error('builtin command not found: effort')
@@ -1230,5 +1235,127 @@ describe('内置命令 — /effort', () => {
   it('内置命令集含 /effort', () => {
     const { cmd } = effortByName()
     expect(cmd.name).toBe('effort')
+  })
+})
+
+describe('内置命令 — /preset（agent 预设模式切换）', () => {
+  const presetByName = () => commandByName('preset')
+
+  /** 带 agentPresets 服务的 ctx（makeCtx overrides + reflect 注入，/model 同机制）。 */
+  function presetCtx() {
+    const presets = {
+      list: vi.fn<() => Promise<Array<{ id: string; name?: string; description?: string }>>>(async () => []),
+      composedPreset: vi.fn<() => string | undefined>(() => undefined),
+      recompose: vi.fn<() => Promise<{ id: string; name?: string }>>(async () => ({ id: 'minimal' })),
+    }
+    const ctx = makeCtx({ agentPresets: presets })
+    return { presets, ctx }
+  }
+
+  /** 当前会话 agent 替身（recompose 的 agentCtx + append 落日志）。 */
+  function makeAgent(): Agent {
+    const append = vi.fn()
+    return { ctx: {}, session: { append } } as unknown as Agent
+  }
+
+  it('内置命令集含 /preset 且无前缀冲突', () => {
+    expect(BUILTIN_COMMAND_NAMES).toContain('preset')
+    const parsed = resolveSlashCommand('/preset', BUILTIN_COMMAND_NAMES)
+    expect(parsed?.command.name).toBe('preset')
+    expect(resolveSlashCommand('/p', BUILTIN_COMMAND_NAMES)?.command.name).toBe('preset')
+  })
+
+  it('无参：列出全部预设并标记当前项', async () => {
+    const { cmd, deps } = presetByName()
+    const { presets, ctx } = presetCtx()
+    presets.list.mockResolvedValue([
+      { id: 'standard', name: '标准模式', description: '功能完整' },
+      { id: 'minimal', name: '极简模式', description: '双工具' },
+      { id: 'cordis', name: '创造模式', description: '创作预设' },
+    ])
+    presets.composedPreset.mockReturnValue('minimal')
+    const agent = makeAgent()
+    deps.currentAgent.mockReturnValue(agent)
+    const { args, echo } = makeArgs({ text: '', ctx })
+    await cmd.run(args)
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('agent 预设'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('标准模式'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('极简模式'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('创造模式'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('当前: minimal'))
+    // 当前项带星标：极简行以 * 开头
+    const starred = echo.mock.calls.map(c => String(c[0])).find(l => l.includes('极简模式'))
+    expect(starred?.startsWith(' *')).toBe(true)
+  })
+
+  it('无参且无当前 agent：回显未装配默认', async () => {
+    const { cmd } = presetByName()
+    const { presets, ctx } = presetCtx()
+    presets.list.mockResolvedValue([{ id: 'standard', name: '标准模式' }])
+    const { args, echo } = makeArgs({ text: '', ctx })
+    await cmd.run(args)
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('当前: 未装配'))
+  })
+
+  it('切换成功：recompose 成功后 append 落日志并回显', async () => {
+    const { cmd, deps } = presetByName()
+    const { presets, ctx } = presetCtx()
+    presets.recompose.mockResolvedValue({ id: 'minimal', name: '极简模式' })
+    const agent = makeAgent()
+    deps.currentAgent.mockReturnValue(agent)
+    deps.isBlankSession.mockReturnValue(true)
+    const { args, echo } = makeArgs({ text: 'minimal', ctx })
+    await cmd.run(args)
+    expect(presets.recompose).toHaveBeenCalledWith(agent.ctx, 'minimal')
+    const append = agent.session.append as unknown as ReturnType<typeof vi.fn>
+    expect(append).toHaveBeenCalledTimes(1)
+    expect(append.mock.calls[0]![0]).toBe('agent-preset/selected')
+    expect(append.mock.calls[0]![1]).toEqual({ agentPreset: 'minimal' })
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('已切换为'))
+  })
+
+  it('非 blank 会话拒绝切换：不调 recompose / append', async () => {
+    const { cmd, deps } = presetByName()
+    const { presets, ctx } = presetCtx()
+    const agent = makeAgent()
+    deps.currentAgent.mockReturnValue(agent)
+    deps.isBlankSession.mockReturnValue(false)
+    const { args, echo } = makeArgs({ text: 'minimal', ctx })
+    await cmd.run(args)
+    expect(presets.recompose).not.toHaveBeenCalled()
+    const append = agent.session.append as unknown as ReturnType<typeof vi.fn>
+    expect(append).not.toHaveBeenCalled()
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('空白会话'))
+  })
+
+  it('无当前会话时拒绝切换', async () => {
+    const { cmd } = presetByName()
+    const { presets, ctx } = presetCtx()
+    const { args, echo } = makeArgs({ text: 'minimal', ctx })
+    await cmd.run(args)
+    expect(presets.recompose).not.toHaveBeenCalled()
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('无会话'))
+  })
+
+  it('agent-presets 服务缺失时回显不可用（fails loud）', async () => {
+    const { cmd } = presetByName()
+    const { args, echo } = makeArgs({ text: '' })
+    await cmd.run(args)
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('不可用'))
+  })
+
+  it('recompose 失败（未知预设/损坏组成）：回显错误且不 append', async () => {
+    const { cmd, deps } = presetByName()
+    const { presets, ctx } = presetCtx()
+    presets.recompose.mockRejectedValue(new Error('UnknownPresetError: no-such'))
+    const agent = makeAgent()
+    deps.currentAgent.mockReturnValue(agent)
+    deps.isBlankSession.mockReturnValue(true)
+    const { args, echo } = makeArgs({ text: 'no-such', ctx })
+    await cmd.run(args)
+    const append = agent.session.append as unknown as ReturnType<typeof vi.fn>
+    expect(append).not.toHaveBeenCalled()
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('切换失败'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('no-such'))
   })
 })

@@ -27,7 +27,7 @@ import type { ReadStream, WriteStream } from 'node:tty'
 import type { Context } from '@deepseek-ai/cordis'
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { CallId, TokenUsage } from '@deepseek-ai/dsh-llm'
-import { installModelSelection, type AgentHandle, type ModelSelection, type ModelSelectionRef } from '@deepseek-ai/dsh-agent'
+import { installModelSelection, type Agent, type AgentHandle, type ModelSelection, type ModelSelectionRef } from '@deepseek-ai/dsh-agent'
 // 空类型导入引入 Context 上 agentDefaultModel 服务的声明合并（headless 同款）。
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import { CommitEngine } from '../engine/commit-engine.js'
@@ -640,6 +640,20 @@ export class TuiApp {
       newSession: () => this.newSession(),
       forkSession: () => this.forkSession(),
       switchLiveModel: selection => this.switchLiveModel(selection),
+      // /preset：当前会话 agent（recompose/composedPreset 的 agentCtx 来源）；
+      // activeSessionId 为 null（未 attach）时返回 null，命令层拒绝切换。
+      currentAgent: (): Agent | null => {
+        const id = this.activeSessionId
+        if (id === null) return null
+        return this.ctx.agents.get(id) ?? null
+      },
+      // /preset：blank 判定（recompose 调用方契约——换工具集会留下历史
+      // tool call 与新组成不匹配）：无消息且无未结算工具调用。
+      isBlankSession: () => {
+        const view = this.transcript?.view
+        return (view?.messages ?? []).length === 0
+          && (view?.tools ?? []).every(t => t.result !== undefined)
+      },
       clearScrollback: () => {
         this.commit.reset()
         // 真实清屏（对齐 README「清空滚动区视图」）：2J 擦可见屏、3J 清终端
