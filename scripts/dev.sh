@@ -21,6 +21,11 @@ fi
 export DSH_HOME="$ROOT/.dsh-dev"
 PROFILE_DIR="$DSH_HOME/profiles/tui"
 
+# 加载 DeepSeek API key：优先已有环境变量，否则读机器级配置位 ~/.dsh/.env（不进仓库）
+if [ -z "${DEEPSEEK_API_KEY:-}" ] && [ -f "$HOME/.dsh/.env" ]; then
+  set -a; . "$HOME/.dsh/.env"; set +a
+fi
+
 if [ ! -f "$PROFILE_DIR/package.json" ]; then
   echo "首次运行：装配 profile tui（dsh-base + 本插件 link: 本仓库）..."
   node "$CLI" plugin --profile tui add "@deepseek-ai/dsh-base@0.1.0-rc.6" "link:$ROOT"
