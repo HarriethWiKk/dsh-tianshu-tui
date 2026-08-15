@@ -36,7 +36,9 @@ export interface TuiRunnerConfig {
   vision?: {
     /** 主控模型是否原生支持识图（图片直发）。 */
     supportsVision?: boolean
-    /** 是否配置了独立识图桥模型（主控不识图时经桥转文字描述）。 */
+    /** 是否配置了独立识图桥模型（主控不识图时经桥转文字描述）。
+     *  未传入时按宿主 `visionBridge` 服务（dsh-vision-bridge 装配时应 provide）
+     *  的存在性自动探测。 */
     bridgeEnabled?: boolean
     /** 识图桥来源（configured=显式配置 / auto=自动选用）。 */
     bridgeSource?: 'configured' | 'auto' | 'none'
@@ -58,17 +60,17 @@ export function apply(ctx: Context, config: TuiRunnerConfig = {}): void {
   }
   const stdin = config.stdin ?? process.stdin
   const stdout = config.stdout ?? process.stdout
-  // 服务隔离：sessions/agents/agentDefaultModel/goals/subagents 是注入属性，访问前必须
+  // 服务隔离：sessions/agents/agentDefaultModel 是注入属性，访问前必须
   // 声明依赖（Cordis 4 注入语义，未声明访问抛 "without inject"；web-app 同款
   // 模式）。cmdlineArgs/appExit 是 launcher 在 boot prepare 里 provide 的宿主服务，
   // **不加入必选 inject**：Cordis inject 要求全部服务可用才执行回调，宿主未提供时
   // tui-runner 会静默永不激活（无报错、无 TUI，比降级更糟）。读取走 attach 内
   // 的注入属性/reflect 双通道 + 宿主特征感知的短窗口等待（见 TuiApp.attach）。
-  // goals/subagents 为可选服务：goal/subagent 插件未装配时注入代理不阻塞
-  // 装配，/goal 命令经 reflect.get('goals')、委派树经 reflect.get('subagents')
-  // 读到 undefined 时报不可用/面板降级（fails loud）。
+  // goals/subagents 同理为可选服务、不进 inject（否则缺 goal/subagent 插件时整个
+  // TUI 静默不启动）：一律经 reflect.get 读取，/goal 命令与委派树在服务缺失时
+  // 报不可用/面板降级（fails loud），但不阻塞装配。
   // 装配与 attach 在注入作用域内执行；生命周期仍注册在外层插件 ctx（随插件卸载）。
-  ctx.inject(['sessions', 'agents', 'agentDefaultModel', 'goals', 'subagents'], (runtimeCtx) => {
+  ctx.inject(['sessions', 'agents', 'agentDefaultModel'], (runtimeCtx) => {
     // 退出生命周期：stdin SIGINT、Ctrl+C 空输入（onExit）与插件卸载（effect cleanup）
     // 都 await dispose（flushAll + 恢复终端）。用户主动退出（Ctrl+Q / /exit /
     // SIGINT）在 dispose 之后还要让宿主进程退出——否则 InputHandler 已 pause

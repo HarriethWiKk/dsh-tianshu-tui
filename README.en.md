@@ -142,7 +142,7 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 - **Tool cards commit in real time** — settled tool results render as scrollback cards consuming the harness presenter intent: `diff` results as structured red/green file diffs (shared with the approval preview), `terminal` results with command title + cwd + exit/signal badge, everything else as folding cards.
 - **Reasoning channel** — shimmer live header while thinking, folded scrollback line at segment end, `Ctrl+O` expands the full text in the live area.
 - **Fluency folding** — repetitive routine tool traffic collapses under a quiet strategy; compact mode (`/density`) keeps header-only lines.
-- **Turn status** — braille spinner + phase text status line, workflow-run summaries, delegation tree, task pane, config/skills panels as live-region panels.
+- **Turn status** — braille spinner + phase text status line, workflow-run summaries, delegation tree, task pane, config/skills panels as live-region panels; a non-aborted turn with tool calls ends with a dim summary line (`turn N · 读X 改Y · elapsed`) in the scrollback.
 - **Subagent runs** — a live spinner line per run; terminal states commit to scrollback as `✓`/`✗`/`◌` entries.
 - **Window chrome** — welcome page (brand header, friendly short session ids, environment check line), top bar (cwd + git branch + model), and a three-line bottom area: input line (mode-colored bottom edge) → footer (mode badge + key hints) → metrics line (model / token usage / cache hit rate).
 - **Themes** — built-in palettes plus `custom:<name>`; auto terminal detection and 16-color fallbacks.
@@ -152,14 +152,14 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 - **Structured questions** — numeric selection, `Esc` cancels, overlap protection; plan-review feedback mode (`f` to enter, `Enter` submits Keep-planning + custom feedback).
 - **Approval cards** — `y`/`N`/`Ctrl+C` settle pending approvals; inline diff previews when the tool is diffable; blind-approval hint when the diff is invisible; non-current-session requests delegate to the next listener.
 - **Mode cycle** — `Shift+Tab` cycles normal → plan → always-approve; the plan state drives the footer badge, and always-approve is session-local (resets on switch/exit).
-- **Live panels** — `/status` (5-domain projection snapshot), `/config` (settings / permission / credentials), `/skills` browser, `/tasks` pane, `/subagents` delegation tree, `/workflow` runs.
+- **Live panels** — `/status` (goal/todos/plan projection snapshot; the subagent domains surface under `/subagents`), `/config` (settings / permission / credentials), `/skills` browser, `/tasks` pane, `/subagents` delegation tree, `/workflow` runs. When a panel's backing host service is not assembled, a `⚠` warning is echoed instead of a silently blank panel.
 - **Command palette (`Ctrl+P`) / keymap (`Ctrl+.`) / history search (`Ctrl+F`) overlays**.
 
 ### Models & vision
 
 - `/model` — view and switch the model (default + hot-switch for the current session); `spark-flash` / `spark-pro` aliases map to `deepseek-official` + the official wire ids `deepseek-v4-flash` / `deepseek-v4-pro`. `/model <provider/model|alias> [off|high|max]` sets the reasoning effort in the same command.
 - `/effort` — set the reasoning effort (`off` / `high` / `max`; `auto` returns to the model default), hot-switched for the current session.
-- **Vision bridge** — vision capability is declared per model (`supportsVision`) and drives the bubble hint; when the main model cannot see images, an automatically selected vision model describes them before submission (one-shot path; see Known Limitations).
+- **Vision bridge** — vision capability is declared per model (`supportsVision`, auto-refreshed from the llm catalog) and drives the bubble hint; when the main model cannot see images, an automatically selected vision model describes them before submission (one-shot path; see Known Limitations). Bridge availability comes from the assembly layer (`vision.bridgeEnabled`) or from a host vision-bridge plugin providing the `visionBridge` service — the TUI probes service presence before submitting images; with neither, images are not sent and a warning is shown.
 - **Vision co-pilot** — with the companion `@deepseek-ai/dsh-vision-ask` plugin (same repository), every sent image is registered under a short id (`img_1`, …) and the model can re-interrogate it with `ask_image` — targeted questions, different angles, any number of times; repeated same-angle asks hit the per-image description cache. Details and config in the [vision-ask README](vision-ask/README.md).
 - `/mcp` — list connected MCP servers and tool counts; `tools <name>` inspects a server's tool list.
 
@@ -178,7 +178,7 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 | `/effort off\|high\|max\|auto` | Set reasoning effort (hot-switched) |
 | `/theme [name]` | Switch theme |
 | `/density` | Toggle compact tool-card rendering |
-| `/status` | Toggle the status panel (5-domain projection snapshot) |
+| `/status` | Toggle the status panel (goal/todos/plan projections + session totals) |
 | `/config` | Toggle the settings panel (settings / permission / credentials) |
 | `/skills` | Toggle the skills browser |
 | `/tasks` | Task pane (background tasks) |
@@ -204,6 +204,7 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 | `Ctrl+O` | Expand/collapse the latest reasoning block |
 | `Ctrl+E` | Open the input line in `$EDITOR` (configurable via `editorKey`) |
 | `Ctrl+T` | Mid-turn steering |
+| `Ctrl+C` | Interrupt the in-flight turn (double-press on idle empty input exits) |
 | `Ctrl+V` | Paste clipboard image (falls back to clipboard text) |
 | `Alt+W` | Copy selection to the system clipboard (OSC52) |
 | `Shift+Tab` | Mode cycle: normal → plan → always-approve |
@@ -221,14 +222,14 @@ The bundle patch inserts the `tui-runner` plugin over `dsh-base`:
   name: '@huiliyi37/dsh-tianshu-tui'
 ```
 
-`TuiRunnerConfig` (all optional): `stdin`/`stdout` (stream injection, defaults to process streams), `initialSessionId`, `editorKey` (default `ctrl_e`; `ctrl+o` is reserved for reasoning expansion), `vimEnabled` (default `false`), `vision` (supportsVision / bridgeEnabled / bridgeSource, derived from the vision-bridge plugin), `workflowHistoryLimit` (default `50`).
+`TuiRunnerConfig` (all optional): `stdin`/`stdout` (stream injection, defaults to process streams), `initialSessionId`, `editorKey` (default `ctrl_e`; `ctrl+o` is reserved for reasoning expansion), `vimEnabled` (default `false`), `vision` (supportsVision / bridgeEnabled / bridgeSource; when omitted, supportsVision auto-refreshes from the llm catalog and bridgeEnabled is auto-probed from the presence of the host `visionBridge` service — a vision-bridge plugin should provide it), `workflowHistoryLimit` (default `50`).
 
-Service dependencies: `sessions`/`agents`/`agentDefaultModel` required; `goals`/`subagents`/`memory`/`compact` optional — unassembled services degrade fails-loud with an availability message, never silently.
+Service dependencies: `sessions`/`agents`/`agentDefaultModel` required (mandatory inject); `goals`/`subagents`/`memory`/`compact`/`tasks`/`skills`/`sessionProjections`/`workflowEngine`/`planMode` optional — when unassembled, the affected commands and panels degrade fails-loud with an availability message, never silently, and never block TUI startup.
 
 ## Verification
 
 ```sh
-NO_COLOR=1 pnpm vitest run packages/tui/tui/tests/
+npm test
 ```
 
 ## Model Experience
@@ -242,9 +243,8 @@ None directly; user input submitted through the TUI becomes ordinary logged mess
 ## Known Limitations and Deferred Work
 
 - **Image re-interrogation requires the companion plugin** — the `ask_image` tool and the session image registry live in `@deepseek-ai/dsh-vision-ask` (same repository, separate package); the TUI bundle itself does not ship them. Without the plugin, an already-sent image cannot be re-queried and repeated same-angle descriptions re-call the vision model; the vision bridge still covers the one-shot submit-time description path.
-- **app.ts monolith (~2.2k lines)** — the pending-state state machines are controller-ized (question/approval), while render composition and key arbitration remain in app.ts; the C4 split plan (pure-function panel segments) keeps advancing.
-- **Engine I/O file coverage exemptions** — terminal-boundary files such as input-line/live-engine sit on the coverage exemption list in vitest.config.ts (`TODO(tui)` comments), to be digested gradually as the real composition-test line matures.
-- **Projection models not yet wired** — the four pure fold models activity-status/activity-store/turn-summary/summary-state landed with specs, but the App body does not drive them yet. Current state is recorded in [docs/projection-layer.md](docs/projection-layer.md).
+- **app.ts monolith (~3.2k lines)** — the pending-state state machines are controller-ized (question/approval), while render composition and key arbitration remain in app.ts; the C4 split plan (pure-function panel segments) keeps advancing.
+- **Projection layer partially wired** — of the four pure fold models, turn-summary (turn/end summary line) and summary-state (the `/status` session-totals section, which keeps working even when the host projection bus is absent) are wired; activity-status/activity-store stay deliberately unwired (the statusline is a self-contained projection, so replacing it buys nothing; activity-store has no current consumer). Current state is recorded in [docs/projection-layer.md](docs/projection-layer.md).
 
 ## License & Provenance
 

@@ -170,7 +170,7 @@ async function compressToBudget(
   maxEdge: number,
   maxBytes: number,
   sourceMime: string,
-): Promise<{ buf: Buffer; mime: string }> {
+): Promise<{ buf: Buffer; mime: string } | null> {
   const attempts: Array<{ keepPng: boolean; edge: number; quality: number }> = [
     // L1：PNG 保透明（无损格式无质量档），其余转 JPEG 0.82。
     { keepPng: sourceMime === 'image/png', edge: maxEdge, quality: JPEG_QUALITY },

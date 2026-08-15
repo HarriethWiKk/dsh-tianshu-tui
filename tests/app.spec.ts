@@ -82,7 +82,7 @@ interface MockCtx {
   agentDefaultModel: {
     currentSelection: ReturnType<typeof vi.fn>
   }
-  /** T4：sessionProjections 服务替身（可选——缺失时任务窗格静默降级）。 */
+  /** T4：sessionProjections 服务替身（可选——缺失时窗格降级并在切换时回显警告）。 */
   sessionProjections?: {
     snapshot: ReturnType<typeof vi.fn>
     onChanged: ReturnType<typeof vi.fn>
@@ -538,7 +538,7 @@ describe('TuiApp 审查 HIGH 修复回归（177c12e）', () => {
     const app = new TuiApp({ ctx, stdout, stdin, onExit })
     await app.attach()
     const id = app.sessionId
-    if (id === undefined) throw new Error('sessionId missing after attach')
+    if (id === null) throw new Error('sessionId missing after attach')
     const statusHandlers = (ctx.on as ReturnType<typeof vi.fn>).mock.calls
       .filter((call: unknown[]) => call[0] === 'agent/status')
       .map(call => call[1] as (payload: { agent: { id: SessionId }; status: string }) => void)
@@ -882,12 +882,12 @@ describe('TuiApp Phase 9a @mention 摘要展开装配', () => {
     const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
     await app.newSession()
     // process.cwd() 是仓库根：用仓库内真实文件（mention-parser.ts）验证展开
-    app.handleSubmit('查看 @packages/tui/tui/src/mention-parser.ts')
+    app.handleSubmit('查看 @src/mention-parser.ts')
     await new Promise(resolve => setImmediate(resolve))
 
     expect(agent.followup).toHaveBeenCalledTimes(1)
     const text = firstCallText(agent.followup)
-    expect(text).toContain('@packages/tui/tui/src/mention-parser.ts')
+    expect(text).toContain('@src/mention-parser.ts')
     expect(text).toContain('mention-parser — @路径展开解析器')
     // 用户消息渲染也含展开内容
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
@@ -2085,7 +2085,7 @@ describe('TuiApp T4 任务窗格（/tasks + sessionProjections）', () => {
     await app.dispose()
   })
 
-  it('sessionProjections 服务缺失时 /tasks 打开不渲染（静默降级）', async () => {
+  it('sessionProjections 服务缺失时 /tasks 打开回显警告（不渲染窗格）', async () => {
     const ctx = makeCtx()
     const agent = makeAgent('task-2')
     const handle = makeHandle(agent)
@@ -2101,6 +2101,8 @@ describe('TuiApp T4 任务窗格（/tasks + sessionProjections）', () => {
     await new Promise(resolve => setImmediate(resolve))
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     expect(written).not.toContain('📋 任务')
+    // fails loud：服务缺失回显警告，不再静默降级
+    expect(written).toContain('sessionProjections 服务不可用')
     await app.dispose()
   })
 })
@@ -2286,6 +2288,100 @@ describe('TuiApp T1.2 /status 面板接线（renderLive + 投影缓存）', () =
   })
 })
 
+describe('TuiApp 投影层接线（turn-summary 摘要行 + /status 会话段）', () => {
+  function bootApp(name = 'proj-1') {
+    const ctx = makeCtx()
+    const agent = makeAgent(name)
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    return { ctx, agent, stdin, stdout, app }
+  }
+
+  /** 喂一个完整 turn：read_file（读，100ms）+ edit_file（改，1000ms）→ completed。 */
+  function feedToolTurn(bus: ReturnType<typeof sessionEventBus>, id: SessionId): void {
+    bus(id, { seq: 1, time: 1000, type: 'turn/start', data: { turn: 1 } })
+    bus(id, { seq: 2, time: 1100, type: 'tool/call', data: { callId: 'c1', name: 'read_file', arguments: '{}', turn: 1, step: 0 } })
+    bus(id, { seq: 3, time: 1200, type: 'tool/result', data: { turn: 1, step: 0, message: { id: 'm-c1', role: 'user', source: { kind: 'tool', callId: 'c1' }, content: [{ type: 'tool-result', toolCallId: 'c1', content: [{ type: 'text', text: 'ok' }] }] } } })
+    bus(id, { seq: 4, time: 1300, type: 'tool/call', data: { callId: 'c2', name: 'edit_file', arguments: '{}', turn: 1, step: 1 } })
+    bus(id, { seq: 5, time: 2300, type: 'tool/result', data: { turn: 1, step: 1, message: { id: 'm-c2', role: 'user', source: { kind: 'tool', callId: 'c2' }, content: [{ type: 'tool-result', toolCallId: 'c2', content: [{ type: 'text', text: 'done' }] }] } } })
+    bus(id, { seq: 6, time: 2400, type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } })
+  }
+
+  it('turn/end（completed）且有工具调用 → 提交 turn 摘要行（读/改计数复用 tool-meta 家族）', async () => {
+    const { ctx, app, stdout } = bootApp()
+    await app.attach()
+    const bus = sessionEventBus(ctx)
+    const id = app.sessionId
+    if (id === null) throw new Error('no active session')
+    stdout.write.mockClear()
+    feedToolTurn(bus, id)
+    // 摘要行接在异步 flushStream 之后（等微任务/定时器链落定）
+    await new Promise(resolve => setImmediate(resolve))
+    await new Promise(resolve => setImmediate(resolve))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('turn 1')
+    expect(written).toContain('读1 改1')
+    await app.dispose()
+  })
+
+  it('turn/end 无工具调用 → 不渲染摘要行', async () => {
+    const { ctx, app, stdout } = bootApp()
+    await app.attach()
+    const bus = sessionEventBus(ctx)
+    const id = app.sessionId
+    if (id === null) throw new Error('no active session')
+    stdout.write.mockClear()
+    bus(id, { seq: 1, time: 1000, type: 'turn/start', data: { turn: 1 } })
+    bus(id, { seq: 2, time: 2000, type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } })
+    await new Promise(resolve => setImmediate(resolve))
+    await new Promise(resolve => setImmediate(resolve))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).not.toContain('读0 改0')
+    await app.dispose()
+  })
+
+  it('aborted turn 有工具调用也不渲染摘要行（部分统计会误导）', async () => {
+    const { ctx, app, stdout } = bootApp()
+    await app.attach()
+    const bus = sessionEventBus(ctx)
+    const id = app.sessionId
+    if (id === null) throw new Error('no active session')
+    stdout.write.mockClear()
+    bus(id, { seq: 1, time: 1000, type: 'turn/start', data: { turn: 1 } })
+    bus(id, { seq: 2, time: 1100, type: 'tool/call', data: { callId: 'c1', name: 'bash', arguments: '{}', turn: 1, step: 0 } })
+    bus(id, { seq: 3, time: 2000, type: 'turn/end', data: { turn: 1, reason: { kind: 'aborted' } } })
+    await new Promise(resolve => setImmediate(resolve))
+    await new Promise(resolve => setImmediate(resolve))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).not.toContain('读0 改0')
+    await app.dispose()
+  })
+
+  it('/status 面板渲染会话汇总段（summary-state 本地 fold，不依赖宿主投影总线）', async () => {
+    const { ctx, app, stdin, stdout } = bootApp()
+    await app.attach()
+    const bus = sessionEventBus(ctx)
+    const id = app.sessionId
+    if (id === null) throw new Error('no active session')
+    feedToolTurn(bus, id)
+    await new Promise(resolve => setImmediate(resolve))
+    stdout.write.mockClear()
+    for (const ch of '/status') stdin.emit('data', ch)
+    stdin.emit('data', '\r')
+    await new Promise(resolve => setImmediate(resolve))
+    await new Promise(resolve => setTimeout(resolve, 150)) // 等一帧 ticker 渲染
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('Σ 会话')
+    expect(written).toContain('回合 1')
+    expect(written).toContain('工具 2')
+    await app.dispose()
+  })
+})
+
 describe('TuiApp T2.1/T2.2 多 agent 面板接线（委派树 + workflow 运行态）', () => {
   it('/subagents 打开后经 projectDelegationTree 渲染委派树行（listDescendants 预取缓存）', async () => {
     const ctx = makeCtx()
@@ -2317,6 +2413,28 @@ describe('TuiApp T2.1/T2.2 多 agent 面板接线（委派树 + workflow 运行�
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     expect(written).toContain('🌳 委派')
     expect(written).toContain('子代理A')
+    await app.dispose()
+  })
+
+  it('subagents 服务缺失时 /subagents 打开回显警告（不渲染树）', async () => {
+    const ctx = makeCtx()
+    ctx.agents.create.mockImplementation(({ sessionId }: { sessionId: string }) => {
+      const agent = makeAgent(sessionId)
+      ctx.sessions.get.mockReturnValue(agent.session)
+      return makeHandle(agent)
+    })
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    await new Promise(resolve => setImmediate(resolve))
+    for (const ch of '/subagents') stdin.emit('data', ch)
+    stdin.emit('data', '\r')
+    await new Promise(resolve => setImmediate(resolve))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).not.toContain('🌳 委派')
+    // fails loud：服务缺失回显警告，不再静默降级
+    expect(written).toContain('subagents 服务不可用')
     await app.dispose()
   })
 
@@ -2407,7 +2525,7 @@ describe('TuiApp API key 就绪（credentials 分层，非仅 env）', () => {
       }
     })
     if (opts.credentials !== undefined || opts.credentialsError === true) {
-      const fallback = ctx.reflect.get.getMockImplementation()!
+      const fallback = ctx.reflect.get.getMockImplementation()! as (name: string) => unknown
       ctx.reflect.get.mockImplementation((name: string) => {
         if (name === 'credentials') return { describe }
         return fallback(name)
@@ -2468,7 +2586,7 @@ describe('TuiApp 会话交互 UX 对齐（显示层 = 实际能力）', () => {
       expect(ref).toBe('DEEPSEEK_API_KEY')
       return { configured: true, source: 'file', writable: true }
     })
-    const fallback = ctx.reflect.get.getMockImplementation()!
+    const fallback = ctx.reflect.get.getMockImplementation()! as (name: string) => unknown
     ctx.reflect.get.mockImplementation((name: string) => {
       if (name === 'credentials') return { describe }
       return fallback(name)
@@ -2511,7 +2629,7 @@ describe('TuiApp 会话交互 UX 对齐（显示层 = 实际能力）', () => {
   it('切到无 image 模态的模型后，发图走「图片未发送」（不沿用启动时的识图标志）', async () => {
     const ctx = makeCtx()
     const resolveModelInfo = vi.fn(async () => ({ inputModalities: ['text'] as const }))
-    const fallback = ctx.reflect.get.getMockImplementation()!
+    const fallback = ctx.reflect.get.getMockImplementation()! as (name: string) => unknown
     ctx.reflect.get.mockImplementation((name: string) => {
       if (name === 'llm') return { resolveModelInfo }
       return fallback(name)
@@ -2548,7 +2666,7 @@ describe('TuiApp 会话交互 UX 对齐（显示层 = 实际能力）', () => {
       id: diskId, version: 0, createdAt: Date.now() - 1_000,
       cwd: '/tmp/disk-ws', parentSession: undefined,
     }
-    const fallback = ctx.reflect.get.getMockImplementation()!
+    const fallback = ctx.reflect.get.getMockImplementation()! as (name: string) => unknown
     ctx.reflect.get.mockImplementation((name: string) => {
       if (name === 'sessionPersistence') {
         return { list: vi.fn(async () => [diskHeader]) }
@@ -2557,8 +2675,8 @@ describe('TuiApp 会话交互 UX 对齐（显示层 = 实际能力）', () => {
     })
     ctx.agents.get.mockReturnValue(undefined)
     const disk = makeAgent('disk-1')
-    disk.session.id = diskId
-    disk.session.header = { ...disk.session.header, id: diskId, cwd: '/tmp/disk-ws' }
+    // session.id/header 在 Agent 类型上只读：mock 替身经 Object.assign 改形。
+    Object.assign(disk.session, { id: diskId, header: { ...disk.session.header, id: diskId, cwd: '/tmp/disk-ws' } })
     ctx.agents.resume.mockResolvedValue(makeHandle(disk))
     const stdin = makeStdin()
     const app = new TuiApp({ ctx, stdout: makeStdout(), stdin })
@@ -2577,8 +2695,8 @@ describe('TuiApp 会话交互 UX 对齐（显示层 = 实际能力）', () => {
     const ctx = makeCtx()
     const id = SessionId('session-cwd-1')
     const agent = makeAgent('cwd-1')
-    agent.session.id = id
-    agent.session.header = { ...agent.session.header, id, cwd: ws }
+    // session.id/header 在 Agent 类型上只读：mock 替身经 Object.assign 改形。
+    Object.assign(agent.session, { id, header: { ...agent.session.header, id, cwd: ws } })
     ctx.sessions.list.mockReturnValue([{ id, header: agent.session.header, events: [] }])
     ctx.sessions.get.mockReturnValue(agent.session)
     ctx.agents.get.mockReturnValue(agent)
@@ -5065,6 +5183,26 @@ describe('TuiApp 剪贴板图片与复制（opencode 接线移植）', () => {
     expect(written).toContain('经识图桥')
     await new Promise(resolve => setTimeout(resolve, 0)) // 等 attachments 保存链落定
     // 有桥时图片照发（经 agent/pre-step 视觉桥转描述）。
+    const msg = agent.followup.mock.calls[0]?.[0]
+    expect(msg?.content).toEqual([
+      { type: 'text', text: 'hi' },
+      { type: 'image', attachment: expect.objectContaining({ attachmentId: 'mock-att-1', mediaType: 'image/png' }) },
+    ])
+    await app.dispose()
+  })
+
+  it('视觉桥探测：未注入 vision 配置但宿主 provide visionBridge 服务 → 图片照发', async () => {
+    const { ctx, stdout, app, agent } = boot() // 无 vision 配置（公开 npm 装配形态）
+    const fallback = ctx.reflect.get.getMockImplementation()! as (name: string) => unknown
+    ctx.reflect.get.mockImplementation((name: string) =>
+      name === 'visionBridge' ? { describeImage: vi.fn() } : fallback(name))
+    await app.attach()
+    app.handleSubmit('hi', [PNG_DATA_URL])
+    await new Promise(resolve => setTimeout(resolve, 40))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('经识图桥')
+    expect(written).not.toContain('图片未发送')
+    await new Promise(resolve => setTimeout(resolve, 0)) // 等 attachments 保存链落定
     const msg = agent.followup.mock.calls[0]?.[0]
     expect(msg?.content).toEqual([
       { type: 'text', text: 'hi' },

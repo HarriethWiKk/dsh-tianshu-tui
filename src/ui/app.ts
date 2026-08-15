@@ -70,6 +70,12 @@ import type { TaskItem } from '../format/task-panel.js'
 // 数据源为投影总线缓存——纯函数只读，不发明事件词汇）。Wave 2：面板行渲染
 // 统一由 render/live-panels 的 7 面板纯函数承担，app.ts 只 import 类型做快照组装。
 import type { GoalProjectionInput, PlanProjectionInput } from '../status-panel.js'
+// 投影层接线（docs/projection-layer.md）：turn 级工具统计（turn/end 摘要行）
+// 与会话级汇总（/status 会话段）——纯 fold 模型，输入即 session 事件流。
+import { applyTurnEvent, emptyTurnSummary, type TurnSummaryState } from '../turn-summary.js'
+import { applySummaryEvent, emptySummaryState, summarizeSession, type SummaryState } from '../summary-state.js'
+import { formatTurnSummary as renderTurnSummaryLine } from '../format/turn-summary.js'
+import { getToolFamily } from '../format/tool-meta.js'
 import type {
   DelegationTreeEntry,
   DelegationIdentityProjection,
@@ -550,10 +556,16 @@ export class TuiApp {
   private lastInputFocusAt = 0
   /** 主控模型是否原生支持识图（图片附件气泡提示；装配方经 options.vision 注入）。 */
   private supportsVision = false
-  /** 是否配置独立识图桥模型（主控不识图时经桥转文字描述后发送）。 */
+  /** 是否配置独立识图桥模型（主控不识图时经桥转文字描述后发送）。
+   *  装配方经 options.vision 注入；未注入时提交图片前按 visionBridge 服务
+   *  存在性探测补齐（resolveVisionBridge）。 */
   private visionBridgeEnabled = false
   /** 识图桥来源（'configured' / 'auto' / 'none'；气泡提示文案用）。 */
   private visionBridgeSource: 'configured' | 'auto' | 'none' | undefined
+  /** 投影层：turn 级工具统计 fold（turn/end 摘要行数据源；mountSession 复位）。 */
+  private turnSummary: TurnSummaryState = emptyTurnSummary(0)
+  /** 投影层：会话级跨 turn 汇总 fold（/status 会话段数据源；mountSession 重放重建）。 */
+  private sessionSummary: SummaryState = emptySummaryState(SessionId(''))
 
   constructor(options: TuiAppOptions) {
     this.ctx = options.ctx
@@ -618,17 +630,36 @@ export class TuiApp {
       newSession: () => this.newSession(),
       forkSession: () => this.forkSession(),
       switchLiveModel: selection => this.switchLiveModel(selection),
-      clearScrollback: () => { this.commit.reset() },
+      clearScrollback: () => {
+        this.commit.reset()
+        // 真实清屏（对齐 README「清空滚动区视图」）：2J 擦可见屏、3J 清终端
+        // 滚动缓冲（不支持的终端无害忽略）、光标回顶；live 区状态复位后从
+        // 顶部全量重绘（lineCache 清空 → 下一帧按首帧语义绘制）。
+        this.live.reset()
+        this.stdout.write(`${ANSI.ERASE_SCREEN}\x1b[3J\x1b[H`)
+        this.flushLiveRender()
+      },
       toggleTaskPanel: () => {
         this.taskPanelVisible = !this.taskPanelVisible
+        // 任务窗格的数据源是 sessionProjections 总线；服务缺失时窗格恒空白，
+        // 回显警告让用户知道为什么（后台任务区由 tasks 服务独立供给，不受影响）。
+        if (this.taskPanelVisible && this.ctx.reflect.get('sessionProjections', false) === undefined) {
+          this.echoWarn('⚠ sessionProjections 服务不可用（未装配 session-projection 插件），任务窗格无数据')
+        }
         this.renderBatcher.schedule()
       },
       toggleSubagentsPanel: () => {
         this.subagentsPanelVisible = !this.subagentsPanelVisible
+        if (this.subagentsPanelVisible && this.ctx.reflect.get('subagents', false) === undefined) {
+          this.echoWarn('⚠ subagents 服务不可用（未装配 subagent 插件），委派树面板无数据')
+        }
         this.renderBatcher.schedule()
       },
       toggleWorkflowPanel: () => {
         this.workflowPanelVisible = !this.workflowPanelVisible
+        if (this.workflowPanelVisible && this.ctx.reflect.get('workflowEngine', false) === undefined) {
+          this.echoWarn('⚠ workflow 引擎不可用（未装配 workflow 插件），面板无运行数据')
+        }
         this.renderBatcher.schedule()
       },
       rewindSession: () => this.rewindSession(),
@@ -647,34 +678,49 @@ export class TuiApp {
       argsHint: '<text>',
       run: (args) => { this.handleSteer(args.text) },
     })
-    // T1.2：/status 状态面板显隐切换（数据源为投影总线缓存；渲染函数 import
-    // 自 status-panel.ts——registry 条目注册归 command_wiring 维度）。
+    // T1.2：/status 状态面板显隐切换（数据源为投影总线缓存的 goal/todos/plan
+    // 三域；渲染函数 import 自 status-panel.ts——registry 条目注册归
+    // command_wiring 维度）。subagent/subagentTiming 两域由 /subagents 面板消费。
     this.slash.register({
       name: 'status',
-      description: '切换状态面板（投影总线 5 域快照）',
+      description: '切换状态面板（goal/todos/plan 投影快照）',
       run: () => {
         this.statusPanelVisible = !this.statusPanelVisible
+        if (this.statusPanelVisible && this.ctx.reflect.get('sessionProjections', false) === undefined) {
+          this.echoWarn('⚠ sessionProjections 服务不可用（未装配 session-projection 插件），状态面板无数据')
+        }
         this.renderBatcher.schedule()
       },
     })
     // T3.2：/config 设置面板显隐切换（数据源为 settings/permission/credentials 投影；
-    // 切换时刷新投影——服务缺失时面板显示占位）。
+    // 切换时刷新投影——部分服务缺失时对应段显示占位；三者全缺时面板无数据，回显警告）。
     this.slash.register({
       name: 'config',
       description: '切换设置面板（settings/permission/credentials）',
       run: async () => {
         this.configPanelVisible = !this.configPanelVisible
-        if (this.configPanelVisible) await this.refreshConfigProjection()
+        if (this.configPanelVisible) {
+          await this.refreshConfigProjection()
+          if (this.configProjection === null) {
+            this.echoWarn('⚠ settings/permission/credentials 服务均不可用，设置面板无数据')
+          }
+        }
         this.renderBatcher.schedule()
       },
     })
-    // T3.3：/skills 技能浏览面板显隐切换（数据源为 ctx.skills.list 快照）。
+    // T3.3：/skills 技能浏览面板显隐切换（数据源为 ctx.skills.list 快照；
+    // 服务缺失时面板恒空，回显警告）。
     this.slash.register({
       name: 'skills',
       description: '切换技能浏览面板',
       run: () => {
         this.skillsPanelVisible = !this.skillsPanelVisible
-        if (this.skillsPanelVisible) this.refreshSkillItems()
+        if (this.skillsPanelVisible) {
+          if (this.ctx.reflect.get('skills', false) === undefined) {
+            this.echoWarn('⚠ skills 服务不可用（未装配 skill 插件），技能面板无数据')
+          }
+          this.refreshSkillItems()
+        }
         this.renderBatcher.schedule()
       },
     })
@@ -1030,6 +1076,22 @@ export class TuiApp {
     this.supportsVision = supportsVision
     this.visionBridgeEnabled = bridgeEnabled
     this.visionBridgeSource = bridgeSource
+  }
+
+  /**
+   * 宿主视觉桥探测：视觉桥插件（dsh-vision-bridge）装配时应 provide('visionBridge')
+   * 服务，存在即视为桥可用（来源按 configured 处理，装配方注入过 bridgeSource 时
+   * 保留注入值）。显式注入 vision.bridgeEnabled 时短路；否则每次提交图片前补探，
+   * 覆盖桥插件晚于 tui-runner 激活的装配时序（reflect.get 是字典读，代价可忽略）。
+   * @returns 当前是否有可用识图桥。
+   */
+  private resolveVisionBridge(): boolean {
+    if (this.visionBridgeEnabled) return true
+    if (this.ctx.reflect.get('visionBridge', false) !== undefined) {
+      this.visionBridgeEnabled = true
+      this.visionBridgeSource = this.visionBridgeSource ?? 'configured'
+    }
+    return this.visionBridgeEnabled
   }
 
   /** T3.1：结算挂起的提问（用户选择/取消）——薄转发。 */
@@ -1440,6 +1502,10 @@ export class TuiApp {
   private mountSession(id: SessionId): void {
     const session = getSession(this.ctx, id)
     if (session === undefined) throw new Error(`unknown session: ${id}`)
+    // 投影层 fold 接线：turn 统计复位（live 事件驱动）；会话汇总从事件日志
+    // 重放重建（summarizeSession 即 replay 入口），恢复会话的 /status 立即可用。
+    this.turnSummary = emptyTurnSummary(0)
+    this.sessionSummary = summarizeSession(id, session.events)
     this.transcript = createTranscript(this.ctx, session)
     this.liveAgent = trackAgent(this.ctx, id)
     // Phase 6.2：工作流阶段指示器接入生产消费端——订阅 agent/status + session/event，
@@ -1476,7 +1542,7 @@ export class TuiApp {
     // T1.1：投影总线（5 域：todos/plan/goal/subagent/subagentTiming）——全量快照 +
     // onChanged 按 key 分流缓存。经 ctx.reflect.get 读取（Cordis 4 注入代理：
     // 属性访问未注册服务抛 "without inject"——真实装配已复现）；服务缺失时
-    // 整体降级：任务窗格/plan 徽标/status 面板均不可用（保持 T4 静默降级语义）。
+    // 整体降级：任务窗格/status 面板在切换时回显警告（fails loud），plan 徽标不显示。
     this.taskPanelVisible = false
     this.statusPanelVisible = false
     this.taskItems = null
@@ -1728,6 +1794,12 @@ export class TuiApp {
     })
   }
 
+  /** 回显一条警告行到 scrollback（可选服务缺失的 fails-loud 提示共用出口）。 */
+  private echoWarn(text: string): void {
+    this.commitToScrollback({ text: color(text, this.theme.warning), trailingNewline: true })
+    this.flushLiveRender()
+  }
+
   /** 当前主题（动态读取，切主题后立即生效）。 */
   private get theme(): RivetTheme { return getTheme() }
 
@@ -1771,8 +1843,9 @@ export class TuiApp {
     let trimmed = text.trim()
     const hasImages = images !== undefined && images.length > 0
     // 图片是否可达主控：识图主控直发；不识图但有视觉桥时经 agent/pre-step 转描述；
-    // 两者皆无时图片不发送（气泡警告「图片未发送」）。
-    const imagesReachable = this.supportsVision || this.visionBridgeEnabled
+    // 两者皆无时图片不发送（气泡警告「图片未发送」）。桥状态优先取注入配置，
+    // 未注入时按 visionBridge 服务存在性探测（见 resolveVisionBridge）。
+    const imagesReachable = this.supportsVision || this.resolveVisionBridge()
     // 只发图片：可达时补占位 prompt，让后端能触发 run；不可达时无有效内容可发。
     if (!trimmed && hasImages) {
       if (imagesReachable) {
@@ -2116,11 +2189,15 @@ export class TuiApp {
     }
   }
 
-  /** C3 项 4：经 planMode 服务切换 plan 状态（未装配或未挂载时静默降级）。 */
+  /** C3 项 4：经 planMode 服务切换 plan 状态（服务缺失时回显警告，不再静默）。 */
   private setPlanMode(active: boolean): void {
     const planMode = this.ctx.reflect.get('planMode', false) as
       | { set(agent: unknown, active: boolean): string } | undefined
-    if (planMode === undefined) return
+    if (planMode === undefined) {
+      // 只在进入 plan 时提示（退出分支由 Always-Approve 本地态驱动，无需服务）。
+      if (active) this.echoWarn('⚠ planMode 服务不可用（未装配 plan 插件），无法进入 plan 模式')
+      return
+    }
     if (this.activeSessionId === null) return
     const agent = this.ctx.agents.get(this.activeSessionId)
     if (agent === undefined) return
@@ -2478,6 +2555,10 @@ export class TuiApp {
    * @param event - 当前会话的 session/event（订阅处已按会话过滤）。
    */
   private handleStreamEvent(event: SessionEvent): void {
+    // 投影层 fold（turn 统计 + 会话汇总）：先于 switch 折叠每条事件——fold 内部
+    // 对无关事件原样返回，代价可忽略；两模型只读事件，不写回任何状态。
+    this.turnSummary = applyTurnEvent(this.turnSummary, event)
+    this.sessionSummary = applySummaryEvent(this.sessionSummary, event)
     switch (event.type) {
       case 'assistant/chunk': {
         const { chunk } = event.data
@@ -2547,19 +2628,32 @@ export class TuiApp {
         // A5：回合开始 → 标记请求在途，静默提示生效（turn/end 由 onTurnComplete 复位）。
         this.fluency.onTurnStart()
         break
-      case 'turn/end':
+      case 'turn/end': {
         // Phase 9d：turn 边界复位流利度信号
         this.fluency.onTurnComplete()
         if (event.data.reason.kind !== 'aborted') {
           // 错误终止的 turn 可能没有 assistant/message——落底已累积的推理
           //（durable log 已含这些 chunk，与「模型可见 ⟺ 已记录」一致）。
           this.commitReasoningBlock()
-          void this.flushStream()
+          // 投影层：turn 摘要行接在流式收尾之后（flushStream 异步吐尽节流缓冲，
+          // 同步 commit 会抢在正文尾巴前）。内容快照此刻取定；回调只认未
+          // dispose 且仍在同一会话（切会话后旧 turn 的行不写进新会话视图）。
+          const summary = this.turnSummary
+          const sid = this.activeSessionId
+          if (summary.toolCount > 0) {
+            void this.flushStream().then(() => {
+              if (this.disposed || this.activeSessionId !== sid) return
+              this.commitTurnSummaryLine(summary)
+            })
+          } else {
+            void this.flushStream()
+          }
         } else {
           this.discardReasoning()
         }
         this.pendingCallTitles.clear()
         break
+      }
       default:
         break
     }
@@ -2643,6 +2737,29 @@ export class TuiApp {
     this.streamRenderer.finalize()
   }
 
+  /**
+   * turn 结束摘要行（投影层：turn-summary 模型 → format/turn-summary 渲染半）：
+   * `turn N · 读X 改Y · elapsed` 单行 dim 落 scrollback。读/改计数复用
+   * tool-meta 的 read|find/write 家族（投影不重复造「工具名 → 域」映射）。
+   * @param summary - 该 turn 的统计快照（fold 于 handleStreamEvent，调用点取定）。
+   */
+  private commitTurnSummaryLine(summary: TurnSummaryState): void {
+    const reads = summary.calls.filter(c => {
+      const family = getToolFamily(c.name).family
+      return family === 'read' || family === 'find'
+    }).length
+    const writes = summary.calls.filter(c => getToolFamily(c.name).family === 'write').length
+    const lines = renderTurnSummaryLine({
+      turnNumber: summary.turn,
+      segments: [],
+      filesRead: reads,
+      filesModified: writes,
+      ...(summary.totalElapsedMs > 0 ? { elapsedMs: summary.totalElapsedMs } : {}),
+      width: this.stdout.columns,
+    }, this.theme)
+    for (const line of lines) this.commitToScrollback({ text: line, trailingNewline: true })
+  }
+
   /** wrapping-aware display rows（空行计 1）。 */
   private displayRowsFor(text: string): number {
     const cols = this.stdout.columns
@@ -2715,6 +2832,12 @@ export class TuiApp {
       goal: (this.projectionCache?.goal as GoalProjectionInput | undefined) ?? null,
       todos: (this.projectionCache?.todos as TaskItem[] | null | undefined) ?? null,
       plan: (this.projectionCache?.plan as PlanProjectionInput | undefined) ?? null,
+      // 投影层：会话级汇总段（本地 fold，宿主投影总线缺失时仍有数据）。
+      sessionTotals: {
+        turns: this.sessionSummary.totalTurns,
+        toolCalls: this.sessionSummary.totalToolCalls,
+        elapsedMs: this.sessionSummary.totalElapsedMs,
+      },
       subagentsPanelVisible: this.subagentsPanelVisible,
       delegationEntries: this.delegationEntries,
       subagentIdentities: (this.projectionCache?.subagent as
@@ -2743,9 +2866,10 @@ export class TuiApp {
     // T4 + T2.3：任务窗格 + 后台任务区（/tasks 面板内；taskPanelVisible 门控
     // 在 renderTasksPanel 内，窗格行在前、后台任务区行在后）。
     for (const line of renderTasksPanel(snapshot)) lines.push({ text: line })
-    // T1.2：/status 状态面板——投影缓存缺失整体降级不渲染（T1.1 语义；
-    // snapshot 的 goal/todos/plan 在投影缓存缺失时折叠为全 null）。
-    if (this.statusPanelVisible && this.projectionCache !== null) {
+    // T1.2：/status 状态面板——goal/todos/plan 段在投影缓存缺失时折叠为 null
+    // 由纯函数逐段降级（切换时已回显警告）；会话汇总段是 TUI 本地 fold
+    // （summary-state），不依赖投影总线，总线缺失时仍有数据。
+    if (this.statusPanelVisible) {
       for (const line of renderStatusPanel(snapshot)) lines.push({ text: line })
     }
     // T2.1：委派树面板（delegationEntries null 降级在 renderDelegationPanel 内）。

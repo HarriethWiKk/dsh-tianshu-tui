@@ -143,7 +143,7 @@ npx -y @deepseek-ai/dsh --profile tui
 - **工具卡实时结算** — 已结算的工具结果按 harness presenter 意图渲染为滚动区卡片：`diff` 结果渲染结构化红/绿文件差异（与审批预览共用）、`terminal` 结果带命令标题 + cwd + 退出/信号徽标、其余折叠为文本卡片。
 - **推理通道** — 思考中实时 shimmer 头行、段末折叠滚动行、`Ctrl+O` 在 live 区展开全文。
 - **流利度折叠** — 重复的例行工具流量在 quiet 策略下折叠；compact 模式（`/density`）只保留头行。
-- **轮次状态** — braille spinner + 阶段文本状态行、workflow 运行汇总、委派树、任务窗格、config/skills 面板作为 live-region 面板。
+- **轮次状态** — braille spinner + 阶段文本状态行、workflow 运行汇总、委派树、任务窗格、config/skills 面板作为 live-region 面板；turn 结束（非中断）且有工具调用时落 dim 摘要行（`turn N · 读X 改Y · 耗时`）。
 - **Subagent 运行** — 每个运行一条 live spinner 行；终态以 `✓`/`✗`/`◌` 条目落入滚动区。
 - **窗口 chrome** — 欢迎页（品牌头、友好会话短 id、环境检查行）、顶部栏（cwd + git 分支 + 模型）、底部三行区：输入行（底边线随模式着色）→ footer（模式徽标 + 快捷键提示）→ metrics 行（模型 / token 用量 / 缓存命中率）。
 - **主题** — 内置调色板 + `custom:<name>`；自动终端检测与 16 色降级。
@@ -153,14 +153,14 @@ npx -y @deepseek-ai/dsh --profile tui
 - **结构化提问** — 数字键选择、`Esc` 取消、重叠保护；plan-review 反馈模式（`f` 进入、`Enter` 提交 Keep planning + 自定义反馈）。
 - **审批卡片** — `y`/`N`/`Ctrl+C` 结算挂起审批；工具可 diff 时内联差异预览；diff 不可见时盲批提示；非当前会话请求委托给下一个监听者。
 - **模式循环** — `Shift+Tab` 循环 normal → plan → always-approve；plan 状态驱动 footer 徽标，always-approve 为会话级本地态（切换/退出时复位）。
-- **实时面板** — `/status`（5 域投影快照）、`/config`（settings / permission / credentials）、`/skills` 浏览、`/tasks` 窗格、`/subagents` 委派树、`/workflow` 运行。
+- **实时面板** — `/status`（goal/todos/plan 投影快照；subagent 域见 `/subagents`）、`/config`（settings / permission / credentials）、`/skills` 浏览、`/tasks` 窗格、`/subagents` 委派树、`/workflow` 运行。面板依赖的宿主服务未装配时回显 `⚠` 警告（不静默空白）。
 - **命令面板（`Ctrl+P`）/ 键位表（`Ctrl+.`）/ 历史搜索（`Ctrl+F`）overlay**。
 
 ### 模型与视觉
 
 - `/model` — 查看并切换模型（默认 + 当前会话热切）；`spark-flash` / `spark-pro` 别名映射到 `deepseek-official` + 官方 wire id `deepseek-v4-flash` / `deepseek-v4-pro`。`/model <provider/model|alias> [off|high|max]` 同一条命令内设置推理等级。
 - `/effort` — 设置推理等级（`off` / `high` / `max`；`auto` 回模型默认），当前会话热切。
-- **视觉桥** — 识图能力按模型声明（`supportsVision`）并驱动气泡提示；主模型不识图时，自动选定的视觉模型在提交前生成图片描述（一次性路径；见已知限制）。
+- **视觉桥** — 识图能力按模型声明（`supportsVision`，经 llm catalog 自动刷新）并驱动气泡提示；主模型不识图时，自动选定的视觉模型在提交前生成图片描述（一次性路径；见已知限制）。桥可用性来源：装配方传入 `vision.bridgeEnabled`，或宿主视觉桥插件 provide `visionBridge` 服务（TUI 提交图片前按服务存在性自动探测）；两者皆无则图片不发送并警告。
 - **视觉副驾** — 装配同仓伴生插件 `@deepseek-ai/dsh-vision-ask` 后，每张已发送图片被登记为短 id（`img_1` …），模型可经 `ask_image` 反复询问——定向问题、换角度、不限次数；同图同角度重复提问命中 per-image 描述缓存。细节与配置见 [vision-ask README](vision-ask/README.md)。
 - `/mcp` — 列出已连接 MCP server 与工具数；`tools <name>` 查看某 server 的工具清单。
 
@@ -179,7 +179,7 @@ npx -y @deepseek-ai/dsh --profile tui
 | `/effort off\|high\|max\|auto` | 设置推理等级（热切） |
 | `/theme [name]` | 切换主题 |
 | `/density` | 切换紧凑工具卡渲染 |
-| `/status` | 切换状态面板（5 域投影快照） |
+| `/status` | 切换状态面板（goal/todos/plan 投影 + 会话汇总段） |
 | `/config` | 切换设置面板（settings / permission / credentials） |
 | `/skills` | 切换技能浏览面板 |
 | `/tasks` | 任务窗格（后台任务） |
@@ -205,6 +205,7 @@ npx -y @deepseek-ai/dsh --profile tui
 | `Ctrl+O` | 展开/收起最近推理块 |
 | `Ctrl+E` | 用 `$EDITOR` 打开输入行（可经 `editorKey` 配置） |
 | `Ctrl+T` | 中轮转向 |
+| `Ctrl+C` | 打断在途回合（空闲时空输入双击退出） |
 | `Ctrl+V` | 粘贴剪贴板图片（无图时回退剪贴板文本） |
 | `Alt+W` | 把选区复制到系统剪贴板（OSC52） |
 | `Shift+Tab` | 模式循环：normal → plan → always-approve |
@@ -222,14 +223,14 @@ bundle patch 在 `dsh-base` 之上插入 `tui-runner` 插件：
   name: '@huiliyi37/dsh-tianshu-tui'
 ```
 
-`TuiRunnerConfig`（均可选）：`stdin`/`stdout`（流注入，缺省走进程流）、`initialSessionId`、`editorKey`（缺省 `ctrl_e`；`ctrl+o` 保留给推理展开）、`vimEnabled`（缺省 `false`）、`vision`（supportsVision / bridgeEnabled / bridgeSource，由视觉桥插件配置派生）、`workflowHistoryLimit`（缺省 `50`）。
+`TuiRunnerConfig`（均可选）：`stdin`/`stdout`（流注入，缺省走进程流）、`initialSessionId`、`editorKey`（缺省 `ctrl_e`；`ctrl+o` 保留给推理展开）、`vimEnabled`（缺省 `false`）、`vision`（supportsVision / bridgeEnabled / bridgeSource；未传入时 supportsVision 经 llm catalog 自动刷新、bridgeEnabled 按宿主 `visionBridge` 服务存在性自动探测——视觉桥插件装配时应 provide 该服务）、`workflowHistoryLimit`（缺省 `50`）。
 
-服务依赖：`sessions`/`agents`/`agentDefaultModel` 必需；`goals`/`subagents`/`memory`/`compact` 可选——未装配的服务 fails loud 报不可用，绝不静默吞。
+服务依赖：`sessions`/`agents`/`agentDefaultModel` 必需（必选 inject）；`goals`/`subagents`/`memory`/`compact`/`tasks`/`skills`/`sessionProjections`/`workflowEngine`/`planMode` 可选——未装配时相关命令与面板 fails loud 报不可用，绝不静默吞，也不阻塞 TUI 启动。
 
 ## 验证
 
 ```sh
-NO_COLOR=1 pnpm vitest run packages/tui/tui/tests/
+npm test
 ```
 
 ## Model Experience
@@ -243,9 +244,8 @@ NO_COLOR=1 pnpm vitest run packages/tui/tui/tests/
 ## 已知限制与待办
 
 - **图片再询问需伴生插件** — `ask_image` 工具与会话图片注册表位于 `@deepseek-ai/dsh-vision-ask`（同仓独立包）；TUI bundle 本体不携带它们。未装配插件时，已发送图片无法再次询问，同角度重复描述会再次调用视觉模型；视觉桥仍覆盖一次性提交时描述路径。
-- **app.ts 单体（约 2.2k 行）** — 挂起状态机已控制器化（question/approval），渲染组合与键仲裁仍在 app.ts；C4 拆分方案（纯函数面板段）持续推进。
-- **引擎 I/O 文件覆盖率豁免** — input-line/live-engine 等终端边界文件在 vitest.config.ts 的豁免清单上（`TODO(tui)` 注释），随真实组合测试线成熟逐步消化。
-- **投影模型尚未接线** — 四个纯折叠模型 activity-status/activity-store/turn-summary/summary-state 已带规格落地，App 主体尚未驱动它们。当前状态记录于 [docs/projection-layer.md](docs/projection-layer.md)。
+- **app.ts 单体（约 3.2k 行）** — 挂起状态机已控制器化（question/approval），渲染组合与键仲裁仍在 app.ts；C4 拆分方案（纯函数面板段）持续推进。
+- **投影层部分接线** — 四个纯折叠模型中 turn-summary（turn/end 摘要行）与 summary-state（`/status` 会话汇总段，宿主投影总线缺失时仍有数据）已接线；activity-status/activity-store 有意保留未接线（statusline 是自包含投影，替换无收益；activity-store 暂无消费方）。当前状态记录于 [docs/projection-layer.md](docs/projection-layer.md)。
 
 ## 许可与来源
 
