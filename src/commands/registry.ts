@@ -18,6 +18,16 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
+
+// agent-preset/selected 事件由 host 的 dsh-agent-presets 声明扩展（官方同款
+// declare module）；插件本地声明同型合并——host 包进入依赖后 interface 合并
+// 且属性类型一致（{ agentPreset: string }），无冲突。此扩展使
+// Session.append('agent-preset/selected', ...) 获得完整类型检查。
+declare module '@deepseek-ai/dsh-session/types' {
+  interface SessionEventMap {
+    'agent-preset/selected': { agentPreset: string }
+  }
+}
 import { getActiveThemeName, setTheme, THEME_NAMES } from '../theme.js'
 import { listSessions } from '../adapter/sessions.js'
 import { collectDoctorReport, getDoctorFixGuidance } from '../format/doctor-report.js'
@@ -507,10 +517,10 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
           // 保留原组成且不留记录）。agent-preset/selected 事件类型由 host 的
           // dsh-agent-presets 声明扩展，本地类型面经 as 桥接。
           const preset = await facet.recompose(agent.ctx, target)
-          // agent-preset/selected 事件类型由 host 的 dsh-agent-presets 声明扩展，
-          // 本地类型面无此 key——按宽松签名桥接（事件名与载荷形状对齐官方）。
-          const append = agent.session.append as (type: string, data: unknown) => void
-          append('agent-preset/selected', { agentPreset: preset.id })
+          // 切换链与官方 host 一致（recompose 成功后才 append 落日志；失败
+          // 保留原组成且不留记录）。事件类型经上方 declare module 扩展，
+          // append 签名全类型检查（key 合法 + data 形状 { agentPreset }）。
+          agent.session.append('agent-preset/selected', { agentPreset: preset.id })
           echo(`已切换为 ${preset.name ?? preset.id} (${preset.id})`)
         } catch (error) {
           echo(`切换失败: ${error instanceof Error ? error.message : String(error)}`)

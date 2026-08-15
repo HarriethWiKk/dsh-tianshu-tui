@@ -17,6 +17,13 @@
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { SessionId } from '@deepseek-ai/dsh-session';
+declare module '@deepseek-ai/dsh-session/types' {
+    interface SessionEventMap {
+        'agent-preset/selected': {
+            agentPreset: string;
+        };
+    }
+}
 import { getActiveThemeName } from '../theme.js';
 /**
  * Slash 命令执行上下文——TuiApp 在分发时注入。
