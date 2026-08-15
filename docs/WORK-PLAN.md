@@ -86,4 +86,4 @@
 ## 杂项（随时可带）
 
 - README 快捷键表补审批卡 `a` 与历史搜索 `p/P` 行 ✅ 已完成（e546796）。
-- `docs/superpowers/specs/2026-08-15-dsh-kernel-collab-design.md` 的 spark 推理尾部截断协议「本仓尚未接通」——属未来 kernel 协作功能，跟随 harness 侧排期，不在本计划内单列。
+- `docs/2026-08-15-dsh-kernel-collab-design.md`（已归档）的 spark 推理尾部截断协议「本仓尚未接通」——属未来 kernel 协作功能，跟随 harness 侧排期，不在本计划内单列。
