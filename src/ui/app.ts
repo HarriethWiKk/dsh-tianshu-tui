@@ -550,7 +550,7 @@ export class TuiApp {
   private pendingUpdateNotice: string | null = null
   /** 自更新失败提示（attach 前排队，attach 后 flush；P1-1）。 */
   private pendingUpdateFailNotice: string | null = null
-  /** OSC52 不支持警告：每会话（TuiApp 生命周期）首次 Alt+W 提示一次（P1-1）。 */
+  /** OSC52 不支持警告：每进程首次触发时提示一次（P1-1；newSession 不重置，避免重复打扰）。 */
   private osc52WarningShown = false
   /** bracketed paste 处理器 disposer（attach 注册，dispose 释放）。 */
   private pasteDisposer: (() => void) | null = null
@@ -2516,14 +2516,15 @@ export class TuiApp {
       return
     }
     const event = this.inputLine.handleKey(key.name, key.char, key.ctrl, key.meta, key.shift)
-    // 选区剪切/复制的 OSC52 drain：vim yank / Alt+Y 复制写系统剪贴板
-    // （终端支持 OSC52 时生效，不支持者无害忽略）。
+    // 选区剪切/复制的 OSC52 drain：Ctrl+K 剪切 / Alt+W 复制写系统剪贴板
+    // （终端支持 OSC52 时生效，不支持者无害忽略）。vim yank（p/P、Alt+Y）走
+    // 内部剪贴板，不经此通道。
     const clip = this.inputLine.takeClipboardOut()
     if (clip != null) {
-      // P1-1：终端不支持 OSC52 时每会话首次提示一次；序列仍写出（保持无害忽略降级）
+      // P1-1：终端不支持 OSC52 时每进程首次提示一次；序列仍写出（保持无害忽略降级）
       if (!supportsOsc52() && !this.osc52WarningShown) {
         this.osc52WarningShown = true
-        this.echoWarn('⚠ 终端不支持 OSC52 复制（Alt+W 无法写入系统剪贴板，请用终端原生复制）')
+        this.echoWarn('⚠ 终端不支持 OSC52 复制（Ctrl+K/Alt+W 无法写入系统剪贴板，请用终端原生复制）')
       }
       this.stdout.write(osc52Clipboard(clip))
     }

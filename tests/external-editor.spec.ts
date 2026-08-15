@@ -5,7 +5,7 @@
  * 回填、编辑器异常终止 → null。编辑路径用真实 spawnSync + 临时脚本，
  * 不 mock child_process——行为契约以真实进程为证。
  */
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -145,6 +145,13 @@ describe('openInEditorDetailed', () => {
     const r = openInEditorDetailed('original', script)
     expect(r.content).toBe('original')
     expect(r.error).toBeNull()
+  })
+
+  it('失败路径清理临时目录（无 mkdtemp 泄漏，审查 #1）', () => {
+    const before = new Set(readdirSync(tmpdir()).filter(n => n.startsWith('rivet-edit-')))
+    openInEditorDetailed('x', '/nonexistent/editor-binary-xyz')
+    const after = readdirSync(tmpdir()).filter(n => n.startsWith('rivet-edit-'))
+    expect(after.filter(n => !before.has(n))).toEqual([])
   })
 
   it('openInEditor 保持原契约（薄包装，失败仍返回 null）', () => {

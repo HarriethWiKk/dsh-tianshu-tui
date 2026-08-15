@@ -12,8 +12,8 @@
  * @module @deepseek-ai/dsh-tianshu-tui/external-editor
  */
 
-import { writeFileSync, readFileSync, unlinkSync, mkdtempSync } from 'node:fs'
-import { join } from 'node:path'
+import { writeFileSync, readFileSync, unlinkSync, mkdtempSync, rmSync } from 'node:fs'
+import { join, dirname } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 
@@ -79,6 +79,8 @@ export function openInEditorDetailed(initialContent: string, editor?: string): E
   const command = editor ?? getEditorCommand()
   const result = spawnSync(command, [path], { stdio: 'inherit' })
   if (result.status !== 0 && result.error) {
+    // 失败路径清理临时目录（含 RIVET_INPUT.md）；成功路径由 readAndCleanup 处理文件
+    try { rmSync(dirname(path), { recursive: true, force: true }) } catch { /* best-effort */ }
     return { content: null, error: result.error.message }
   }
   // status may be non-zero if editor was terminated but file was saved
