@@ -29,6 +29,25 @@ export function isLegacyWindowsConsole(
   return true
 }
 
+/** 已知支持 OSC52 系统剪贴板写入的终端程序（TERM_PROGRAM 白名单）。 */
+const OSC52_TERM_PROGRAMS = new Set(['iTerm.app', 'WezTerm', 'kitty', 'Hyper', 'vscode'])
+
+/**
+ * 是否支持 OSC52（写系统剪贴板）。
+ * 启发式：TERM_PROGRAM 白名单命中 → 支持；Apple Terminal 显式排除
+ * （macOS Terminal.app 不写 OSC52，即使 TERM 是 xterm 兼容）；无
+ * TERM_PROGRAM 时按 TERM 兼容性（xterm/screen/tmux/linux 系大多支持）。
+ * @param env - 环境变量（测试注入用，缺省 process.env）。
+ * @returns 是否支持 OSC52。
+ */
+export function supportsOsc52(env: NodeJS.ProcessEnv = process.env): boolean {
+  const prog = env.TERM_PROGRAM
+  if (prog === 'Apple_Terminal') return false
+  if (prog !== undefined && OSC52_TERM_PROGRAMS.has(prog)) return true
+  const term = env.TERM ?? ''
+  return /(^|-)xterm|screen|tmux|linux/i.test(term)
+}
+
 /**
  * locale 是否 CJK（zh/ja/ko 前缀）。优先 env（POSIX 约定），Intl（OS locale）兜底。
  * @param env - 环境变量（测试注入用，缺省 process.env）。

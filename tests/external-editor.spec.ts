@@ -14,8 +14,18 @@ import {
   getDefaultEditor,
   getEditorCommand,
   openInEditor,
+  openInEditorDetailed,
   readAndCleanup,
 } from '../src/external-editor.js'
+
+/** 生成一个修改文件内容的 shell 脚本（真实编辑器替身）。 */
+function makeEditorScript(replacement: string): string {
+  const dir = mkdtempSync(join(tmpdir(), 'rivet-edit-test-'))
+  tempDirs.push(dir)
+  const script = join(dir, 'editor.sh')
+  writeFileSync(script, `#!/bin/sh\nprintf '%s' "${replacement}" > "$1"\n`, { mode: 0o755 })
+  return script
+}
 
 const tempDirs: string[] = []
 afterAll(() => {
@@ -73,15 +83,6 @@ describe('createTempFile / readAndCleanup', () => {
 })
 
 describe('openInEditor', () => {
-  /** 生成一个修改文件内容的 shell 脚本（真实编辑器替身）。 */
-  function makeEditorScript(replacement: string): string {
-    const dir = mkdtempSync(join(tmpdir(), 'rivet-edit-test-'))
-    tempDirs.push(dir)
-    const script = join(dir, 'editor.sh')
-    writeFileSync(script, `#!/bin/sh\nprintf '%s' "${replacement}" > "$1"\n`, { mode: 0o755 })
-    return script
-  }
-
   it('编辑器运行后回填修改内容', () => {
     const editor = makeEditorScript('EDITED')
     const result = openInEditor('original', editor)
@@ -118,5 +119,35 @@ describe('openInEditor', () => {
     writeFileSync(script, '#!/bin/sh\nexit 1\n', { mode: 0o755 })
     const result = openInEditor('original', script)
     expect(result).toBe('original')
+  })
+})
+
+describe('openInEditorDetailed', () => {
+  it('成功路径：content 回填、error 为 null', () => {
+    const editor = makeEditorScript('EDITED')
+    const r = openInEditorDetailed('original', editor)
+    expect(r.content).toBe('EDITED')
+    expect(r.error).toBeNull()
+  })
+
+  it('编辑器不存在：content 为 null、error 携带原因', () => {
+    const r = openInEditorDetailed('x', '/nonexistent/editor-binary-xyz')
+    expect(r.content).toBeNull()
+    expect(r.error).not.toBeNull()
+    expect(r.error).toContain('ENOENT')
+  })
+
+  it('非零退出但无 error（文件已保存）→ content 仍读回、error 为 null', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rivet-edit-test-'))
+    tempDirs.push(dir)
+    const script = join(dir, 'exit1.sh')
+    writeFileSync(script, '#!/bin/sh\nexit 1\n', { mode: 0o755 })
+    const r = openInEditorDetailed('original', script)
+    expect(r.content).toBe('original')
+    expect(r.error).toBeNull()
+  })
+
+  it('openInEditor 保持原契约（薄包装，失败仍返回 null）', () => {
+    expect(openInEditor('x', '/nonexistent/editor-binary-xyz')).toBeNull()
   })
 })
