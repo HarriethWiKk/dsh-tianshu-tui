@@ -212,7 +212,7 @@ export declare class TuiApp {
     private pendingUpdateNotice;
     /** 自更新失败提示（attach 前排队，attach 后 flush；P1-1）。 */
     private pendingUpdateFailNotice;
-    /** OSC52 不支持警告：每会话（TuiApp 生命周期）首次 Alt+W 提示一次（P1-1）。 */
+    /** OSC52 不支持警告：每进程首次触发时提示一次（P1-1；newSession 不重置，避免重复打扰）。 */
     private osc52WarningShown;
     /** bracketed paste 处理器 disposer（attach 注册，dispose 释放）。 */
     private pasteDisposer;
@@ -598,6 +598,8 @@ export declare class TuiApp {
      * `turn N · 读X 改Y · elapsed` 单行 dim 落 scrollback。读/改计数复用
      * tool-meta 的 read|find/write 家族（投影不重复造「工具名 → 域」映射）。
      * @param summary - 该 turn 的统计快照（fold 于 handleStreamEvent，调用点取定）。
+     * @param turn - 轮号（取 turn/end 事件的权威值；中途挂载错过 turn/start 时
+     *   快照内轮号是初值 0）。
      */
     private commitTurnSummaryLine;
     /** wrapping-aware display rows（空行计 1）。 */

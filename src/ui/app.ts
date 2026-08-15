@@ -692,7 +692,7 @@ export class TuiApp {
       run: () => {
         this.statusPanelVisible = !this.statusPanelVisible
         if (this.statusPanelVisible && this.ctx.reflect.get('sessionProjections', false) === undefined) {
-          this.echoWarn('⚠ sessionProjections 服务不可用（未装配 session-projection 插件），状态面板无数据')
+          this.echoWarn('⚠ sessionProjections 服务不可用（未装配 session-projection 插件），目标/任务/计划投影段无数据（会话汇总段为本地投影，不受影响）')
         }
         this.renderBatcher.schedule()
       },
@@ -2683,7 +2683,9 @@ export class TuiApp {
           if (summary.toolCount > 0) {
             void this.flushStream().then(() => {
               if (this.disposed || this.activeSessionId !== sid) return
-              this.commitTurnSummaryLine(summary)
+              // 轮号取事件的权威值而非 fold 状态：中途挂载运行中会话（错过了
+              // 本turn的 turn/start）时 summary.turn 仍是初值 0，会误显 turn 0。
+              this.commitTurnSummaryLine(summary, event.data.turn)
             })
           } else {
             void this.flushStream()
@@ -2782,15 +2784,17 @@ export class TuiApp {
    * `turn N · 读X 改Y · elapsed` 单行 dim 落 scrollback。读/改计数复用
    * tool-meta 的 read|find/write 家族（投影不重复造「工具名 → 域」映射）。
    * @param summary - 该 turn 的统计快照（fold 于 handleStreamEvent，调用点取定）。
+   * @param turn - 轮号（取 turn/end 事件的权威值；中途挂载错过 turn/start 时
+   *   快照内轮号是初值 0）。
    */
-  private commitTurnSummaryLine(summary: TurnSummaryState): void {
+  private commitTurnSummaryLine(summary: TurnSummaryState, turn: number): void {
     const reads = summary.calls.filter(c => {
       const family = getToolFamily(c.name).family
       return family === 'read' || family === 'find'
     }).length
     const writes = summary.calls.filter(c => getToolFamily(c.name).family === 'write').length
     const lines = renderTurnSummaryLine({
-      turnNumber: summary.turn,
+      turnNumber: turn,
       segments: [],
       filesRead: reads,
       filesModified: writes,

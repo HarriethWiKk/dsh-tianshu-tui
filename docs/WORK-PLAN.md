@@ -44,6 +44,7 @@
 - **无 CI**：仓内无 `.github/workflows`。新增最小 CI：node `^22.19 || >=24` 矩阵跑 `npm run typecheck && npm test && npm run build`（三门禁均已本地化）。
 - **lockfile 未跟踪**：`package-lock.json` 自抽取起未入库，`npm ci` 不可复现。决策点：跟踪它（现状 npm 流）或迁 pnpm 删 lock。建议跟踪 package-lock.json（与现有 scripts/CI 一致）。
 - **scratch 目录**：`.superpowers/`、`docs/superpowers/`、`.code-review-graph/` 未跟踪。其中有持续价值的文档（如 C4 拆分方案、kernel 协作设计）归档进 `docs/`，其余移出仓或加 .gitignore。
+- **环境文件未跟踪**：`AGENTS.md`（项目操作规则，建议入库）、`.rivet/` / `.rivet.md` / `.rivet-config.json`（rivet 工具本地状态，建议加 .gitignore）——提交审查时确认。
 
 **验收**：CI 绿；干净 clone 后 `npm ci && npm test` 可复现；`git status` 无意外未跟踪项。
 
