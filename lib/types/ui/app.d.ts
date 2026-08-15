@@ -23,6 +23,7 @@ import { SessionId } from '@deepseek-ai/dsh-session';
 import { type ModelSelection } from '@deepseek-ai/dsh-agent';
 import { type KeyName } from '../engine/input-handler.js';
 import { type SessionSummary } from '../adapter/sessions.js';
+import type { MultiLspOptions } from '../lsp/multi-manager.js';
 /** TuiApp 构造选项。 */
 export interface TuiAppOptions {
     ctx: Context;
@@ -51,6 +52,20 @@ export interface TuiAppOptions {
         bridgeEnabled?: boolean;
         /** 识图桥来源（configured=显式配置 / auto=自动选用）。 */
         bridgeSource?: 'configured' | 'auto' | 'none';
+    };
+    /**
+     * LSP 诊断桥（本地语言服务；懒启动——首个触碰文件才 spawn server）。
+     * 诊断只进 TUI 本地展示缓存，不写会话事件、不注册任何模型面。
+     */
+    lsp?: {
+        /** 是否启用诊断拉取；缺省 true。 */
+        enabled?: boolean;
+        /** 单次诊断拉取超时（毫秒）；缺省 2000。 */
+        timeoutMs?: number;
+        /** 测试注入：语言 server spawn（透传 LspBridgeOptions.spawnFor）。 */
+        spawnFor?: MultiLspOptions['spawnFor'];
+        /** 测试注入：server 可用性探测（透传 LspBridgeOptions.which）。 */
+        which?: MultiLspOptions['which'];
     };
 }
 /**
@@ -162,6 +177,12 @@ export declare class TuiApp {
     private skillsPanelVisible;
     /** T3.3：skill 快照缓存（ctx.skills.list；空数组 = 无技能或未加载）。 */
     private skillItems;
+    /** LSP：/lsp 面板显隐（/lsp 切换）。 */
+    private lspPanelVisible;
+    /** LSP：诊断桥（懒创建——首次工具触碰文件或 /lsp 打开时实例化；dispose 销毁）。 */
+    private lspBridge;
+    /** LSP：装配配置（enabled/timeoutMs/spawnFor/which；缺省启用）。 */
+    private readonly lspConfig;
     /** T3.1：userQuestions provider 注册 disposer；attach 注册、dispose 释放。 */
     private interactionDisposer;
     /** T3.1：挂起提问状态机（pendingQuestion + questionFeedbackMode；Wave 1 提取）。 */
@@ -326,6 +347,27 @@ export declare class TuiApp {
     private refreshVisionForSelection;
     /** 当前会话工作区：header.cwd 优先，缺省回退启动目录。 */
     private sessionCwd;
+    /**
+     * 懒创建诊断桥：首次工具触碰文件或 /lsp 打开时实例化（rootUri = 当时
+     * 会话 cwd）；缓存更新回调触发 renderLive（WriteBatcher 节流）。
+     */
+    private ensureLspBridge;
+    /**
+     * 从工具参数提取文件路径并触发诊断拉取（write/read/edit 族；无 path 参数
+     * 的工具如 bash 不触发）。嵌套工具调用（multi_tool_use 的 tool_uses）递归
+     * 展开。只读展示：拉取失败/超时静默，不阻塞工具流。
+     * @param argumentsRaw - tool/call 事件参数原文。
+     */
+    private touchLspPaths;
+    /** /lsp 面板数据源：桥未创建（从未触碰文件）→ []。 */
+    private lspDiagnosticsView;
+    /**
+     * 工具卡标题徽标：参数里的文件有已就绪诊断 → `⚠ 1错 2警`；否则 null
+     * （拉取中/无诊断/桥未创建/无 path 参数均不显示，不干扰标题）。
+     */
+    private lspBadgeFor;
+    /** /lsp：切换诊断面板显隐（懒创建 bridge；空态文案由面板纯函数承担）。 */
+    private toggleLspPanel;
     /**
      * Ctrl+S / 欢迎「恢复」：切到 listSessions 里最近的非当前会话（含 persistence）。
      * live store 没有时走 switchSession → resume。

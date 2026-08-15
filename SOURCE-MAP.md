@@ -67,6 +67,7 @@
 | src/format/export.ts | — | new（/export 会话导出：事件日志 → Markdown 转录，纯渲染） |
 | src/format/fluency-policy.ts | fluency-policy.ts | modified（目录重排：上游根 → src/format/） |
 | src/format/glance-bar.ts | format/glance-bar.ts | modified |
+| src/format/lsp-diagnostics.ts | — | new（诊断展示纯函数：工具卡徽标 + /lsp 面板段，severity 语义色） |
 | src/format/hidden-lines.ts | format/hidden-lines.ts | ported |
 | src/format/history-search-overlay.ts | — | new |
 | src/format/input-frame.ts | — | new（输入轨：上下圆角横线 ╭─╮/╰─╯，左右不封，纯渲染） |
@@ -96,6 +97,11 @@
 | src/format/whale.ts | — | new（欢迎页鲸鱼品牌像素画：半块字符双色渲染，品牌固定色 + 色深/宽度档降级，纯渲染） |
 | src/gutter.ts | gutter.ts | ported |
 | src/index.ts | — | new |
+| src/lsp/lsp-bridge.ts | — | new（LSP 诊断桥：懒生命周期 + 展示层诊断缓存；扩展名不支持/server 未安装一次标记；per-file 合并与冷却） |
+| src/lsp/manager.ts | lsp/manager.ts | ported（单 LSP server：initialize/didOpen/changeFile/getFileDiagnostics，pull 优先 + publishDiagnostics 缓存） |
+| src/lsp/multi-manager.ts | lsp/multi-manager.ts | modified（spawn 简化：弃上游 spawnHidden/resolve-node-cli 桌面 bundle 适配，用 node:child_process spawn 直连） |
+| src/lsp/rpc.ts | lsp/rpc.ts | ported（JSON-RPC over stdio：Content-Length 帧编解码 + 请求/通知分发） |
+| src/lsp/server-registry.ts | lsp/server-registry.ts | ported（语言 → server 映射：typescript 经 npx / pyright / gopls / rust-analyzer / clangd / jdtls + which 探测） |
 | src/invariant.ts | — | new |
 | src/live-tail-cap.ts | live-tail-cap.ts | modified |
 | src/mention-expand.ts | — | new |

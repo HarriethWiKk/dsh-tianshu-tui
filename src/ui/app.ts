@@ -61,7 +61,7 @@ import { displayWidth, ambiguousWideEnabled } from '../width.js'
 import { detectTerminalBackground, autoThemeFor } from '../theme-detect.js'
 import { formatUserMessage } from '../format/user-message.js'
 import { formatSteerMessage } from '../format/steer-message.js'
-import { formatToolCardLive } from '../format/tool-card.js'
+import { formatToolCardLive, toolCardTitle } from '../format/tool-card.js'
 import { formatToolViewCard } from '../format/tool-view-card.js'
 import { formatReasoningBlock, formatReasoningLive, reasoningTailBudget } from '../format/reasoning.js'
 import { renderKeymapPanel } from '../format/keymap-panel.js'
@@ -98,8 +98,12 @@ import {
   renderConfigPanel,
   renderSkillsPanel,
   renderSessionTabs,
+  renderLspPanel,
 } from '../render/live-panels.js'
 import type { LiveSnapshot } from '../render/live-snapshot.js'
+import { createLspBridge, type LspBridge, type LspDiagnosticView } from '../lsp/lsp-bridge.js'
+import type { MultiLspOptions } from '../lsp/multi-manager.js'
+import { lspBadgeText } from '../format/lsp-diagnostics.js'
 /** T1.1：5 域投影 key（与 sessionProjections 注册表的 wire key 对齐）。 */
 type ProjectionKey = 'todos' | 'plan' | 'goal' | 'subagent' | 'subagentTiming'
 
@@ -284,6 +288,20 @@ export interface TuiAppOptions {
     bridgeEnabled?: boolean
     /** 识图桥来源（configured=显式配置 / auto=自动选用）。 */
     bridgeSource?: 'configured' | 'auto' | 'none'
+  }
+  /**
+   * LSP 诊断桥（本地语言服务；懒启动——首个触碰文件才 spawn server）。
+   * 诊断只进 TUI 本地展示缓存，不写会话事件、不注册任何模型面。
+   */
+  lsp?: {
+    /** 是否启用诊断拉取；缺省 true。 */
+    enabled?: boolean
+    /** 单次诊断拉取超时（毫秒）；缺省 2000。 */
+    timeoutMs?: number
+    /** 测试注入：语言 server spawn（透传 LspBridgeOptions.spawnFor）。 */
+    spawnFor?: MultiLspOptions['spawnFor']
+    /** 测试注入：server 可用性探测（透传 LspBridgeOptions.which）。 */
+    which?: MultiLspOptions['which']
   }
 }
 
@@ -500,6 +518,17 @@ export class TuiApp {
   private skillsPanelVisible = false
   /** T3.3：skill 快照缓存（ctx.skills.list；空数组 = 无技能或未加载）。 */
   private skillItems: SkillSummaryInput[] = []
+  /** LSP：/lsp 面板显隐（/lsp 切换）。 */
+  private lspPanelVisible = false
+  /** LSP：诊断桥（懒创建——首次工具触碰文件或 /lsp 打开时实例化；dispose 销毁）。 */
+  private lspBridge: LspBridge | null = null
+  /** LSP：装配配置（enabled/timeoutMs/spawnFor/which；缺省启用）。 */
+  private readonly lspConfig: {
+    enabled: boolean
+    timeoutMs: number
+    spawnFor?: MultiLspOptions['spawnFor']
+    which?: MultiLspOptions['which']
+  }
   /** T3.1：userQuestions provider 注册 disposer；attach 注册、dispose 释放。 */
   private interactionDisposer: (() => void) | null = null
   /** T3.1：挂起提问状态机（pendingQuestion + questionFeedbackMode；Wave 1 提取）。 */
@@ -590,6 +619,12 @@ export class TuiApp {
     this.supportsVision = options.vision?.supportsVision ?? false
     this.visionBridgeEnabled = options.vision?.bridgeEnabled ?? false
     this.visionBridgeSource = options.vision?.bridgeSource
+    this.lspConfig = {
+      enabled: options.lsp?.enabled ?? true,
+      timeoutMs: options.lsp?.timeoutMs ?? 2_000,
+      ...(options.lsp?.spawnFor === undefined ? {} : { spawnFor: options.lsp.spawnFor }),
+      ...(options.lsp?.which === undefined ? {} : { which: options.lsp.which }),
+    }
     this.commit = new CommitEngine({ stdout: options.stdout })
     this.live = new LiveEngine({
       stdout: options.stdout,
@@ -745,6 +780,16 @@ export class TuiApp {
           }
           this.refreshSkillItems()
         }
+        this.renderBatcher.schedule()
+      },
+    })
+    // LSP：/lsp 诊断面板显隐切换（本地语言服务；懒创建 bridge——打开面板
+    // 即实例化；server 未安装时回显警告，面板渲染「未安装」空态）。
+    this.slash.register({
+      name: 'lsp',
+      description: '切换 LSP 诊断面板（本地语言服务）',
+      run: () => {
+        this.toggleLspPanel()
         this.renderBatcher.schedule()
       },
     })
@@ -1189,6 +1234,83 @@ export class TuiApp {
     if (this.activeSessionId === null) return process.cwd()
     const cwd = getSession(this.ctx, this.activeSessionId)?.header?.cwd
     return cwd === undefined || cwd === '' ? process.cwd() : cwd
+  }
+
+  // —— LSP 诊断桥（本地语言服务；展示层私有状态，不写会话事件）——
+
+  /**
+   * 懒创建诊断桥：首次工具触碰文件或 /lsp 打开时实例化（rootUri = 当时
+   * 会话 cwd）；缓存更新回调触发 renderLive（WriteBatcher 节流）。
+   */
+  private ensureLspBridge(): LspBridge {
+    if (this.lspBridge !== null) return this.lspBridge
+    this.lspBridge = createLspBridge({
+      cwd: this.sessionCwd(),
+      ...(this.lspConfig.timeoutMs === undefined ? {} : { timeoutMs: this.lspConfig.timeoutMs }),
+      ...(this.lspConfig.spawnFor === undefined ? {} : { spawnFor: this.lspConfig.spawnFor }),
+      ...(this.lspConfig.which === undefined ? {} : { which: this.lspConfig.which }),
+    })
+    this.lspBridge.onUpdate(() => { this.renderBatcher.schedule() })
+    return this.lspBridge
+  }
+
+  /**
+   * 从工具参数提取文件路径并触发诊断拉取（write/read/edit 族；无 path 参数
+   * 的工具如 bash 不触发）。嵌套工具调用（multi_tool_use 的 tool_uses）递归
+   * 展开。只读展示：拉取失败/超时静默，不阻塞工具流。
+   * @param argumentsRaw - tool/call 事件参数原文。
+   */
+  private touchLspPaths(argumentsRaw: string): void {
+    if (!this.lspConfig.enabled) return
+    const args = parseToolArguments(argumentsRaw)
+    if (args === undefined) return
+    const paths: string[] = []
+    for (const key of ['path', 'file_path', 'file'] as const) {
+      const value = args[key]
+      if (typeof value === 'string' && value !== '') paths.push(value)
+    }
+    const nested = args.tool_uses
+    if (Array.isArray(nested)) {
+      for (const use of nested) {
+        if (use !== null && typeof use === 'object' && typeof (use as { arguments?: unknown }).arguments === 'string') {
+          this.touchLspPaths((use as { arguments: string }).arguments)
+        }
+      }
+    }
+    if (paths.length === 0) return
+    const bridge = this.ensureLspBridge()
+    for (const path of paths) bridge.touchFile(path)
+  }
+
+  /** /lsp 面板数据源：桥未创建（从未触碰文件）→ []。 */
+  private lspDiagnosticsView(): LspDiagnosticView[] {
+    return this.lspBridge === null ? [] : [...this.lspBridge.entries()]
+  }
+
+  /**
+   * 工具卡标题徽标：参数里的文件有已就绪诊断 → `⚠ 1错 2警`；否则 null
+   * （拉取中/无诊断/桥未创建/无 path 参数均不显示，不干扰标题）。
+   */
+  private lspBadgeFor(args: Record<string, unknown> | undefined): string | null {
+    if (!this.lspConfig.enabled || this.lspBridge === null || args === undefined) return null
+    const paths = (['path', 'file_path', 'file'] as const)
+      .map(key => args[key])
+      .filter((v): v is string => typeof v === 'string' && v !== '')
+    if (paths.length === 0) return null
+    for (const path of paths) {
+      const diags = this.lspBridge.diagnosticsFor(path)
+      if (diags !== undefined) {
+        const badge = lspBadgeText(diags)
+        if (badge !== null) return `⚠ ${badge}`
+      }
+    }
+    return null
+  }
+
+  /** /lsp：切换诊断面板显隐（懒创建 bridge；空态文案由面板纯函数承担）。 */
+  private toggleLspPanel(): void {
+    this.lspPanelVisible = !this.lspPanelVisible
+    if (this.lspPanelVisible) this.ensureLspBridge()
   }
 
   /**
@@ -2662,6 +2784,8 @@ export class TuiApp {
           argumentsRaw: event.data.arguments,
         })
         if (call !== undefined) this.pendingCallTitles.set(event.data.callId, call.title)
+        // LSP：agent 触碰文件 → 异步拉取该文件诊断（本地展示缓存，纯只读）。
+        this.touchLspPaths(event.data.arguments)
         // Phase 9d：工具开始 → 阶段推进（静默计时从工具起算）
         this.fluency.setPhase('tool')
         break
@@ -2916,6 +3040,10 @@ export class TuiApp {
       configProjection: this.configProjection,
       skillsPanelVisible: this.skillsPanelVisible,
       skillItems: this.skillItems,
+      // LSP 面板（本地语言服务诊断；bridge 缓存折叠——桥未创建时视为无诊断）
+      lspPanelVisible: this.lspPanelVisible,
+      lspDiagnostics: this.lspDiagnosticsView(),
+      lspAvailable: this.lspBridge === null ? true : this.lspBridge.isAvailable(),
       // P3：会话 tab 栏（多会话 side conversation；快照从 live store 派生）
       activeSessionId: this.activeSessionId === null ? null : String(this.activeSessionId),
       sessionTabs: this.sessionManager.list().map(s => ({ id: String(s.id), status: s.status })),
@@ -2945,6 +3073,8 @@ export class TuiApp {
     for (const line of renderConfigPanel(snapshot)) lines.push({ text: line })
     // T3.3：/skills 技能浏览面板。
     for (const line of renderSkillsPanel(snapshot)) lines.push({ text: line })
+    // LSP：/lsp 诊断面板（本地语言服务；bridge 缓存折叠，纯展示）。
+    for (const line of renderLspPanel(snapshot)) lines.push({ text: line })
 
     // P1：/btw 侧问面板——live 区顶部浮动段（glance 之后；不抢占输入焦点）。
     // loading 用 secondary 色、error 用 warning 色、done 不着色（答案原样）。
@@ -3040,10 +3170,16 @@ export class TuiApp {
       const args = parseToolArguments(tool.arguments)
       const titleOverride = this.pendingCallTitles.get(tool.callId)
       const latest = i === shownTools.length - 1
+      // LSP 徽标：工具触碰的文件有诊断缓存时标题追加「⚠ N错 M警」
+      // （诊断已就绪才显示；拉取中/无诊断不干扰标题）。
+      const lspBadge = this.lspBadgeFor(args)
+      const title = lspBadge === null
+        ? (titleOverride ?? toolCardTitle(tool.name, args))
+        : `${titleOverride ?? toolCardTitle(tool.name, args)} ${lspBadge}`
       const rows = formatToolCardLive({
         toolName: tool.name,
         ...(args === undefined ? {} : { toolInput: args }),
-        ...(titleOverride === undefined ? {} : { title: titleOverride }),
+        title,
         columns: cols,
         elapsedMs: Math.max(0, Date.now() - tool.time),
         tailLines: compactLive || !latest ? 0 : (tightViewport ? 1 : 3),
@@ -3321,6 +3457,9 @@ export class TuiApp {
     // 最后一次挂载后直接退出的路径）。
     this.taskSurfaceDisposer?.()
     this.taskSurfaceDisposer = null
+    // LSP：诊断桥销毁（kill 全部语言 server、清缓存与回调；幂等）。
+    this.lspBridge?.dispose()
+    this.lspBridge = null
     // overlay 若仍在 alt screen，先退回主屏（1049l），否则进程退出后部分
     // 终端会把用户留在备用屏。
     this.overlay?.deactivate()

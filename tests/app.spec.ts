@@ -1,4 +1,5 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, type ChildProcess } from 'node:child_process'
+import { PassThrough } from 'node:stream'
 import { EventEmitter } from 'node:events'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -9,6 +10,7 @@ import type { WriteStream } from 'node:tty'
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { Agent, AgentHandle } from '@deepseek-ai/dsh-agent'
 import { TuiApp, parseSlashCommand } from '../src/ui/app.js'
+import { decodeMessages, encodeMessage } from '../src/lsp/rpc.js'
 import { getActiveThemeName, setTheme } from '../src/theme.js'
 import { readImageFromClipboard, readTextFromClipboard } from '../src/engine/clipboard-image.js'
 
@@ -5714,6 +5716,143 @@ describe('TuiApp cmdline 参数处理（A3）', () => {
     const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
     await app.attach()
     expect(agent.followup).not.toHaveBeenCalled()
+    await app.dispose()
+  })
+})
+
+describe('LSP 诊断桥（黑盒：假 server 注入）', () => {
+  /** 假 LSP server（stdin 收请求、stdout 回响应；pull 模型）。 */
+  class FakeLspServer {
+    readonly proc = {
+      stdin: new PassThrough(),
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+      on: vi.fn(),
+      kill: vi.fn(),
+    } as unknown as ChildProcess
+    diagnosticItems: Array<{ range: { start: { line: number; character: number }; end: { line: number; character: number } }; severity: 1 | 2 | 3 | 4; message: string }> = []
+
+    constructor() {
+      const stdin = this.proc.stdin as unknown as PassThrough
+      const stdout = this.proc.stdout as unknown as PassThrough
+      stdin.on('data', (chunk: Buffer) => {
+        const { messages } = decodeMessages(chunk)
+        for (const msg of messages) {
+          if (!('id' in msg) || 'result' in msg || 'error' in msg) continue
+          const req = msg as { id: number; method: string }
+          if (req.method === 'initialize') {
+            stdout.write(encodeMessage({ jsonrpc: '2.0', id: req.id, result: { capabilities: { diagnosticProvider: {} } } }))
+          } else if (req.method === 'textDocument/diagnostic') {
+            stdout.write(encodeMessage({ jsonrpc: '2.0', id: req.id, result: { items: this.diagnosticItems } }))
+          } else {
+            stdout.write(encodeMessage({ jsonrpc: '2.0', id: req.id, result: null }))
+          }
+        }
+      })
+    }
+  }
+
+  function tsError(message: string): { range: { start: { line: number; character: number }; end: { line: number; character: number } }; severity: 1; message: string } {
+    return { range: { start: { line: 1, character: 0 }, end: { line: 1, character: 5 } }, severity: 1, message }
+  }
+
+  function written(stdout: WriteStream & { write: ReturnType<typeof vi.fn> }): string {
+    return stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+  }
+
+  /**
+   * 装配 LSP 黑盒 ctx：newSession 给 agents.create 传 `sessionId: session-<uuid>`，
+   * mock 必须返回同 id 的 session——否则 mountSession 的绑定 id（uuid）、
+   * streamFeed 过滤 id（uuid）与 transcript 的 session.id（agent 替身 id）
+   * 三处不一致，事件广播对不上。live 替身随 create 入参构造，get 按 id 返回。
+   */
+  function makeLspCtx(agent: Agent & MockAgent): ReturnType<typeof makeCtx> {
+    const ctx = makeCtx()
+    let live = agent.session
+    ctx.agents.create.mockImplementation(async (opts?: { sessionId?: SessionId }) => {
+      const sid = opts?.sessionId ?? agent.session.id
+      live = { ...agent.session, id: sid, header: { ...agent.session.header, id: sid } } as unknown as typeof agent.session
+      return makeHandle({ ...agent, id: sid, session: live } as unknown as Agent)
+    })
+    ctx.sessions.get.mockImplementation(() => live)
+    return ctx
+  }
+
+  it('tool/call 触碰文件 → 工具卡标题带 LSP 诊断徽标', async () => {
+    const ctx = makeLspCtx(makeAgent('lsp-badge-1'))
+    const server = new FakeLspServer()
+    server.diagnosticItems = [tsError('类型不匹配')]
+    const stdout = makeStdout()
+    const app = new TuiApp({
+      ctx, stdout, stdin: makeStdin(),
+      lsp: { timeoutMs: 200, spawnFor: () => server.proc },
+    })
+    await app.attach()
+    const emit = sessionEventBus(ctx)
+    const sid = app.sessionId
+    if (sid === null) throw new Error('attach 后应有活跃会话')
+    emit(sid, {
+      type: 'tool/call',
+      seq: 1,
+      time: 1,
+      data: {
+        turn: 1, step: 1, callId: 'lsp-call-1', name: 'write_file',
+        arguments: JSON.stringify({ path: '/work/src/a.ts', content: 'const x: number = "s"' }),
+      },
+    })
+    // 第一步：工具卡标题出现（事件已处理；transcript fold 渲染）
+    await vi.waitFor(() => {
+      expect(written(stdout)).toContain('Write(')
+    }, { timeout: 3_000, interval: 50 })
+    // 第二步：诊断拉取完成，徽标上卡（异步，慢于事件渲染）
+    await vi.waitFor(() => {
+      expect(written(stdout)).toContain('⚠ 1错')
+    }, { timeout: 5_000, interval: 50 })
+    await app.dispose()
+  })
+
+  it('/lsp 打开面板：无诊断缓存时渲染空态行', async () => {
+    const ctx = makeLspCtx(makeAgent('lsp-panel-1'))
+    const stdout = makeStdout()
+    const app = new TuiApp({
+      ctx, stdout, stdin: makeStdin(),
+      lsp: { timeoutMs: 200, spawnFor: () => new FakeLspServer().proc },
+    })
+    await app.attach()
+    app.handleSubmit('/lsp')
+    await vi.waitFor(() => {
+      expect(written(stdout)).toContain('无 LSP 诊断')
+    }, { timeout: 3_000, interval: 50 })
+    await app.dispose()
+  })
+
+  it('未知扩展名文件触碰 + /lsp：不 spawn、空态不崩', async () => {
+    const ctx = makeLspCtx(makeAgent('lsp-unsupported-1'))
+    const server = new FakeLspServer()
+    const stdout = makeStdout()
+    const app = new TuiApp({
+      ctx, stdout, stdin: makeStdin(),
+      lsp: { timeoutMs: 200, spawnFor: () => server.proc },
+    })
+    await app.attach()
+    const emit = sessionEventBus(ctx)
+    const sid = app.sessionId
+    if (sid === null) throw new Error('attach 后应有活跃会话')
+    emit(sid, {
+      type: 'tool/call',
+      seq: 1,
+      time: 1,
+      data: {
+        turn: 1, step: 1, callId: 'lsp-call-2', name: 'read',
+        arguments: JSON.stringify({ path: '/work/notes.xyz' }),
+      },
+    })
+    app.handleSubmit('/lsp')
+    await vi.waitFor(() => {
+      expect(written(stdout)).toContain('无 LSP 诊断')
+    }, { timeout: 3_000, interval: 50 })
+    // 未知扩展名未 spawn 任何 server
+    expect(server.proc.kill).not.toHaveBeenCalled()
     await app.dispose()
   })
 })

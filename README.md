@@ -194,6 +194,7 @@ npx -y @deepseek-ai/dsh --profile tui
 | `/effort off\|high\|max\|auto` | 设置推理等级（热切） |
 | `/theme [name]` | 切换主题 |
 | `/density` | 切换紧凑工具卡渲染 |
+| `/lsp` | 切换 LSP 诊断面板（agent 触碰文件时自动拉取该文件诊断；诊断徽标上工具卡） |
 | `/status` | 切换状态面板（goal/todos/plan 投影 + 会话汇总段） |
 | `/config` | 切换设置面板（settings / permission / credentials） |
 | `/skills` | 切换技能浏览面板 |
@@ -239,7 +240,7 @@ bundle patch 在 `dsh-base` 之上插入 `tui-runner` 插件：
   name: '@huiliyi37/dsh-tianshu-tui'
 ```
 
-`TuiRunnerConfig`（均可选）：`stdin`/`stdout`（流注入，缺省走进程流）、`initialSessionId`、`editorKey`（缺省 `ctrl_e`；`ctrl+o` 保留给推理展开）、`vimEnabled`（缺省 `false`）、`vision`（supportsVision / bridgeEnabled / bridgeSource；未传入时 supportsVision 经 llm catalog 自动刷新、bridgeEnabled 按宿主 `visionBridge` 服务存在性自动探测——视觉桥插件装配时应 provide 该服务）、`workflowHistoryLimit`（缺省 `50`）。
+`TuiRunnerConfig`（均可选）：`stdin`/`stdout`（流注入，缺省走进程流）、`initialSessionId`、`editorKey`（缺省 `ctrl_e`；`ctrl+o` 保留给推理展开）、`vimEnabled`（缺省 `false`）、`vision`（supportsVision / bridgeEnabled / bridgeSource；未传入时 supportsVision 经 llm catalog 自动刷新、bridgeEnabled 按宿主 `visionBridge` 服务存在性自动探测——视觉桥插件装配时应 provide 该服务）、`workflowHistoryLimit`（缺省 `50`）、`lsp`（enabled / timeoutMs；缺省启用、单次拉取超时 2000ms——本地语言服务桥：agent 触碰文件时按扩展名懒启动 LSP server（typescript 经 npx 默认可用，pyright/gopls/rust-analyzer/clangd/jdtls 按 PATH 探测）拉取诊断，展示于工具卡徽标与 `/lsp` 面板；诊断只进 TUI 本地展示缓存，不写会话事件、不注册任何模型面）。
 
 服务依赖：`sessions`/`agents`/`agentDefaultModel` 必需（必选 inject）；`goals`/`subagents`/`memory`/`compact`/`tasks`/`skills`/`sessionProjections`/`workflowEngine`/`planMode` 可选——未装配时相关命令与面板 fails loud 报不可用，绝不静默吞，也不阻塞 TUI 启动。
 
@@ -260,6 +261,7 @@ npm test
 ## 已知限制与待办
 
 - **图片再询问需伴生插件** — `ask_image` 工具与会话图片注册表位于 `@deepseek-ai/dsh-vision-ask`（同仓独立包）；TUI bundle 本体不携带它们。未装配插件时，已发送图片无法再次询问，同角度重复描述会再次调用视觉模型；视觉桥仍覆盖一次性提交时描述路径。
+- **LSP 为展示层本地桥** — 诊断只上屏（工具卡徽标 + `/lsp` 面板），不提供给模型工具面（如天枢 edit-diff 的 diagnostics-narrowing）；模型侧接入属 harness 侧未来工作。server 初始化慢于超时（默认 2s）时静默无诊断，下次触碰文件重拉；大仓库 tsserver 常驻内存（懒启动缓解，无空闲回收）；切会话不重启 server（rootUri 沿用首会话 cwd）。
 - **app.ts 单体（约 3.2k 行）** — 挂起状态机已控制器化（question/approval），渲染组合与键仲裁仍在 app.ts；C4 拆分方案（纯函数面板段）持续推进。
 - **投影层部分接线** — 四个纯折叠模型中 turn-summary（turn/end 摘要行）与 summary-state（`/status` 会话汇总段，宿主投影总线缺失时仍有数据）已接线；activity-status/activity-store 有意保留未接线（statusline 是自包含投影，替换无收益；activity-store 暂无消费方）。当前状态记录于 [docs/projection-layer.md](docs/projection-layer.md)。
 

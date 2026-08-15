@@ -82,3 +82,10 @@ export declare function renderWorkflowPanel(snapshot: LiveSnapshot): string[];
  * @returns 面板行数组。
  */
 export declare function renderStatusPanel(snapshot: LiveSnapshot): string[];
+/**
+ * 渲染 /lsp 诊断面板（按文件分组的诊断列表；severity 着色）。面板隐藏 →
+ * 空数组。空诊断列表渲染空态行（区分「无诊断」与「server 未安装」）。
+ * @param snapshot - 当前帧快照。
+ * @returns 面板行数组。
+ */
+export declare function renderLspPanel(snapshot: LiveSnapshot): string[];
