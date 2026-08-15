@@ -1777,9 +1777,11 @@ describe('TuiApp Phase 6.1 slash 命令系统', () => {
     const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
     await app.newSession()
     app.handleSubmit('/session list')
-    await new Promise(resolve => setImmediate(resolve))
-
-    expect(stdout.write.mock.calls.map(c => `${c[0]}`).join('')).toContain('slash-sess')
+    // 梗概回填使该命令成为真实异步路径（sidecar 读盘 + 逐会话梗概编排），
+    // 单次 setImmediate 不再够用，waitFor 轮询（与文件内其它异步命令测试同款）。
+    await vi.waitFor(() => {
+      expect(stdout.write.mock.calls.map(c => `${c[0]}`).join('')).toContain('slash-sess')
+    }, { timeout: 2_000, interval: 20 })
     await app.dispose()
   })
 

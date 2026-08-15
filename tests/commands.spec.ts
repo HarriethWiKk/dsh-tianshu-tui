@@ -10,7 +10,11 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
-import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
+import type { StreamChunk } from '@deepseek-ai/dsh-llm'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import {
   BUILTIN_COMMAND_NAMES,
   SlashCommandRegistry,
@@ -20,7 +24,7 @@ import {
 import { getActiveThemeName, setTheme } from '../src/theme.js'
 
 /** 最小 ctx 替身：/session list 需要的 sessions.list + get('sessionPersistence')。 */
-function makeCtx(overrides: Partial<Record<'sessions' | 'agents' | 'compact' | 'agentDefaultModel' | 'goals' | 'tasks', unknown>> = {}): Context {
+function makeCtx(overrides: Partial<Record<'sessions' | 'agents' | 'compact' | 'agentDefaultModel' | 'goals' | 'tasks' | 'llm', unknown>> = {}): Context {
   const ctx = {
     sessions: {
       list: vi.fn(() => []),
@@ -275,6 +279,139 @@ describe('内置命令 — /session', () => {
     await cmd.run(args)
     expect(deps.newSession).not.toHaveBeenCalled()
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('/session new|list'))
+  })
+})
+
+describe('内置命令 — /session list 梗概（sidecar 缓存 + LLM 回填）', () => {
+  const homeEnv = 'DSH_HOME'
+
+  /** 以临时 dsh home 跑一段测试，结束后还原环境并清理。 */
+  async function withTempHome(fn: (home: string) => Promise<void>): Promise<void> {
+    const home = await mkdtemp(join(tmpdir(), 'dsh-tui-cmd-'))
+    const prev = process.env[homeEnv]
+    process.env[homeEnv] = home
+    try {
+      await fn(home)
+    } finally {
+      if (prev === undefined) delete process.env[homeEnv]
+      else process.env[homeEnv] = prev
+      await rm(home, { recursive: true, force: true })
+    }
+  }
+
+  function briefEvents(question: string, answer: string): SessionEvent[] {
+    return [
+      {
+        seq: 1,
+        time: 1001,
+        type: 'user/message',
+        data: { content: [{ type: 'text', text: question }], source: { kind: 'user' } },
+      },
+      {
+        seq: 2,
+        time: 1002,
+        type: 'assistant/message',
+        data: { turn: 1, step: 1, message: { content: [{ type: 'text', text: answer }] } },
+      },
+    ] as unknown as SessionEvent[]
+  }
+
+  it('list 在 id 旁展示已缓存的会话梗概', async () => {
+    await withTempHome(async (home) => {
+      const { cmd } = commandByName('session')
+      const sid = 'session-brief-1' as SessionId
+      await mkdir(join(home, 'tui'), { recursive: true })
+      await writeFile(
+        join(home, 'tui', 'session-briefs.json'),
+        JSON.stringify({ version: 1, briefs: { 'session-brief-1': '一句话梗概示例' } }),
+      )
+      const ctx = makeCtx({
+        sessions: {
+          list: vi.fn(() => [{ id: sid, header: { id: sid, version: 0, createdAt: 1 } }]),
+          get: vi.fn(() => undefined),
+        },
+      })
+      const { args, echo } = makeArgs({ text: 'list', ctx })
+      await cmd.run(args)
+      expect(echo).toHaveBeenCalledWith(expect.stringContaining('session-brief-1 · 一句话梗概示例 ·'))
+    })
+  })
+
+  it('list 无梗概时经 llm 生成回填（deepseek 默认选择替换为 flash）并落盘', async () => {
+    await withTempHome(async (home) => {
+      const { cmd } = commandByName('session')
+      const sid = 'session-brief-2' as SessionId
+      const live = { id: sid, events: briefEvents('写个脚本', '完成') }
+      const stream = vi.fn<(options: { provider: string; model: string }) => AsyncIterable<StreamChunk>>(async function* () {
+        yield { type: 'block-start', index: 0, blockType: 'text' } as StreamChunk
+        yield { type: 'text-delta', index: 0, text: '经 API 生成的一句话梗概' } as StreamChunk
+        yield { type: 'block-end', index: 0, block: { type: 'text', text: '经 API 生成的一句话梗概' } } as StreamChunk
+        yield { type: 'finish', reason: { kind: 'stop' } } as StreamChunk
+      })
+      const ctx = makeCtx({
+        llm: { stream },
+        agentDefaultModel: { currentSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-v4-pro' }) },
+        sessions: {
+          list: vi.fn(() => [{ id: sid, header: { id: sid, version: 0, createdAt: 1 }, events: live.events }]),
+          get: vi.fn(() => live),
+        },
+      })
+      const { args, echo } = makeArgs({ text: 'list', ctx })
+      await cmd.run(args)
+      expect(echo).toHaveBeenCalledWith(expect.stringContaining('正在生成会话梗概 (1/1): session-brief-2'))
+      expect(echo).toHaveBeenCalledWith(expect.stringContaining('session-brief-2 · 经 API 生成的一句话梗概 ·'))
+      const options = stream.mock.calls[0][0]
+      expect(options).toMatchObject({ provider: 'deepseek-official', model: 'deepseek-v4-flash' })
+      const saved = JSON.parse(await readFile(join(home, 'tui', 'session-briefs.json'), 'utf8')) as { briefs: Record<string, string> }
+      expect(saved.briefs[sid]).toBe('经 API 生成的一句话梗概')
+    })
+  })
+
+  it('list 梗概生成失败时回显警告且仍列出会话行', async () => {
+    await withTempHome(async (home) => {
+      const { cmd } = commandByName('session')
+      const sid = 'session-brief-3' as SessionId
+      const live = { id: sid, events: briefEvents('问题', '回答') }
+      const ctx = makeCtx({
+        llm: {
+          stream: vi.fn(async function* () {
+            yield {
+              type: 'finish',
+              reason: { kind: 'error', failure: { message: 'boom', code: 'BOOM' } },
+            } as StreamChunk
+          }),
+        },
+        sessions: {
+          list: vi.fn(() => [{ id: sid, header: { id: sid, version: 0, createdAt: 1 }, events: live.events }]),
+          get: vi.fn(() => live),
+        },
+      })
+      const { args, echo } = makeArgs({ text: 'list', ctx })
+      await cmd.run(args)
+      expect(echo).toHaveBeenCalledWith(expect.stringContaining('⚠ 会话梗概生成失败: session-brief-3'))
+      expect(echo).toHaveBeenCalledWith(expect.stringContaining(`session-brief-3 · ${new Date(1).toISOString()}`))
+    })
+  })
+
+  it('list 无聊天记录的会话直接展示「新对话」，不调 llm', async () => {
+    await withTempHome(async (home) => {
+      const { cmd } = commandByName('session')
+      const sid = 'session-brief-4' as SessionId
+      const stream = vi.fn<(options: unknown) => AsyncIterable<StreamChunk>>(async function* () {
+        throw new Error('不应被调用')
+      })
+      const ctx = makeCtx({
+        llm: { stream },
+        sessions: {
+          list: vi.fn(() => [{ id: sid, header: { id: sid, version: 0, createdAt: 1 }, events: [] }]),
+          get: vi.fn(() => ({ id: sid, events: [] })),
+        },
+      })
+      const { args, echo } = makeArgs({ text: 'list', ctx })
+      await cmd.run(args)
+      expect(echo).toHaveBeenCalledWith(expect.stringContaining('session-brief-4 · 新对话 ·'))
+      expect(stream).not.toHaveBeenCalled()
+    })
   })
 })
 

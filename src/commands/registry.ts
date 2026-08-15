@@ -19,6 +19,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { getActiveThemeName, setTheme, THEME_NAMES } from '../theme.js'
 import { listSessions } from '../adapter/sessions.js'
+import { ensureSessionBriefs } from '../adapter/session-brief.js'
 import { collectDoctorReport, getDoctorFixGuidance } from '../format/doctor-report.js'
 
 /**
@@ -303,8 +304,24 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
             echo('（当前无会话）')
             return
           }
+          // 每行在 session id 旁展示会话主题梗概（研究问题/主题的任务标题式
+          // 短语）。梗概是 TUI 私有 sidecar 缓存（$DSH_HOME/tui/session-briefs.json），
+          // 不写 session log；缺失的会话（含旧版本产生的历史会话）在此按需
+          // 生成并落盘回填；无聊天记录的会话直接显示「新对话」。
+          const briefs = await ensureSessionBriefs(ctx, rows, {
+            onPending: (id, completed, total) => {
+              echo(`正在生成会话梗概 (${completed + 1}/${total}): ${id}`)
+            },
+            onFailed: (id) => {
+              echo(`⚠ 会话梗概生成失败: ${id}（可稍后再次 /session list 重试）`)
+            },
+          })
           for (const row of rows) {
-            echo(`${row.id} · ${new Date(row.createdAt).toISOString()}`)
+            const brief = briefs.get(row.id)
+            const time = new Date(row.createdAt).toISOString()
+            echo(brief === undefined
+              ? `${row.id} · ${time}`
+              : `${row.id} · ${brief} · ${time}`)
           }
           return
         }

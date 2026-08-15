@@ -22,6 +22,7 @@
 | src/activity-store.ts | activity-store.ts | modified |
 | src/adapter/live.ts | — | new |
 | src/adapter/send.ts | — | new |
+| src/adapter/session-brief.ts | — | new（/session list 会话主题梗概：sidecar 缓存 + llm 辅助调用回填；无聊天记录显示「新对话」不调 API） |
 | src/adapter/sessions.ts | — | new |
 | src/adapter/tool-view.ts | — | new（presenter 桥：镜像 apiproxy viewFor 的 presentCall/presentResult 软降级消费） |
 | src/adapter/transcript.ts | — | new |
