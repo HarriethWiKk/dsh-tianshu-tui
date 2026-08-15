@@ -102,6 +102,10 @@ export declare class InputLine {
     /** 折叠粘贴原文旁路：标记序号 → 原文。提交时展开还原（expandPastes）。 */
     private _pastes;
     private _pasteSeq;
+    /** 非 bracketed paste 终端的粘贴流累积：内联 return 的行内容（不含换行），
+     *  流结束（普通 return）时按 \n 合并为一次提交。bracketed paste 整段经
+     *  onPaste 到达、不触发累积；Vim normal 的 return 同样走合并（一致性）。 */
+    private _inlinePasteLines;
     /** 选区锚点（shift+方向键设定）；null = 无选区。选区 = [min(anchor,cursor), max)。 */
     private _selAnchor;
     /** vim visual linewise 标记（V 进入时为 true，v 进入/退出 visual 时复位）。 */
@@ -242,9 +246,11 @@ export declare class InputLine {
      * @param ctrl - Ctrl 是否按下
      * @param meta - Alt/Meta 是否按下
      * @param shift - Shift 是否按下
+     * @param inline - 该 return 后同一输入缓冲还有后续字节（非 bracketed paste
+     *   终端的粘贴流行分隔；见 InputHandler KeyPress.inline）。
      * @returns 产生的事件（change/submit/tab/history）；按键未引起变化时为 null
      */
-    handleKey(name: string, char: string, ctrl: boolean, meta: boolean, shift?: boolean): InputLineEvent | null;
+    handleKey(name: string, char: string, ctrl: boolean, meta: boolean, shift?: boolean, inline?: boolean): InputLineEvent | null;
     /**
      * 改值前记录 undo 单元（改前快照）。仅 insert-word 在光标连续时合并
      * （不新增单元）；其余 kind 每次独立成元。kind 切换即自然封口。

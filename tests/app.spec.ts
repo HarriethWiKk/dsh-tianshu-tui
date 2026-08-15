@@ -836,7 +836,7 @@ describe('TuiApp glance 数据接线（usage/effort/contextWindow）', () => {
     await new Promise(resolve => setImmediate(resolve))
 
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).toContain('effort:max')
+    expect(written).toContain('◎max')
     await app.dispose()
   })
 
@@ -4701,7 +4701,7 @@ describe('C4 概念稿 菜单快捷键与三行底部区（提交后审查补测
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     // footer 恒渲染（formatPromptFooter 单行）；metrics 需 glance 数据（此处无，
     // 不占位——纯函数 spec 已覆盖渲染，此处断言装配不抛且 footer 在输出中）
-    expect(written).toContain('Enter 发送')
+    expect(written).toContain('/ 命令')
     expect(written).toContain('normal')
     await app.dispose()
   })

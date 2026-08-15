@@ -28,6 +28,14 @@ export interface KeyPress {
     meta: boolean;
     /** Shift 是否按下 */
     shift: boolean;
+    /**
+     * 该键之后同一输入缓冲内还有后续字节（非 bracketed paste 终端的粘贴流特征：
+     * 终端一次 flush 多行，行尾 CR 后紧跟下一行文本；用户按 Enter 时缓冲已空）。
+     * 输入行据此把内联 return 当作行分隔累积，流结束后一次提交——避免粘贴的
+     * 换行被逐行解析为 Enter 而分批发送。bracketed paste 模式下整段经 onPaste
+     * 到达，不经过此标志。
+     */
+    inline?: boolean;
 }
 /** 可识别的按键语义名称；未映射的可打印字符与无法识别的序列为 'unknown'。 */
 export type KeyName = 'return' | 'escape' | 'tab' | 'backspace' | 'delete' | 'up' | 'down' | 'left' | 'right' | 'home' | 'end' | 'pageup' | 'pagedown' | 'insert' | 'f1' | 'f2' | 'f3' | 'f4' | 'f5' | 'f6' | 'f7' | 'f8' | 'f9' | 'f10' | 'f11' | 'f12' | 'space' | 'ctrl_c' | 'ctrl_d' | 'ctrl_h' | 'ctrl_j' | 'ctrl_z' | 'ctrl_l' | 'ctrl_u' | 'ctrl_a' | 'ctrl_e' | 'ctrl_k' | 'ctrl_w' | 'ctrl_n' | 'ctrl_o' | 'ctrl_p' | 'ctrl_r' | 'ctrl_s' | 'ctrl_t' | 'ctrl_v' | 'ctrl_b' | 'ctrl_f' | 'ctrl_x' | 'ctrl_]' | 'ctrl_minus' | 'ctrl_.' | 'ctrl_y' | 'ctrl_q' | 'shift_tab' | 'unknown';
