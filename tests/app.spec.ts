@@ -5855,4 +5855,41 @@ describe('LSP 诊断桥（黑盒：假 server 注入）', () => {
     expect(server.proc.kill).not.toHaveBeenCalled()
     await app.dispose()
   })
+
+  it('伴生插件 provide(lsp) 服务存在 → 徽标走服务（不 spawn 内置 server）', async () => {
+    const ctx = makeLspCtx(makeAgent('lsp-source-1'))
+    // 假 lsp 服务（结构类型：getDiagnostics/isAvailable/dispose）
+    const serviceGet = vi.fn(async () => [
+      { range: { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } }, severity: 1 as const, message: '服务源诊断' },
+    ])
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'lsp') return {
+        getDiagnostics: serviceGet,
+        isAvailable: () => true,
+        dispose: () => { },
+      }
+      return undefined
+    })
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin(), lsp: { timeoutMs: 200 } })
+    await app.attach()
+    const emit = sessionEventBus(ctx)
+    const sid = app.sessionId
+    if (sid === null) throw new Error('attach 后应有活跃会话')
+    emit(sid, {
+      type: 'tool/call',
+      seq: 1,
+      time: 1,
+      data: {
+        turn: 1, step: 1, callId: 'lsp-call-3', name: 'write_file',
+        arguments: JSON.stringify({ path: '/work/src/a.ts', content: 'x' }),
+      },
+    })
+    await vi.waitFor(() => {
+      expect(written(stdout)).toContain('⚠ 1错')
+    }, { timeout: 3_000, interval: 50 })
+    // 服务被消费（无需内置 spawn——未注入 spawnFor，若走内置会真 spawn）
+    expect(serviceGet).toHaveBeenCalled()
+    await app.dispose()
+  })
 })

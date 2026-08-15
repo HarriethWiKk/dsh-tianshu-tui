@@ -54,7 +54,7 @@ DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh --profile tui
 
 不要在 DeepSeek Harness 工作区根目录对本包跑 tsdown：会把未发布的 `@deepseek-ai/dsh-root` 写进 bundle，加载必失败。
 
-需要图片再询问能力时，再装配同仓伴生包 `vision-ask/`。
+需要图片再询问能力时，再装配同仓伴生包 `vision-ask/`；需要 LSP 模型工具面（模型可调 `lsp_goto_definition` / `lsp_find_references` / `lsp_diagnostics`）时装配同仓伴生包 `lsp/`（`@huiliyi37/dsh-tui-lsp`）——装配后 TUI 展示桥自动消费其 `lsp` 服务（与模型工具面共享同一 LSP server 集，不双份 spawn；未装配时 TUI 回落内置桥）。
 
 ## 更新说明
 
@@ -195,6 +195,7 @@ npx -y @deepseek-ai/dsh --profile tui
 | `/theme [name]` | 切换主题 |
 | `/density` | 切换紧凑工具卡渲染 |
 | `/lsp` | 切换 LSP 诊断面板（agent 触碰文件时自动拉取该文件诊断；诊断徽标上工具卡） |
+| `lsp_goto_definition` · `lsp_find_references` · `lsp_diagnostics` | LSP 模型工具面（伴生插件 `lsp/` 注册；定义跳转 / 引用查找 / 文件诊断） |
 | `/status` | 切换状态面板（goal/todos/plan 投影 + 会话汇总段） |
 | `/config` | 切换设置面板（settings / permission / credentials） |
 | `/skills` | 切换技能浏览面板 |

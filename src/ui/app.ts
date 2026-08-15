@@ -101,7 +101,7 @@ import {
   renderLspPanel,
 } from '../render/live-panels.js'
 import type { LiveSnapshot } from '../render/live-snapshot.js'
-import { createLspBridge, type LspBridge, type LspDiagnosticView } from '../lsp/lsp-bridge.js'
+import { createLspBridge, type LspBridge, type LspDiagnosticSource, type LspDiagnosticView } from '../lsp/lsp-bridge.js'
 import type { MultiLspOptions } from '../lsp/multi-manager.js'
 import { lspBadgeText } from '../format/lsp-diagnostics.js'
 /** T1.1：5 域投影 key（与 sessionProjections 注册表的 wire key 对齐）。 */
@@ -1244,11 +1244,16 @@ export class TuiApp {
    */
   private ensureLspBridge(): LspBridge {
     if (this.lspBridge !== null) return this.lspBridge
+    // 双数据源：伴生插件（dsh-tui-lsp）provide('lsp') 服务存在时消费它——
+    // 与模型工具面共享同一 LSP server 集（不双份 spawn）；未装配时回落
+    // 内置桥（降级路径，保持现状行为）。探测语义同视觉桥 resolveVisionBridge。
+    const lspService = this.ctx.reflect.get('lsp', false) as LspDiagnosticSource | undefined
     this.lspBridge = createLspBridge({
       cwd: this.sessionCwd(),
       ...(this.lspConfig.timeoutMs === undefined ? {} : { timeoutMs: this.lspConfig.timeoutMs }),
       ...(this.lspConfig.spawnFor === undefined ? {} : { spawnFor: this.lspConfig.spawnFor }),
       ...(this.lspConfig.which === undefined ? {} : { which: this.lspConfig.which }),
+      ...(lspService === undefined ? {} : { source: lspService }),
     })
     this.lspBridge.onUpdate(() => { this.renderBatcher.schedule() })
     return this.lspBridge

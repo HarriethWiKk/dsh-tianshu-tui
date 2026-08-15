@@ -38,6 +38,20 @@ export interface LspBridgeOptions extends MultiLspOptions {
   cwd: string
   /** 单次诊断拉取超时（毫秒）；缺省 2000。 */
   timeoutMs?: number
+  /**
+   * 外部诊断源（伴生插件 provide('lsp') 服务的最小读面）：存在时 bridge
+   * 消费它（与模型工具面共享同一 LSP server 集，不双份 spawn）；缺省用
+   * 内置 multi-manager（未装配伴生插件时的降级路径）。source 的所有权
+   * 归提供方——bridge.dispose 不 dispose source，只解绑。
+   */
+  source?: LspDiagnosticSource
+}
+
+/** 外部 LSP 服务的最小读面（结构类型；TUI 不跨包依赖 lsp 插件）。 */
+export interface LspDiagnosticSource {
+  getDiagnostics(path: string, timeoutMs: number): Promise<readonly LspDiagnostic[]>
+  isAvailable(): boolean
+  dispose(): void
 }
 
 /** 同文件重拉冷却（毫秒）：高频工具步进不刷屏。 */
@@ -87,10 +101,21 @@ export function createLspBridge(options: LspBridgeOptions): LspBridge {
   const cwd = options.cwd
   const timeoutMs = options.timeoutMs ?? 2_000
   const which: WhichFn = options.which ?? defaultWhich
-  const manager = createMultiLspManager(cwd, {
-    ...(options.which === undefined ? {} : { which: options.which }),
-    ...(options.spawnFor === undefined ? {} : { spawnFor: options.spawnFor }),
-  })
+  const source = options.source
+  // 外部源存在时不再创建内置 multi-manager（与模型工具面共享 server 集）；
+  // 否则内置桥（未装配伴生插件时的降级路径）。
+  const manager = source === undefined
+    ? createMultiLspManager(cwd, {
+      ...(options.which === undefined ? {} : { which: options.which }),
+      ...(options.spawnFor === undefined ? {} : { spawnFor: options.spawnFor }),
+    })
+    : null
+  /** 拉取实现：外部源 → 服务；否则内置 manager。 */
+  const fetchDiagnostics = (abs: string, ms: number): Promise<readonly LspDiagnostic[]> => {
+    return source !== null && source !== undefined
+      ? Promise.resolve(source.getDiagnostics(abs, ms))
+      : manager !== null ? manager.getFileDiagnostics(abs, ms) : Promise.resolve([])
+  }
   /** 展示视图缓存：absPath → { diags, at }（含空数组：已拉取无诊断）。 */
   const cache = new Map<string, { diags: readonly LspDiagnosticView[]; at: number }>()
   /** in-flight 合并集。 */
@@ -104,7 +129,7 @@ export function createLspBridge(options: LspBridgeOptions): LspBridge {
   const pull = (abs: string, display: string): void => {
     void (async () => {
       try {
-        const diags = await manager.getFileDiagnostics(abs, timeoutMs)
+        const diags = await fetchDiagnostics(abs, timeoutMs)
         cache.set(abs, { diags: diags.map(d => toView(d, display)), at: Date.now() })
       } catch {
         // 拉取异常按无诊断处理（不缓存），下次 touch 重试。
@@ -145,14 +170,17 @@ export function createLspBridge(options: LspBridgeOptions): LspBridge {
       return unsupportedPaths.has(absFromCwd(path, cwd))
     },
     isAvailable(): boolean {
-      return manager.isReady()
+      // 外部源：其可用性（服务已装配）；内置：至少一个 server 可探测。
+      return source !== undefined ? source.isAvailable() : (manager !== null && manager.isReady())
     },
     onUpdate(cb: () => void): void {
       update = cb
     },
     dispose(): void {
       disposed = true
-      manager.dispose()
+      // 内置 manager 归本桥所有（kill 全部 server）；外部源归提供方插件——
+      // 只解绑不 dispose（插件卸载时自行回收）。
+      if (manager !== null) manager.dispose()
       cache.clear()
       unsupportedPaths.clear()
       inflight.clear()

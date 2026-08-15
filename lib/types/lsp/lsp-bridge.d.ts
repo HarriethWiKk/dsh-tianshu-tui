@@ -15,6 +15,7 @@
  * @module @deepseek-ai/dsh-tianshu-tui/lsp/lsp-bridge
  */
 import { type MultiLspOptions } from './multi-manager.js';
+import type { LspDiagnostic } from './manager.js';
 /** 展示层诊断视图（LSP 0-based → 1-based 行列；file 为 cwd 相对路径）。 */
 export interface LspDiagnosticView {
     /** cwd 相对路径（相对解析失败时原样绝对路径）。 */
@@ -32,6 +33,19 @@ export interface LspBridgeOptions extends MultiLspOptions {
     cwd: string;
     /** 单次诊断拉取超时（毫秒）；缺省 2000。 */
     timeoutMs?: number;
+    /**
+     * 外部诊断源（伴生插件 provide('lsp') 服务的最小读面）：存在时 bridge
+     * 消费它（与模型工具面共享同一 LSP server 集，不双份 spawn）；缺省用
+     * 内置 multi-manager（未装配伴生插件时的降级路径）。source 的所有权
+     * 归提供方——bridge.dispose 不 dispose source，只解绑。
+     */
+    source?: LspDiagnosticSource;
+}
+/** 外部 LSP 服务的最小读面（结构类型；TUI 不跨包依赖 lsp 插件）。 */
+export interface LspDiagnosticSource {
+    getDiagnostics(path: string, timeoutMs: number): Promise<readonly LspDiagnostic[]>;
+    isAvailable(): boolean;
+    dispose(): void;
 }
 export interface LspBridge {
     /** 通知桥「agent 触碰了该文件」：异步拉诊断并入缓存；不阻塞调用方。 */

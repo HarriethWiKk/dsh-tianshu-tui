@@ -197,3 +197,40 @@ describe('LspBridge', () => {
     expect(bridge.diagnosticsFor('src/a.ts')?.[0]?.file).toBe('src/a.ts')
   })
 })
+
+describe('LspBridge 外部源（伴生插件 provide lsp 服务）', () => {
+  const cwd = '/work'
+
+  it('source 存在时消费服务而非内置 manager（不 spawn）', async () => {
+    const sourceDispose = vi.fn()
+    const source = {
+      getDiagnostics: vi.fn(async (path: string) => [
+        { range: { start: { line: 1, character: 2 }, end: { line: 1, character: 8 } }, severity: 2 as const, message: '服务诊断' },
+      ]),
+      isAvailable: vi.fn(() => true),
+      dispose: sourceDispose,
+    }
+    const bridge = createLspBridge({ cwd, timeoutMs: 200, source })
+    bridge.touchFile('src/a.ts')
+    await vi.waitFor(() => {
+      expect(bridge.diagnosticsFor('src/a.ts')?.length).toBe(1)
+    })
+    expect(source.getDiagnostics).toHaveBeenCalledWith('/work/src/a.ts', 200)
+    expect(bridge.diagnosticsFor('src/a.ts')?.[0]?.message).toBe('服务诊断')
+    expect(bridge.diagnosticsFor('src/a.ts')?.[0]?.file).toBe('src/a.ts')
+    // 外部源所有权归提供方：bridge.dispose 不 dispose source，只解绑
+    bridge.dispose()
+    expect(sourceDispose).not.toHaveBeenCalled()
+  })
+
+  it('isAvailable 转发外部源（内置 manager 未创建）', () => {
+    const source = {
+      getDiagnostics: vi.fn(async () => []),
+      isAvailable: vi.fn(() => false),
+      dispose: vi.fn(),
+    }
+    const bridge = createLspBridge({ cwd, timeoutMs: 200, source })
+    expect(bridge.isAvailable()).toBe(false)
+    bridge.dispose()
+  })
+})
