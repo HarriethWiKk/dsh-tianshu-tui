@@ -228,7 +228,11 @@ const PHASE_LABELS: Record<WorkflowPhase, string> = {
   wrapup: '收尾',
 }
 
-/** 授权/模式徽标后缀：[plan…] / [plan] / [auto] / [preset] / [yolo] / [ask]。 */
+/** 授权/模式徽标后缀：[plan…] / [plan] / [auto] / [preset] / [yolo] / [ask]。
+ *  注意：approvalPolicy 'never'（宿主 user-approval 写入）的语义是「自动拒绝
+ *  所有需审批的操作」（宿主 decide() 返回 rejected），并非放行——[yolo] 是
+ *  宿主 policy 词汇的展示，不代表「全放行」；TUI 全放行是 always-approve
+ *  （[auto] 徽标，allowed-once 短路）。 */
 function formatStatusSuffix(
   planActive = false,
   planPending = false,
