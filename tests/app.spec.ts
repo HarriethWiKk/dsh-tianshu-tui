@@ -2463,7 +2463,7 @@ describe('TuiApp T2.1/T2.2 多 agent 面板接线（委派树 + workflow 运行�
     await app.dispose()
   })
 
-  it('/workflow 事件订阅驱动面板渲染（start/agent-start/end → 缓存行）', async () => {
+  it('/workflow 事件订阅驱动面板渲染（start 带 meta/agent-start/end → 缓存行）', async () => {
     const ctx = makeCtx()
     ctx.agents.create.mockImplementation(({ sessionId }: { sessionId: string }) => {
       const agent = makeAgent(sessionId)
@@ -2481,7 +2481,10 @@ describe('TuiApp T2.1/T2.2 多 agent 面板接线（委派树 + workflow 运行�
     const app = new TuiApp({ ctx, stdout, stdin })
     await app.attach()
     const fire = (name: string, ...args: unknown[]) => { listeners.get(name)?.(...args) }
-    fire('workflow/start', { id: 'wf-1' })
+    fire('workflow/start', {
+      id: 'wf-1',
+      meta: { name: '调研脚本', description: '多 agent 调研', phases: [{ title: '准备' }, { title: '调研' }, { title: '收尾' }] },
+    })
     fire('workflow/phase', { id: 'wf-1' }, '调研') // 属主第二参为裸 string（dsh-workflow Events）
     fire('workflow/agent-start', { id: 'wf-1' }, { seq: 1, label: '调研员' })
     fire('workflow/agent-end', { id: 'wf-1' }, { seq: 1, label: '调研员', outcome: 'completed' })
@@ -2492,9 +2495,12 @@ describe('TuiApp T2.1/T2.2 多 agent 面板接线（委派树 + workflow 运行�
     await new Promise(resolve => setImmediate(resolve))
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     expect(written).toContain('📜 工作流')
-    // 终态 run 折叠进缓存：列表行含 phase 标题（[调研]）与 agent 计数。
-    expect(written).toContain('[调研]')
+    // 终态 run 折叠进缓存：列表行含真实 run 名（meta.name，非 phase）、阶段数、
+    // 描述（含注入的 run id 后缀）与 agent 计数。
+    expect(written).toContain('[调研脚本]')
+    expect(written).toContain('3 阶段')
     expect(written).toContain('1 个 agent')
+    expect(written).toContain('多 agent 调研 (wf-1)')
     await app.dispose()
   })
 })
@@ -3971,7 +3977,7 @@ describe('TuiApp subagent / workflow / tasks 服务接线', () => {
     await app.dispose()
   })
 
-  it('/workflow 渲染运行中 run（phase null → id）与终态 error 折叠', async () => {
+  it('/workflow 渲染运行中 run（meta 缺省 → name 回退 id）与终态 error 折叠', async () => {
     const ctx = makeCtx()
     const handlers = new Map<string, Array<(...args: unknown[]) => void>>()
     ctx.on.mockImplementation((name: string, h: (...args: unknown[]) => void) => {
@@ -3993,8 +3999,8 @@ describe('TuiApp subagent / workflow / tasks 服务接线', () => {
     // 运行中：start + agent-start（无 agent-end）→ outcome 缺省 completed
     fire('workflow/start', { id: 'wf-running' })
     fire('workflow/agent-start', { id: 'wf-running' }, { seq: 1, label: '研究员' })
-    // 终态：start + agent-start + end（无 phase、带 error）→ phase ?? id + error 进
-    // meta；agent 无 outcome → 折叠视图 outcome 缺省 completed（?? 右侧）
+    // 终态：start + agent-start + end（无 meta/phase、带 error）→ name 回退 id、
+    // error 进汇总；agent 无 outcome → 折叠视图 outcome 缺省 completed（?? 右侧）
     fire('workflow/start', { id: 'wf-done' })
     fire('workflow/agent-start', { id: 'wf-done' }, { seq: 1, label: '助手' })
     fire('workflow/end', { id: 'wf-done' }, { stopReason: 'error', error: '网络失败' })
@@ -4003,6 +4009,79 @@ describe('TuiApp subagent / workflow / tasks 服务接线', () => {
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     expect(written).toContain('wf-running')
     expect(written).toContain('wf-done')
+    await app.dispose()
+  })
+
+  it('workflow run 时长渲染真实流逝（startedAt 差值,非时间戳）', async () => {
+    const ctx = makeCtx()
+    const handlers = new Map<string, Array<(...args: unknown[]) => void>>()
+    ctx.on.mockImplementation((name: string, h: (...args: unknown[]) => void) => {
+      const list = handlers.get(name) ?? []
+      list.push(h)
+      handlers.set(name, list)
+      return () => { }
+    })
+    const agent = makeAgent('wf-elapsed')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+    // 只 fake Date（不动 setTimeout/setImmediate——ticker 与渲染调度保持真实，
+    // 避免 runAllTimers 无限 flush setInterval）：startedAt 与渲染时点都在
+    // fake 时钟下取值，差值可精确断言。
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    try {
+      await app.attach()
+      const fire = (name: string, ...args: unknown[]) => {
+        for (const h of handlers.get(name) ?? []) h(...args)
+      }
+      vi.setSystemTime(1_000_000)
+      fire('workflow/start', { id: 'wf-live' })
+      fire('workflow/start', { id: 'wf-settled' })
+      vi.setSystemTime(1_080_000) // +80s
+      fire('workflow/end', { id: 'wf-settled' }, { stopReason: 'completed' })
+      app.handleSubmit('/workflow')
+      await new Promise(resolve => setImmediate(resolve))
+      const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+      // 运行中与已结算 run 都按 startedAt 差值渲染（此前误填时间戳 → 数十万年，
+      // 绝不可能出现 '1m20s'）——两个 run 各一段时长
+      expect(written.match(/1m20s/g)).toHaveLength(2)
+    } finally {
+      vi.useRealTimers()
+    }
+    await app.dispose()
+  })
+
+  it('workflow/log 叙述行进运行中 run 展开视图（⤷ 行 + roster 自动展开）', async () => {
+    const ctx = makeCtx()
+    ctx.agents.create.mockImplementation(({ sessionId }: { sessionId: string }) => {
+      const agent = makeAgent(sessionId)
+      ctx.sessions.get.mockReturnValue(agent.session)
+      return makeHandle(agent)
+    })
+    const listeners = new Map<string, (...args: unknown[]) => void>()
+    ctx.on.mockImplementation((name: string, handler: (...args: unknown[]) => void) => {
+      listeners.set(name, handler)
+      return () => { listeners.delete(name) }
+    })
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    const fire = (name: string, ...args: unknown[]) => { listeners.get(name)?.(...args) }
+    fire('workflow/start', { id: 'wf-log', meta: { name: '日志脚本' } })
+    fire('workflow/log', { id: 'wf-log' }, '第一批任务完成') // 属主第二参为裸 string
+    fire('workflow/log', { id: 'wf-log' }, '第二批任务完成')
+    fire('workflow/agent-start', { id: 'wf-log' }, { seq: 1, label: '执行员' })
+    await new Promise(resolve => setImmediate(resolve))
+    for (const ch of '/workflow') stdin.emit('data', ch)
+    stdin.emit('data', '\r')
+    await new Promise(resolve => setImmediate(resolve))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    // 运行中 run 自动展开：叙述行与 roster 行可见
+    expect(written).toContain('⤷ 第一批任务完成')
+    expect(written).toContain('⤷ 第二批任务完成')
+    expect(written).toContain('1. 执行员')
     await app.dispose()
   })
 
@@ -4577,9 +4656,9 @@ describe('TuiApp 监听器生命周期（?? 短路 + 泄漏回归）', () => {
       .map((c, i) => ({ name: `${c[0]}`, i }))
       .filter(x => x.name.startsWith('workflow/'))
       .map(x => x.i)
-    expect(wfIdx.length).toBe(5) // start/phase/agent-start/agent-end/end
+    expect(wfIdx.length).toBe(6) // start/phase/log/agent-start/agent-end/end
     const disposers = wfIdx.map(i => ctx.on.mock.results[i]!.value as () => boolean)
-    // 切换会话 → detachProjections 应注销全部五个（当前实现只保存 start 的）
+    // 切换会话 → detachProjections 应注销全部六个（当前实现只保存 start 的）
     const second = makeAgent('wf-leak-2')
     ctx.agents.resume.mockResolvedValue(makeHandle(second))
     ctx.sessions.get.mockReturnValue(second.session)

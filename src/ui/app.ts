@@ -157,9 +157,22 @@ interface TaskSnapshotView {
   readonly startedAt: number
 }
 
-/** T2.2：workflow/start|phase|agent-start|agent-end|end 事件 payload 的最小 wire 形状。 */
+/** T2.2：workflow/start|phase|log|agent-start|agent-end|end 事件 payload 的最小 wire 形状。 */
 interface WorkflowRunInfoWire {
   readonly id: string
+  /** run 的 meta 块（workflow/start 携带；可选——旧形状事件无 meta 时回退 id）。 */
+  readonly meta?: WorkflowMetaWire
+}
+interface WorkflowMetaWire {
+  readonly name: string
+  readonly description?: string
+  readonly phases?: { title: string }[]
+}
+/** 规范化后的 run meta（创建时 name/description 必有值；与 WorkflowMetaInput 形状一致）。 */
+interface WorkflowMetaNormalized {
+  readonly name: string
+  readonly description: string
+  readonly phases?: { title: string }[]
 }
 interface WorkflowAgentWire {
   readonly seq: number
@@ -174,13 +187,22 @@ interface WorkflowResultWire {
   readonly error?: string
 }
 
+/** 单个 run 保留的最近叙述行上限（workflow/log drop-oldest 防刷屏）。 */
+const WORKFLOW_LOG_CAP = 20
+
 /** T2.2：运行中 workflow 缓存项（key = payload.id；随 start 建、end 移除）。 */
 interface WorkflowRunState {
   readonly id: string
+  /** run 的 meta 块（start 事件携带，创建时规范化——name 缺省回退 id，description 缺省空串）。 */
+  readonly meta: WorkflowMetaNormalized
+  /** run 开始时间（start 事件落地；elapsedMs 数据源）。 */
+  readonly startedAt: number
   /** 最近一次 workflow/phase 标题；无 phase 事件时为 null。 */
   phase: string | null
   /** 已建立的 agent() 调用（agent-start 追加，agent-end 标记 outcome）。 */
   agents: { seq: number; label: string; outcome?: 'completed' | 'failed' | 'cancelled' }[]
+  /** 脚本叙述行（workflow/log；cap 20 drop-oldest 防刷屏）。 */
+  logs: string[]
 }
 import { WorkflowStatusLine } from '../statusline.js'
 import {
@@ -1833,19 +1855,42 @@ export class TuiApp {
     })
     this.subagentDisposer = () => { onSubStart(); onSubEnd(); onRunStart(); onRunEnd() }
     this.refreshDelegationTree(id)
-    // T2.2：workflow 事件订阅（start/phase/agent-start/agent-end/end → 缓存；
-    // 跨会话运行，attach 订阅 dispose 释放）。五个 disposer 全部收集——
-    // 只存 start 会让其余四个在每次挂载时泄漏。
+    // T2.2：workflow 事件订阅（start/phase/log/agent-start/agent-end/end → 缓存；
+    // 跨会话运行，attach 订阅 dispose 释放）。六个 disposer 全部收集——
+    // 只存 start 会让其余五个在每次挂载时泄漏。
     this.workflowDisposer?.()
     this.workflowRuns.clear()
     const workflowListeners = [
       this.ctx.on('workflow/start', (info: WorkflowRunInfoWire) => {
-        this.workflowRuns.set(info.id, { id: info.id, phase: null, agents: [] })
+        // meta 创建时规范化：旧形状事件无 meta 时 name 回退 id、description 空串，
+        // 消费点直接透传不再判空。
+        const meta = info.meta
+        this.workflowRuns.set(info.id, {
+          id: info.id,
+          meta: {
+            name: meta?.name ?? info.id,
+            description: meta?.description ?? '',
+            ...meta?.phases === undefined ? {} : { phases: meta.phases },
+          },
+          startedAt: Date.now(),
+          phase: null,
+          agents: [],
+          logs: [],
+        })
         this.flushLiveRender()
       }),
       this.ctx.on('workflow/phase', (info: WorkflowRunInfoWire, title: string) => {
         const run = this.workflowRuns.get(info.id)
         if (run !== undefined) { run.phase = title; this.renderBatcher.schedule() }
+      }),
+      this.ctx.on('workflow/log', (info: WorkflowRunInfoWire, message: string) => {
+        const run = this.workflowRuns.get(info.id)
+        if (run !== undefined) {
+          // cap 20 drop-oldest：脚本刷屏只保留最近叙述，面板不被淹没。
+          run.logs.push(message)
+          if (run.logs.length > WORKFLOW_LOG_CAP) run.logs.splice(0, run.logs.length - WORKFLOW_LOG_CAP)
+          this.renderBatcher.schedule()
+        }
       }),
       this.ctx.on('workflow/agent-start', (info: WorkflowRunInfoWire, agent: WorkflowAgentWire) => {
         const run = this.workflowRuns.get(info.id)
@@ -1916,7 +1961,7 @@ export class TuiApp {
   /** T2.2：运行态缓存项 → 面板视图（终态含 stopReason/agentsStarted）。 */
   private toWorkflowRunView(run: WorkflowRunState, result: WorkflowResultWire): WorkflowRunView {
     return {
-      info: { id: run.id, meta: { name: run.phase ?? run.id, description: '' } },
+      info: { id: run.id, meta: run.meta },
       agents: run.agents.map(a => ({
         seq: a.seq,
         label: a.label,
@@ -1928,7 +1973,8 @@ export class TuiApp {
         ...(result.error === undefined ? {} : { error: result.error }),
         agentsStarted: run.agents.length,
       },
-      elapsedMs: Date.now(),
+      elapsedMs: Date.now() - run.startedAt,
+      ...(run.logs.length === 0 ? {} : { logs: [...run.logs] }),
     }
   }
 
@@ -3039,14 +3085,15 @@ export class TuiApp {
     const workflowRuns: WorkflowRunView[] = []
     for (const state of this.workflowRuns.values()) {
       workflowRuns.push({
-        info: { id: state.id, meta: { name: state.phase ?? state.id, description: '' } },
+        info: { id: state.id, meta: state.meta },
         agents: state.agents.map(a => ({
           seq: a.seq,
           label: a.label,
           childId: '',
           outcome: a.outcome ?? 'completed',
         })),
-        elapsedMs: Date.now(),
+        elapsedMs: Date.now() - state.startedAt,
+        ...(state.logs.length === 0 ? {} : { logs: [...state.logs] }),
       })
     }
     workflowRuns.push(...this.completedWorkflowRuns.values())
