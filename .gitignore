@@ -11,3 +11,8 @@ coverage/
 # scratch 目录（superpowers 工作流产物；有价值文档已归档进 docs/）
 .superpowers/
 docs/superpowers/
+
+# rivet 工具本地状态（每台机器各自生成，不入库）
+.rivet/
+.rivet.md
+.rivet-config.json

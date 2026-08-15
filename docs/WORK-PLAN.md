@@ -10,7 +10,7 @@
 |---|---|---|---|---|
 | P0-1 | 宿主视觉桥契约对齐 | 0.5d（宿主仓） | dsh-vision-bridge 所在仓 | 待排期（本仓侧已落地：resolveVisionBridge 探测 + 单测） |
 | P1-1 | 平台层静默降级 → 可见提示 | 0.5d | 无 | ✅ 已完成（2e3a2de / 55f3dd0） |
-| P1-2 | 仓卫生（CI / lockfile / scratch 目录） | 1d | 无 | ✅ 已完成（lockfile 跟踪 adc6155；CI 23f4df2；scratch 归档 1409720） |
+| P1-2 | 仓卫生（CI / lockfile / scratch 目录） | 1d | 无 | ✅ 已完成（lockfile 跟踪 adc6155；CI 23f4df2；scratch 归档 1409720；AGENTS.md 入库 + .rivet 忽略本批） |
 | P1-3 | 文档承诺模块处置 | 0.5h | 无 | ✅ 已完成（e546796） |
 | P2-1 | activity-status / activity-store 接线 | 1d | 需真实消费方（决策点） | 暂缓 |
 | P2-2 | vision-ask 伴生包改进 | 各自独立 | 见项内 | 待排期 |
@@ -44,7 +44,8 @@
 - **无 CI**：仓内无 `.github/workflows`。新增最小 CI：node `^22.19 || >=24` 矩阵跑 `npm run typecheck && npm test && npm run build`（三门禁均已本地化）。
 - **lockfile 未跟踪**：`package-lock.json` 自抽取起未入库，`npm ci` 不可复现。决策点：跟踪它（现状 npm 流）或迁 pnpm 删 lock。建议跟踪 package-lock.json（与现有 scripts/CI 一致）。
 - **scratch 目录**：`.superpowers/`、`docs/superpowers/`、`.code-review-graph/` 未跟踪。其中有持续价值的文档（如 C4 拆分方案、kernel 协作设计）归档进 `docs/`，其余移出仓或加 .gitignore。
-- **环境文件未跟踪**：`AGENTS.md`（项目操作规则，建议入库）、`.rivet/` / `.rivet.md` / `.rivet-config.json`（rivet 工具本地状态，建议加 .gitignore）——提交审查时确认。
+- **环境文件未跟踪**：✅ 已处置——`AGENTS.md` 入库（项目操作规则应入版本控制）；`.rivet/` / `.rivet.md` / `.rivet-config.json` 加 .gitignore（rivet 本地状态）。
+- **vision-ask 门禁**：✅ 已接入——`npm run typecheck` / `npm test` 均覆盖 vision-ask（src 对 rc.6 peer 的类型漂移已修：`Agent.options`/`session.id`、`resolveModelInfo`、Config 已解析形状、schemastery 换 `@deepseek-ai/schemastery`）；CI 无需改步骤。
 
 **验收**：CI 绿；干净 clone 后 `npm ci && npm test` 可复现；`git status` 无意外未跟踪项。
 
@@ -87,4 +88,6 @@
 ## 杂项（随时可带）
 
 - README 快捷键表补审批卡 `a` 与历史搜索 `p/P` 行 ✅ 已完成（e546796）。
+- 两轮提交审查的发现项 ✅ 已修复：第二轮（supportsOsc52 误判 VTE/screen/内核 VT、Ctrl+E 成功路径空目录残留、空剪贴板文案）4a9eaf0；第一轮（turn 摘要轮号取事件权威值、/status 警告文案、lib 与 src 同步）3763fa8。`1409720` 提交信息中「副本.md git 历史保留」不成立（该文件从未被跟踪）——仅记录，不改历史。
+- **已知 flake**：`tests/app.spec.ts`「长静默 tool 阶段 → stale 提示上屏」（真实计时器 + 20s 超时）在机器高负载下会超时——隔离运行稳定通过。并发会话同机跑门禁时见过一次。若再频繁出现，考虑改假计时器或放宽超时。
 - `docs/2026-08-15-dsh-kernel-collab-design.md`（已归档）的 spark 推理尾部截断协议「本仓尚未接通」——属未来 kernel 协作功能，跟随 harness 侧排期，不在本计划内单列。
