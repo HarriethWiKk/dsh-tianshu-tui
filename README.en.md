@@ -57,7 +57,22 @@ The companion vision plugin lives in `vision-ask/` if you need image re-interrog
 
 ## Release notes
 
-Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.6`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.6)).
+Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.7`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.7)).
+
+### 0.1.2-rc.7 (2026-08-15)
+
+A functionality-audit overhaul: the vision bridge is detectable, missing services no longer fail silently, and the projection layer now powers a per-turn summary line; platform degradations are all visible.
+
+- When the primary model cannot see images and no `vision` config was injected, the TUI now auto-detects a host `visionBridge` service (contract in the Assembly section)
+- Missing goal/subagent plugins no longer prevent the entire TUI from silently never starting (goals/subagents are optional services now)
+- The `/tasks` `/subagents` `/workflow` `/status` `/config` `/skills` panels and plan mode echo a ⚠ warning when their backing service is absent, instead of going blank without a word
+- `/clear` actually clears the screen (it previously only reset the internal buffer); the `Ctrl+.` keymap panel is complete at 20 entries and a narrow-width overflow is fixed
+- Projection layer wired: a dim `turn N · 读X 改Y · elapsed` summary line lands at turn end, and `/status` gains a session-totals section that works even without the host projection service
+- Platform degradations are now visible: missing clipboard-image toolchain, external-editor spawn failure, OSC52-incapable terminals, and self-update failures all produce an explicit notice
+- Fixes: pending approvals/questions settle correctly on session switch and exit; fiber remount no longer throws DUPLICATE_PROVIDER (composition tests guard both)
+- Engineering: two-stage build (tsc → tsdown, no more stale-artifact repackaging), a typecheck gate, CI, and vision-ask realigned to the rc.6 type surface
+
+Users already on `0.1.x-rc.6` pick this up on the next launch. Restart after you see `插件已更新到 …，请重启 dsh 后生效`.
 
 ### 0.1.2-rc.6 (2026-08-14)
 
