@@ -615,8 +615,9 @@ describe('TuiApp Phase 6.4 外部编辑器', () => {
     ctx.agents.create.mockResolvedValue(handle)
     ctx.sessions.get.mockReturnValue(agent.session)
     const stdin = makeStdin()
+    const stdout = makeStdout()
 
-    const app = new TuiApp({ ctx, stdout: makeStdout(), stdin, editorCommand: '/nonexistent/editor-xyz', editorKey: 'ctrl_o' })
+    const app = new TuiApp({ ctx, stdout, stdin, editorCommand: '/nonexistent/editor-xyz', editorKey: 'ctrl_o' })
     await app.attach()
 
     stdin.emit('data', '保留原文')
@@ -627,6 +628,11 @@ describe('TuiApp Phase 6.4 外部编辑器', () => {
     expect(agent.followup).toHaveBeenCalledTimes(1)
     const keptTexts = allCallTexts(agent.followup)
     expect(keptTexts).toEqual(['保留原文'])
+    // P1-1：失败回显（含实际命令与原因）
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('外部编辑器启动失败')
+    expect(written).toContain('/nonexistent/editor-xyz')
+    expect(written).toContain('ENOENT')
     await app.dispose()
   })
 })
@@ -2738,6 +2744,39 @@ describe('TuiApp 会话交互 UX 对齐（显示层 = 实际能力）', () => {
     await app.attach()
     const after = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     expect(after).toContain('插件已更新到 0.1.0-rc.7，请重启 dsh 后生效')
+    await app.dispose()
+  })
+
+  it('notifyPluginUpdateFailed：attach 后写入失败警告（含 SKIP 提示，P1-1）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('upd-fail')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    await app.attach()
+    app.notifyPluginUpdateFailed('pnpm add exited 1')
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('自更新失败')
+    expect(written).toContain('pnpm add exited 1')
+    expect(written).toContain('DSH_TUI_SKIP_UPDATE=1')
+    await app.dispose()
+  })
+
+  it('notifyPluginUpdateFailed：attach 前排队，attach 后才出现（P1-1）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('upd-fail-queue')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    app.notifyPluginUpdateFailed('network error')
+    const before = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(before).not.toContain('自更新失败')
+    await app.attach()
+    const after = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(after).toContain('自更新失败')
+    expect(after).toContain('network error')
     await app.dispose()
   })
 })
@@ -5069,6 +5108,19 @@ describe('TuiApp 剪贴板图片与复制（opencode 接线移植）', () => {
     await app.dispose()
   })
 
+  it('Ctrl+V：剪贴板无图且无文本 → 回显读图不可用警告（P1-1）', async () => {
+    vi.mocked(readImageFromClipboard).mockResolvedValueOnce(null)
+    vi.mocked(readTextFromClipboard).mockResolvedValueOnce(null)
+    const { stdin, stdout, app } = boot()
+    await app.attach()
+    stdout.write.mockClear()
+    stdin.emit('data', '\x16') // ctrl_v
+    await new Promise(resolve => setTimeout(resolve, 30))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('剪贴板读图不可用（需 osascript / wl-paste / xclip / PowerShell）')
+    await app.dispose()
+  })
+
   it('onPaste：剪贴板有图 → 附图并吞掉乱码 paste（输入行无乱码文本）', async () => {
     vi.mocked(readImageFromClipboard).mockResolvedValueOnce({ dataUrl: PNG_DATA_URL, mime: 'image/png', name: 'clipboard.png', source: 'png' })
     const { stdin, stdout, app } = boot()
@@ -5124,6 +5176,39 @@ describe('TuiApp 剪贴板图片与复制（opencode 接线移植）', () => {
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     expect(written).toContain('\x1b]52;c;') // OSC52 clipboard write
     await app.dispose()
+  })
+
+  it('Alt+W 且终端不支持 OSC52 → 首次回显警告一次，二次静默（序列仍写出，P1-1）', async () => {
+    const prevProg = process.env.TERM_PROGRAM
+    const prevTerm = process.env.TERM
+    process.env.TERM_PROGRAM = 'Apple_Terminal' // macOS Terminal.app 不支持 OSC52
+    delete process.env.TERM
+    try {
+      const { stdin, stdout, app } = boot()
+      await app.attach()
+      stdout.write.mockClear()
+      for (const ch of 'hello') stdin.emit('data', ch)
+      stdin.emit('data', '\x1b[1;2H') // shift+home 全选
+      stdin.emit('data', '\x1bw')     // Alt+W
+      await new Promise(resolve => setTimeout(resolve, 30))
+      const first = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+      expect(first).toContain('OSC52')          // 警告出现
+      expect(first).toContain('\x1b]52;c;')     // 降级不变：序列仍写出（无害忽略）
+      // 二次 Alt+W：重新选区（光标在行首，shift+end 全选）后复制，警告不重复
+      stdout.write.mockClear()
+      stdin.emit('data', '\x1b[1;2F') // shift+end
+      stdin.emit('data', '\x1bw')
+      await new Promise(resolve => setTimeout(resolve, 30))
+      const second = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+      expect(second).not.toContain('OSC52')
+      expect(second).toContain('\x1b]52;c;')
+      await app.dispose()
+    } finally {
+      if (prevProg === undefined) delete process.env.TERM_PROGRAM
+      else process.env.TERM_PROGRAM = prevProg
+      if (prevTerm === undefined) delete process.env.TERM
+      else process.env.TERM = prevTerm
+    }
   })
 
   it('提交带图：用户气泡含 📎 行 + followup 收到含 image block 的 UserMessage', async () => {

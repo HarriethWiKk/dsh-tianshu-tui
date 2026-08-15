@@ -111,6 +111,8 @@ export function apply(ctx: Context, config: TuiRunnerConfig = {}): void {
     // CI/VITEST/非 npm 安装会 noop，不挡 attach。
     void runSelfUpdate({ startDir: fileURLToPath(new URL('.', import.meta.url)) }).then((result) => {
       if (result.kind === 'updated') app.notifyPluginUpdated(result.version)
+      // P1-1：更新失败不再静默——attach 后回显 warning（附 DSH_TUI_SKIP_UPDATE=1 提示）
+      else if (result.kind === 'failed') app.notifyPluginUpdateFailed(result.error)
     })
   })
 }

@@ -55,6 +55,7 @@ import { trackAgent, type LiveAgent } from '../adapter/live.js'
 import { controlsFromHandle, controlsFromRegistry, type AgentControls } from '../adapter/send.js'
 import { listSessions, flushAll, getSession, type SessionSummary } from '../adapter/sessions.js'
 import { updateNoticeText, readOwnVersion } from '../self-update.js'
+import { supportsOsc52 } from '../term-caps.js'
 import { getTheme, getActiveThemeName, setTheme, type RivetTheme } from '../theme.js'
 import { displayWidth, ambiguousWideEnabled } from '../width.js'
 import { detectTerminalBackground, autoThemeFor } from '../theme-detect.js'
@@ -186,7 +187,7 @@ import { formatPermissionDiff } from '../format/permission-diff.js'
 import { formatApprovalCard } from '../format/approval-card.js'
 import { HistorySearchOverlay } from '../format/history-search-overlay.js'
 import { RewindOverlay, type RewindMode, type RewindResult } from '../format/rewind-overlay.js'
-import { openInEditor } from '../external-editor.js'
+import { openInEditorDetailed, getEditorCommand } from '../external-editor.js'
 import { FluencyTracker } from '../fluency-hook.js'
 import { expandMentions } from '../mention-expand.js'
 import { formatSessionAge } from '../restore-session.js'
@@ -547,6 +548,10 @@ export class TuiApp {
   /** attach() 完成后才往 scrollback 写更新提示（避免欢迎页之前的空窗）。 */
   private attached = false
   private pendingUpdateNotice: string | null = null
+  /** 自更新失败提示（attach 前排队，attach 后 flush；P1-1）。 */
+  private pendingUpdateFailNotice: string | null = null
+  /** OSC52 不支持警告：每会话（TuiApp 生命周期）首次 Alt+W 提示一次（P1-1）。 */
+  private osc52WarningShown = false
   /** bracketed paste 处理器 disposer（attach 注册，dispose 释放）。 */
   private pasteDisposer: (() => void) | null = null
   /** 渲染帧合并器：事件路径走 schedule（16ms 合并），critical 路径走 flushLiveRender。 */
@@ -953,6 +958,10 @@ export class TuiApp {
       this.commitToScrollback({ text: this.pendingUpdateNotice, trailingNewline: true })
       this.pendingUpdateNotice = null
     }
+    if (this.pendingUpdateFailNotice !== null) {
+      this.echoWarn(this.pendingUpdateFailNotice)
+      this.pendingUpdateFailNotice = null
+    }
     this.flushLiveRender()
     // A3：纯位置参数作为初始 prompt（`dsh --profile tui "修复这个 bug"`）。
     if (initialPrompt !== '') {
@@ -973,6 +982,20 @@ export class TuiApp {
     }
     this.commitToScrollback({ text, trailingNewline: true })
     this.flushLiveRender()
+  }
+
+  /**
+   * 自更新失败的用户提示（P1-1）：回显一行 warning，附 SKIP 开关提示。
+   * attach 完成前调用则排队，完成后写入 scrollback。
+   */
+  notifyPluginUpdateFailed(error: string): void {
+    if (this.disposed) return
+    const text = `⚠ 自更新失败：${error}（可用 DSH_TUI_SKIP_UPDATE=1 关闭）`
+    if (!this.attached) {
+      this.pendingUpdateFailNotice = text
+      return
+    }
+    this.echoWarn(text)
   }
 
   /** T3.1：结构化提问 answerer——薄转发 QuestionController（渲染/ESC/重绘由控制器回调承担）。 */
@@ -1058,6 +1081,9 @@ export class TuiApp {
     if (text) {
       this.inputLine.insertText(text)
       this.flushLiveRender()
+    } else {
+      // P1-1：无图且无文本——回显读图不可用（剪贴板为空或平台工具链缺失均落此）
+      this.echoWarn('⚠ 剪贴板读图不可用（需 osascript / wl-paste / xclip / PowerShell）')
     }
   }
 
@@ -2083,13 +2109,19 @@ export class TuiApp {
     // 编辑器接管终端前退出 raw-mode；spawn 结束（含失败）恢复。
     try { this.stdin.setRawMode(false) } catch { /* best-effort：非 TTY 无 raw-mode */ }
     let content: string | null = null
+    let editorError: string | null = null
     try {
-      content = openInEditor(this.inputLine.value, this.editorCommand)
+      const r = openInEditorDetailed(this.inputLine.value, this.editorCommand)
+      content = r.content
+      editorError = r.error
     } finally {
       try { this.stdin.setRawMode(true) } catch { /* best-effort */ }
     }
     if (content !== null) {
       this.inputLine.setValue(content)
+    } else if (editorError !== null) {
+      // P1-1：编辑器启动失败不再静默——回显实际生效命令与 spawn 原因
+      this.echoWarn(`⚠ 外部编辑器启动失败（${this.editorCommand ?? getEditorCommand()}）：${editorError}`)
     }
     this.flushLiveRender()
   }
@@ -2487,7 +2519,14 @@ export class TuiApp {
     // 选区剪切/复制的 OSC52 drain：vim yank / Alt+Y 复制写系统剪贴板
     // （终端支持 OSC52 时生效，不支持者无害忽略）。
     const clip = this.inputLine.takeClipboardOut()
-    if (clip != null) this.stdout.write(osc52Clipboard(clip))
+    if (clip != null) {
+      // P1-1：终端不支持 OSC52 时每会话首次提示一次；序列仍写出（保持无害忽略降级）
+      if (!supportsOsc52() && !this.osc52WarningShown) {
+        this.osc52WarningShown = true
+        this.echoWarn('⚠ 终端不支持 OSC52 复制（Alt+W 无法写入系统剪贴板，请用终端原生复制）')
+      }
+      this.stdout.write(osc52Clipboard(clip))
+    }
     if (event !== null) this.flushLiveRender()
   }
 
