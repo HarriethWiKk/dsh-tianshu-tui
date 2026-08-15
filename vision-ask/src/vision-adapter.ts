@@ -39,7 +39,7 @@ export const DONE = '[DONE]'
  * @param stream - raw SSE bytes; reads may split anywhere, including mid-UTF-8 sequence.
  * @returns each event's data payload in arrival order, the `[DONE]` sentinel last.
  */
-export async function* parseSse(stream: ReadableStream<BufferSource>): AsyncGenerator<string> {
+export async function* parseSse(stream: ReadableStream<Uint8Array>): AsyncGenerator<string> {
   const reader = stream.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
@@ -204,7 +204,7 @@ export class VisionAdapter extends LlmAdapter {
 
   /** @inheritdoc */
   providerInfo(provider: string): LlmModelInfo {
-    return { id: provider, name: provider }
+    return { provider, id: provider, name: provider }
   }
 
   /** @inheritdoc */

@@ -11,6 +11,8 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
+import { SessionId } from '@deepseek-ai/dsh-session'
+import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { askToolDefinition } from '../src/ask-tool.ts'
 import { ImageRegistry } from '../src/registry.ts'
 import type { AskImageDeps } from '../src/ask-tool.ts'
@@ -26,26 +28,31 @@ function ref(): ImageAttachmentRef {
 }
 
 function agent(over: Partial<Agent> = {}): Agent {
+  // 当前 Agent 形状：id/session.id 为 SessionId 品牌类型，模型定路在 options
+  // （sessionId/agentOptions 是快照期旧字段名，已随 dsh-agent 类型漂移移除）。
   return {
-    id: 'a1',
-    sessionId: 's1',
-    agentOptions: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+    id: SessionId('a1'),
+    session: { id: SessionId('s1') },
+    options: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
     ...over,
-  } as Agent
+  } as unknown as Agent
 }
 
-function exec(agentValue: Agent | undefined) {
+/** 最小执行上下文：ask_image 只读 agent/signal，其余 ToolRunContext 字段
+ *  是上下文面其他消费者用的——测试替身经 cast 补齐类型面。 */
+function exec(agentValue: Agent | undefined): ToolRunContext {
   return {
     agent: agentValue,
     signal: new AbortController().signal,
-  }
+  } as unknown as ToolRunContext
 }
 
-/** mock ctx：llm.stream 产出给定文本块，resolveModel 返回给定 modalities。 */
+/** mock ctx：llm.stream 产出给定文本块，resolveModelInfo 返回给定 modalities。 */
 function mockCtx(options: {
   modalities?: string[]
   streamText?: string
-  streamFinish?: StreamChunk['type']
+  /** finish chunk 的 reason 开关（非 chunk type）：'finish' → stop，'error' → error。 */
+  streamFinish?: 'finish' | 'error'
 } = {}) {
   const { modalities = ['text'], streamText = '这是一张图的描述', streamFinish = 'finish' } = options
   const stream = vi.fn(async function* (): AsyncGenerator<StreamChunk> {
@@ -55,8 +62,8 @@ function mockCtx(options: {
     }
     yield { type: 'finish', reason: streamFinish === 'finish' ? { kind: 'stop' } : { kind: 'error', failure: { message: '模型错误', code: 'X' } } }
   })
-  const resolveModel = vi.fn(async () => ({ provider: 'p', id: 'm', inputModalities: modalities }))
-  return { ctx: { llm: { stream, resolveModel } } as never, stream, resolveModel }
+  const resolveModelInfo = vi.fn(async () => ({ provider: 'p', id: 'm', inputModalities: modalities }))
+  return { ctx: { llm: { stream, resolveModelInfo } } as never, stream, resolveModelInfo }
 }
 
 function deps(over: Partial<AskImageDeps> = {}): AskImageDeps {
@@ -81,7 +88,7 @@ describe('ask_image 参数校验', () => {
 
 describe('ask_image 三路径', () => {
   it('text-only 主控（动态判定）→ 描述路径 + 缓存二次命中', async () => {
-    const { ctx, stream, resolveModel } = mockCtx({ modalities: ['text'], streamText: '第一行是红色报错' })
+    const { ctx, stream, resolveModelInfo } = mockCtx({ modalities: ['text'], streamText: '第一行是红色报错' })
     const registries = new Map()
     const r = new ImageRegistry()
     r.register([ref()])
@@ -89,7 +96,7 @@ describe('ask_image 三路径', () => {
     const definition = askToolDefinition(ctx, deps({ registries }))
 
     const first = await definition.execute({ question: '逐字念出报错' }, exec(agent()))
-    expect(resolveModel).toHaveBeenCalled()
+    expect(resolveModelInfo).toHaveBeenCalled()
     expect(stream).toHaveBeenCalledTimes(1)
     expect(first).toMatchObject({ kind: 'answer', answer: '第一行是红色报错', cached: false, imageId: 'img_1' })
 

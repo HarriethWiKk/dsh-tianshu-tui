@@ -17,7 +17,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import z from 'schemastery'
+import z from '@deepseek-ai/schemastery'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import { registerAskImageTool } from './ask-tool.ts'
 import { ImageRegistry } from './registry.ts'
@@ -29,24 +29,24 @@ export const name = 'vision-ask'
 /** llm/tools services drive the registry listener and the tool registration. */
 export const inject = ['llm', 'tools']
 
-/** Vision co-pilot configuration. */
+/** Vision co-pilot configuration（接口描述 schemastery 校验/默认值落定后的已解析形状）。 */
 export interface Config {
   /** Master switch; false disables registration, tool, and listener (default true). */
-  enabled?: boolean
+  enabled: boolean
   /**
    * Provider route the plugin registers for vision calls (default 'vision-ask').
    * Independent of the primary model's provider — the adapter serializes
    * image blocks that the text-only baseline route cannot carry.
    */
-  provider?: string
+  provider: string
   /** Vision model id sent on the wire (required). */
   model: string
   /** OpenAI-compatible endpoint base (default https://api.deepseek.com). */
-  baseUrl?: string
+  baseUrl: string
   /** Environment variable holding the API key (default DEEPSEEK_API_KEY). */
-  apiKeyEnv?: string
+  apiKeyEnv: string
   /** Description output token cap (default 1024). */
-  maxTokens?: number
+  maxTokens: number
   /**
    * Primary-model vision capability override. Omitted: resolved dynamically
    * from the calling agent's model via inputModalities. true: always forward
@@ -55,9 +55,9 @@ export interface Config {
    */
   primarySupportsVision?: boolean
   /** Registry image-count cap per session (default 8). */
-  registryMaxImages?: number
+  registryMaxImages: number
   /** Registry total-byte cap per session (default 24 MiB). */
-  registryMaxBytes?: number
+  registryMaxBytes: number
 }
 
 /** Schemastery validation for {@link Config}. */

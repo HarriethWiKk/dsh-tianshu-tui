@@ -117,7 +117,8 @@ describe('VisionAdapter.stream', () => {
 
   function mockFetch(chunks: Array<Record<string, unknown>>) {
     const body = chunks.map(c => `data: ${JSON.stringify(c)}\n\n`).join('') + 'data: [DONE]\n\n'
-    const fetchMock = vi.fn(async () => new Response(body, {
+    // 参数类型带上 fetch 签名（url/init），断言侧才能读 calls[0][1].body。
+    const fetchMock = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => new Response(body, {
       status: 200,
       headers: { 'content-type': 'text/event-stream' },
     }))

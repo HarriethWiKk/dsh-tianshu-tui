@@ -116,7 +116,7 @@ function resolveImage(
   if (agent === undefined) {
     throw new HarnessError('ask_image 需要调用 agent', 'ASK_IMAGE_AGENT_REQUIRED')
   }
-  const registry = deps.registries.get(agent.sessionId)
+  const registry = deps.registries.get(agent.session.id)
   if (registry === undefined || registry.size === 0) {
     throw new HarnessError(
       '视觉功能当前不可用：本会话还没有已发送的图片（图片在提交时自动登记，可先请用户发图）。'
@@ -135,7 +135,7 @@ function resolveImage(
   return { registry, image }
 }
 
-/** 主控是否原生识图：配置强制优先，否则动态查 resolveModel 的 inputModalities。 */
+/** 主控是否原生识图：配置强制优先，否则动态查 resolveModelInfo 的 inputModalities。 */
 async function primarySeesImages(
   deps: AskImageDeps,
   ctx: Context,
@@ -143,11 +143,11 @@ async function primarySeesImages(
 ): Promise<boolean> {
   if (deps.primarySupportsVision !== undefined) return deps.primarySupportsVision
   const agent = exec.agent
-  const provider = agent?.agentOptions?.provider
-  const model = agent?.agentOptions?.model
+  const provider = agent?.options.provider
+  const model = agent?.options.model
   if (provider === undefined || model === undefined) return false
   try {
-    const resolved = await ctx.llm.resolveModel(provider, model, exec.signal)
+    const resolved = await ctx.llm.resolveModelInfo(provider, model, exec.signal)
     return resolved.inputModalities?.includes('image') ?? false
   } catch {
     // 主控模型未知/查询失败：按 text-only 走描述路径（描述始终可用，不炸轮）。
