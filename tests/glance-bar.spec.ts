@@ -88,10 +88,11 @@ describe('glanceBarSegments', () => {
     expect(text).toContain('缓存 30%')
   })
 
-  it('effort：model 段后追加 effort 段', () => {
+  it('effort：model 段后追加 effort 段（◎ 前缀紧凑显示）', () => {
     const segs = plain(glanceBarSegments(base({ effort: 'max' }))).join(' · ')
-    expect(segs).toContain('effort:max')
-    expect(segs.indexOf('deepseek-v4')).toBeLessThan(segs.indexOf('effort:max'))
+    expect(segs).toContain('◎max')
+    expect(segs).not.toContain('effort:')
+    expect(segs.indexOf('deepseek-v4')).toBeLessThan(segs.indexOf('◎max'))
   })
 
   it('effort 缺省：不渲染 effort 段', () => {

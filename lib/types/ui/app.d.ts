@@ -548,6 +548,13 @@ export declare class TuiApp {
      * 若按投影判断会在 Always-Approve 态误走回 Plan 分支。
      */
     private cycleMode;
+    /**
+     * /yolo：全放行模式快捷入口（approval always-approve 的显式开关）。
+     * 与 Shift+Tab 循环进 always-approve 同语义（allowed-once 短路），但提供
+     * 命令入口；退出会话时 app 侧复位逻辑（setAlwaysApprove(false)）同样覆盖。
+     * @param flag - true 开启全放行（后续审批自动放行）；false 关闭。
+     */
+    private setYoloMode;
     /** C3 项 4：经 planMode 服务切换 plan 状态（服务缺失时回显警告，不再静默）。 */
     private setPlanMode;
     /** 键路由：Enter 提交 / Ctrl-C 取消或退出 / 上下键历史 / 其余交给 InputLine。 */
