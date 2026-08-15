@@ -585,9 +585,14 @@ describe('TuiApp 审查 HIGH 修复回归（177c12e）', () => {
 })
 
 describe('TuiApp Phase 6.4 外部编辑器', () => {
-  /** 生成把临时文件内容改为指定文本的编辑器替身脚本。 */
+  /** 生成把临时文件内容改为指定文本的编辑器替身脚本（win32 用 .cmd，其余平台 .sh）。 */
   function makeEditorScript(replacement: string): { script: string; dir: string } {
     const dir = mkdtempSync(join(tmpdir(), 'tui-edit-spec-'))
+    if (process.platform === 'win32') {
+      const script = join(dir, 'editor.cmd')
+      writeFileSync(script, `@echo off\r\npowershell -NoProfile -Command "Set-Content -Path '%1' -Value '${replacement}' -NoNewline -Encoding ascii"\r\n`)
+      return { script, dir }
+    }
     const script = join(dir, 'editor.sh')
     writeFileSync(script, `#!/bin/sh\nprintf '%s' "${replacement}" > "$1"\n`, { mode: 0o755 })
     return { script, dir }
