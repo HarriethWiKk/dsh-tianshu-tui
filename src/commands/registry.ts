@@ -29,7 +29,8 @@ declare module '@deepseek-ai/dsh-session/types' {
   }
 }
 import { getActiveThemeName, setTheme, THEME_NAMES } from '../theme.js'
-import { listSessions } from '../adapter/sessions.js'
+import { listSessions, loadHistory } from '../adapter/sessions.js'
+import { sessionTitleFor } from '../adapter/session-title.js'
 import { collectDoctorReport, getDoctorFixGuidance } from '../format/doctor-report.js'
 
 /**
@@ -328,8 +329,14 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
             echo('（当前无会话）')
             return
           }
+          // 每行在 session id 旁展示会话标题。数据源为官方 log-backed
+          // `session/title` 事件（dsh-base 装配的 session-title + session-title-llm
+          // 在会话活跃时自动生成）；无标题事件的历史会话展示首条真人消息的
+          // 确定性 fallback；无聊天记录的会话显示「新对话」。只读纯函数，
+          // 不调 API、不写 sidecar、不写 session log。
           for (const row of rows) {
-            echo(`${row.id} · ${new Date(row.createdAt).toISOString()}`)
+            const events = await loadHistory(ctx, row.id)
+            echo(`${row.id} · ${sessionTitleFor(events)} · ${new Date(row.createdAt).toISOString()}`)
           }
           return
         }

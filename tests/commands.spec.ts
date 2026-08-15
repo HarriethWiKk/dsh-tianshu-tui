@@ -11,7 +11,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import {
   BUILTIN_COMMAND_NAMES,
   SlashCommandRegistry,
@@ -278,6 +278,93 @@ describe('内置命令 — /session', () => {
     await cmd.run(args)
     expect(deps.newSession).not.toHaveBeenCalled()
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('/session new|list'))
+  })
+})
+
+describe('内置命令 — /session list 会话标题（官方 session/title 事件 fold + fallback）', () => {
+  /** 一条带真人用户消息与可选标题事件的 live 会话替身。 */
+  function liveSession(sid: SessionId, question: string, title?: string): { id: SessionId; events: SessionEvent[] } {
+    const events = [
+      {
+        seq: 1,
+        time: 1001,
+        type: 'user/message',
+        data: { content: [{ type: 'text', text: question }], source: { kind: 'user' } },
+      },
+    ] as unknown as SessionEvent[]
+    if (title !== undefined) {
+      events.push({
+        seq: 2,
+        time: 1002,
+        type: 'session/title',
+        data: { title, messageSeqs: [1], source: { kind: 'provider', provider: 'session-title-llm' } },
+      } as unknown as SessionEvent)
+    }
+    return { id: sid, events }
+  }
+
+  function listRows(sid: SessionId, createdAt = 1): Array<{ id: SessionId; header: { id: SessionId; version: number; createdAt: number } }> {
+    return [{ id: sid, header: { id: sid, version: 0, createdAt } }]
+  }
+
+  it('list 展示官方 session/title 事件折叠出的标题', async () => {
+    const { cmd } = commandByName('session')
+    const sid = 'session-title-1' as SessionId
+    const live = liveSession(sid, '评估某模型的识别准确率', '评估某模型的识别准确率')
+    const ctx = makeCtx({
+      sessions: {
+        list: vi.fn(() => listRows(sid)),
+        get: vi.fn(() => live),
+      },
+    })
+    const { args, echo } = makeArgs({ text: 'list', ctx })
+    await cmd.run(args)
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining(`session-title-1 · 评估某模型的识别准确率 · ${new Date(1).toISOString()}`))
+  })
+
+  it('list 无标题事件时展示首条真人消息的确定性 fallback', async () => {
+    const { cmd } = commandByName('session')
+    const sid = 'session-title-2' as SessionId
+    const live = liveSession(sid, '写个脚本计算两个数组的交集')
+    const ctx = makeCtx({
+      sessions: {
+        list: vi.fn(() => listRows(sid)),
+        get: vi.fn(() => live),
+      },
+    })
+    const { args, echo } = makeArgs({ text: 'list', ctx })
+    await cmd.run(args)
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('session-title-2 · 写个脚本计算两个数组的交集 ·'))
+  })
+
+  it('list 无聊天记录的会话展示「新对话」', async () => {
+    const { cmd } = commandByName('session')
+    const sid = 'session-title-3' as SessionId
+    const ctx = makeCtx({
+      sessions: {
+        list: vi.fn(() => listRows(sid)),
+        get: vi.fn(() => ({ id: sid, events: [] })),
+      },
+    })
+    const { args, echo } = makeArgs({ text: 'list', ctx })
+    await cmd.run(args)
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('session-title-3 · 新对话 ·'))
+  })
+
+  it('list 不发起任何 llm 调用（纯只读展示）', async () => {
+    const { cmd } = commandByName('session')
+    const sid = 'session-title-4' as SessionId
+    const live = liveSession(sid, '问题', '标题')
+    const ctx = makeCtx({
+      sessions: {
+        list: vi.fn(() => listRows(sid)),
+        get: vi.fn(() => live),
+      },
+    })
+    const { args, echo } = makeArgs({ text: 'list', ctx })
+    await cmd.run(args)
+    expect(echo).toHaveBeenCalled()
+    expect(ctx.reflect.get).not.toHaveBeenCalledWith('llm', false)
   })
 })
 
