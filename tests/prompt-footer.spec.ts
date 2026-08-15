@@ -96,8 +96,9 @@ describe('formatPromptFooter', () => {
   })
 
   it('右侧段放不下：从后往前丢段，末尾段先丢', () => {
+    // 新 hint 集（无 Enter 发送）下左侧满档 29 列；width 78 → 恰好只丢 KK
     const [narrow = ''] = plain(formatPromptFooter(base({
-      width: 80,
+      width: 78,
       rightSegments: ['AA', 'BB', 'CC', 'DD', 'EE', 'FF', 'GG', 'HH', 'II', 'JJ', 'KK'],
     }), fakeTheme()))
     expect(narrow).toContain('normal')
@@ -119,8 +120,9 @@ describe('formatPromptFooter', () => {
   })
 
   it('窄宽仍从右丢段，左侧与右侧同处一行', () => {
+    // width 38 → 左 29 + 右全 12 超出 → 恰丢 CC 留 AA·BB（任意宽度仍同行合并）
     const lines = formatPromptFooter(base({
-      width: 39,
+      width: 38,
       rightSegments: ['AA', 'BB', 'CC'],
     }), fakeTheme())
     expect(lines).toHaveLength(1)
@@ -131,17 +133,17 @@ describe('formatPromptFooter', () => {
   })
 
   it('右侧段恰好填满：pad=0 仍合并，不丢末段', () => {
-    // width 18 → 左侧只剩 `normal`(6)；right 12 → pad=0。旧逻辑 pad>0 会误丢右段。
+    // 新 hint 集下左侧满档 29 列；width 41 → 右段 12 列恰好 pad=0 合并。
     const [line = ''] = plain(formatPromptFooter(base({
-      width: 18,
+      width: 41,
       rightSegments: ['xxxxxxxxxxxx'],
     }), fakeTheme()))
     expect(line).toContain('normal')
     expect(line).toContain('xxxxxxxxxxxx')
     expect(displayWidth(formatPromptFooter(base({
-      width: 18,
+      width: 41,
       rightSegments: ['xxxxxxxxxxxx'],
-    }), fakeTheme())[0] ?? '')).toBe(18)
+    }), fakeTheme())[0] ?? '')).toBe(41)
   })
 
   it('空右侧段：与缺省行为一致', () => {

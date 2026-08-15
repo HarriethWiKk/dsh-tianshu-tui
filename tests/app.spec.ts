@@ -4754,7 +4754,8 @@ describe('C4 概念稿 菜单快捷键与三行底部区（提交后审查补测
     Reflect.deleteProperty(process.env, 'DEEPSEEK_API_KEY')
     try {
       const { stdout, app } = boot()
-      stdout.columns = 50
+      // 新 hint 集（无 Enter 发送）：40 列 → 有效 36 列，恰丢 API 段留模型段
+      stdout.columns = 40
       await app.attach()
       stdout.write.mockClear()
       app.handleSubmit('hi')
