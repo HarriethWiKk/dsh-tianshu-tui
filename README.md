@@ -54,7 +54,7 @@ DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh --profile tui
 
 不要在 DeepSeek Harness 工作区根目录对本包跑 tsdown：会把未发布的 `@deepseek-ai/dsh-root` 写进 bundle，加载必失败。
 
-需要图片再询问能力时，再装配同仓伴生包 `vision-ask/`；需要 LSP 模型工具面（模型可调 `lsp_goto_definition` / `lsp_find_references` / `lsp_diagnostics`）时装配独立插件 [`@deepseek-ai/dsh-lsp`](https://github.com/omdsh-dev/dsh-lsp)（`npx -y @deepseek-ai/dsh plugin --profile tui add github:omdsh-dev/dsh-lsp`）——装配后 TUI 展示桥自动消费其 `lsp` 服务（与模型工具面共享同一 LSP server 集，不双份 spawn；未装配时 TUI 回落内置桥）。
+需要图片再询问能力时，再装配同仓伴生包 `vision-ask/`；需要 LSP 模型工具面（模型可调 `lsp_goto_definition` / `lsp_find_references` / `lsp_diagnostics`）时装配社区插件 [`omdsh-dev/dsh-lsp`](https://github.com/omdsh-dev/dsh-lsp)（`npx -y @deepseek-ai/dsh plugin --profile tui add github:omdsh-dev/dsh-lsp`）——装配后 TUI 展示桥自动消费其 `lsp` 服务（与模型工具面共享同一 LSP server 集，不双份 spawn）。TUI 桥的诊断源探测顺序：社区插件服务（getDiagnostics 形状）→ 官方 `ctx.lsp` seam（deepseek-harness 的 dsh-lsp，经 query(getDiagnostics) 适配）→ 内置桥降级。
 
 ## 更新说明
 

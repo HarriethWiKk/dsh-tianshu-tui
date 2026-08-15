@@ -105,6 +105,7 @@ import {
   createLspBridge,
   officialLspSource,
   type LspBridge,
+  type LspDiagnosticSource,
   type LspDiagnosticView,
   type OfficialLspServiceFacet,
 } from '../lsp/lsp-bridge.js'
@@ -1250,18 +1251,32 @@ export class TuiApp {
    */
   private ensureLspBridge(): LspBridge {
     if (this.lspBridge !== null) return this.lspBridge
-    // 双数据源：官方 ctx.lsp 服务（deepseek-harness 的 dsh-lsp seam，经
-    // officialLspSource 适配 getDiagnostics 操作）存在时消费它——与模型工具面
-    // （官方 lsp 工具）共享同一 provider/server 集，不双份 spawn；未装配时
-    // 回落内置桥（降级路径，保持现状行为）。探测语义同视觉桥 resolveVisionBridge。
+    // 双数据源探测（语义同视觉桥 resolveVisionBridge）：
+    // 1. 社区插件（omdsh-dev/dsh-lsp）provide('lsp') 服务——形状
+    //    { getDiagnostics/isAvailable/dispose }，与模型工具面共享 server 集；
+    // 2. 官方 ctx.lsp seam（deepseek-harness 的 dsh-lsp）——形状
+    //    { registerProvider/query }，经 officialLspSource 适配 getDiagnostics
+    //    操作（官方 seam 未含该操作时适配恒空，未来官方采纳后自动生效）；
+    // 3. 均未装配 → 内置桥（降级路径，保持现状行为）。
     const cwd = this.sessionCwd()
-    const lspService = this.ctx.reflect.get('lsp', false) as OfficialLspServiceFacet | undefined
+    const lspService = this.ctx.reflect.get('lsp', false) as
+      | { getDiagnostics?: unknown; query?: unknown } | undefined
+    let source: LspDiagnosticSource | undefined
+    if (lspService !== undefined) {
+      if (typeof lspService.getDiagnostics === 'function') {
+        // 社区插件形状：直接消费（getDiagnostics/isAvailable/dispose 全兼容）
+        source = lspService as unknown as LspDiagnosticSource
+      } else if (typeof lspService.query === 'function') {
+        // 官方 seam 形状：query(getDiagnostics) 适配
+        source = officialLspSource(lspService as OfficialLspServiceFacet, cwd)
+      }
+    }
     this.lspBridge = createLspBridge({
       cwd,
       ...(this.lspConfig.timeoutMs === undefined ? {} : { timeoutMs: this.lspConfig.timeoutMs }),
       ...(this.lspConfig.spawnFor === undefined ? {} : { spawnFor: this.lspConfig.spawnFor }),
       ...(this.lspConfig.which === undefined ? {} : { which: this.lspConfig.which }),
-      ...(lspService === undefined ? {} : { source: officialLspSource(lspService, cwd) }),
+      ...(source === undefined ? {} : { source }),
     })
     this.lspBridge.onUpdate(() => { this.renderBatcher.schedule() })
     return this.lspBridge

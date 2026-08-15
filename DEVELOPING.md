@@ -23,8 +23,9 @@ cordis.patch.yml    bundle patch：`dsh plugin add` 装配层
 package.json        包清单（@huiliyi37/dsh-tianshu-tui；发版见 docs/RELEASE.md）
 tsdown.config.ts    打包配置（lib/types/*.js → lib/index.js + lib/invariant.js）
 vision-ask/         独立插件 @deepseek-ai/dsh-vision-ask（自有 package.json/tsconfig/src/tests）
-lsp/                独立插件源码（@deepseek-ai/dsh-lsp，已迁出为 omdsh-dev/dsh-lsp 独立仓；
-                    TUI 展示桥探测其 provide('lsp') 服务共享 server 集，未装配回落内置桥）
+lsp/                独立插件源码（@deepseek-ai/dsh-lsp，已迁出为社区独立仓 omdsh-dev/dsh-lsp；
+                    TUI 展示桥探测顺序：社区插件服务 → 官方 ctx.lsp seam（getDiagnostics
+                    适配）→ 内置桥降级）
 ```
 
 ## 依赖前提
