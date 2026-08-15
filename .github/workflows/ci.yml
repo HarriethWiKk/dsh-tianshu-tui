@@ -1,0 +1,26 @@
+name: CI
+
+# 最小 CI（P1-2）：三门禁均已本地化——typecheck + test + build。
+# lockfile 已跟踪，npm ci 可复现。node 矩阵对齐 engines（^22.19 || >=24）。
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['22', '24']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build

@@ -210,6 +210,10 @@ export declare class TuiApp {
     /** attach() 完成后才往 scrollback 写更新提示（避免欢迎页之前的空窗）。 */
     private attached;
     private pendingUpdateNotice;
+    /** 自更新失败提示（attach 前排队，attach 后 flush；P1-1）。 */
+    private pendingUpdateFailNotice;
+    /** OSC52 不支持警告：每会话（TuiApp 生命周期）首次 Alt+W 提示一次（P1-1）。 */
+    private osc52WarningShown;
     /** bracketed paste 处理器 disposer（attach 注册，dispose 释放）。 */
     private pasteDisposer;
     /** 渲染帧合并器：事件路径走 schedule（16ms 合并），critical 路径走 flushLiveRender。 */
@@ -265,6 +269,11 @@ export declare class TuiApp {
      * attach 完成前调用则排队，完成后写入 scrollback。
      */
     notifyPluginUpdated(version: string): void;
+    /**
+     * 自更新失败的用户提示（P1-1）：回显一行 warning，附 SKIP 开关提示。
+     * attach 完成前调用则排队，完成后写入 scrollback。
+     */
+    notifyPluginUpdateFailed(error: string): void;
     /** T3.1：结构化提问 answerer——薄转发 QuestionController（渲染/ESC/重绘由控制器回调承担）。 */
     private handleQuestionRequest;
     /**

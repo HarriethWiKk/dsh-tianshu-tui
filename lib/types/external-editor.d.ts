@@ -34,11 +34,26 @@ export declare function createTempFile(content: string): string;
  * @returns 文件内容（utf-8）。
  */
 export declare function readAndCleanup(path: string): string;
+/** openInEditorDetailed 的结果：内容与启动异常原因分离（P1-1 失败回显用）。 */
+export interface EditorRunResult {
+    /** 编辑后的内容；编辑器启动/执行异常时为 null。 */
+    content: string | null;
+    /** 启动/执行异常信息（spawn error.message）；正常路径为 null。 */
+    error: string | null;
+}
+/**
+ * 打开编辑器编辑 initialContent，返回内容与异常原因。
+ * 编辑器命令可注入（测试）；缺省走 getEditorCommand()。
+ * 编辑器异常终止（status !== 0 且有 error）时 content 为 null、error 携带
+ * spawn 原因；status 非 0 但无 error（编辑器被信号终止但文件已保存）仍读回内容。
+ * @param initialContent - 预填进编辑器的初始内容。
+ * @param editor - 编辑器命令（测试注入）；缺省走 getEditorCommand()。
+ * @returns 内容与异常原因（内容为 null 当且仅当编辑器启动/执行异常）。
+ */
+export declare function openInEditorDetailed(initialContent: string, editor?: string): EditorRunResult;
 /**
  * 打开编辑器编辑 initialContent，返回编辑后的内容。
- * 编辑器命令可注入（测试）；缺省走 getEditorCommand()。
- * 编辑器异常终止（status !== 0 且有 error）返回 null；status 非 0 但无
- * error（编辑器被信号终止但文件已保存）仍读回内容。
+ * 兼容薄包装：失败（启动/执行异常）返回 null；原因经 openInEditorDetailed 获取。
  * @param initialContent - 预填进编辑器的初始内容。
  * @param editor - 编辑器命令（测试注入）；缺省走 getEditorCommand()。
  * @returns 编辑后的内容；编辑器启动/执行异常时为 null。
