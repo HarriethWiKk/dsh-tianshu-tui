@@ -56,7 +56,7 @@ describe('installNpmVersion', () => {
     expect(spawnMock).toHaveBeenCalledTimes(1)
     const [command, args, options] = spawnMock.mock.calls[0]!
     expect(command).toBe(process.env.ComSpec ?? 'cmd.exe')
-    expect(args).toEqual(['/d', '/s', '/c', 'pnpm', 'add', '@huiliyi37/dsh-tianshu-tui@0.1.2-rc.7'])
+    expect(args).toEqual(['/d', '/c', 'pnpm', 'add', '@huiliyi37/dsh-tianshu-tui@0.1.2-rc.7'])
     expect(options).not.toHaveProperty('shell', true)
   })
 
