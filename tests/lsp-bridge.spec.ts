@@ -242,7 +242,7 @@ describe('officialLspSource（官方 ctx.lsp 服务适配）', () => {
     const query = vi.fn(async () => ({
       kind: 'diagnostics',
       diagnostics: [
-        { range: { start: { line: 0, character: 1 }, end: { line: 0, character: 7 } }, severity: 1, message: '官方诊断' },
+        { range: { start: { line: 0, character: 1 }, end: { line: 0, character: 7 } }, severity: 1 as const, message: '官方诊断' },
       ],
     }))
     const source = officialLspSource({ query }, cwd)
@@ -274,7 +274,7 @@ describe('officialLspSource（官方 ctx.lsp 服务适配）', () => {
   it('与 LspBridge 组合：官方服务作为 source 消费', async () => {
     const query = vi.fn(async () => ({
       kind: 'diagnostics',
-      diagnostics: [{ range: { start: { line: 2, character: 0 }, end: { line: 2, character: 4 } }, severity: 2, message: 'warn' }],
+      diagnostics: [{ range: { start: { line: 2, character: 0 }, end: { line: 2, character: 4 } }, severity: 2 as const, message: 'warn' }],
     }))
     const bridge = createLspBridge({
       cwd, timeoutMs: 200,
