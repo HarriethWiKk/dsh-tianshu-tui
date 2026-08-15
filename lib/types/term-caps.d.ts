@@ -29,7 +29,10 @@ export declare function isLegacyWindowsConsole(env?: NodeJS.ProcessEnv, platform
  */
 export declare function supportsOsc52(env?: NodeJS.ProcessEnv): boolean;
 /**
- * locale 是否 CJK（zh/ja/ko 前缀）。优先 env（POSIX 约定），Intl（OS locale）兜底。
+ * locale 是否 CJK（zh/ja/ko 前缀）。env 显式值与 Intl（OS locale）任一命中即
+ * 判定 CJK——与上游 Tianshu-Tui 语义一致。仅 env 优先会把「中文 Windows 配
+ * 英文 LANG」（MSYS 直跑 bash.exe 常见）错判为 non-CJK，导致 legacy conhost
+ * 宽度档位误选、逐行宽度估算错位。
  * @param env - 环境变量（测试注入用，缺省 process.env）。
  * @returns 是否为 CJK locale。
  */

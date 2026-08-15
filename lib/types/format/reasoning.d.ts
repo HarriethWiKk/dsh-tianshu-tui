@@ -8,8 +8,15 @@
  * 是推理段的结束点）；本模块是纯渲染函数。
  */
 import type { RivetTheme } from '../theme.js';
-/** live 推理尾巴显示的行数（流式期只看得到最近的思路）。 */
+/** live 推理尾巴显示行数下限（流式期只看得到最近的思路）。 */
 export declare const REASONING_TAIL_LINES = 3;
+/** live 推理尾巴显示行数上限（高终端；对标 Tianshu THINKING_ROWS_MAX / CC 折叠尾）。 */
+export declare const REASONING_ROWS_MAX = 6;
+/**
+ * 推理尾巴随终端高度缩放：矮窗不少于 {@link REASONING_TAIL_LINES}，
+ * 高窗不超过 {@link REASONING_ROWS_MAX}。按显示行预算，避免长句 wrap 撑破定高视口。
+ */
+export declare function reasoningTailBudget(rows: number): number;
 /** formatReasoningLive 的渲染输入。 */
 export interface FormatReasoningLiveInput {
     /** 已累积的推理文本（reasoning-delta 折叠）。 */
@@ -18,16 +25,22 @@ export interface FormatReasoningLiveInput {
     elapsedMs?: number;
     /** 动画帧序号（shimmer 头行驱动）。 */
     tick: number;
-    /** 终端列数（尾巴行截断度量）。 */
+    /** 终端列数（尾巴 wrap 度量）。 */
     columns: number;
     /** 紧凑模式：仅头行，省略推理尾巴。 */
     compact?: boolean;
     /** 展开模式：渲染推理全文（不截尾），供手动展开查看。 */
     expanded?: boolean;
+    /**
+     * 非展开时尾巴的显示行预算（wrap 后）。缺省 {@link REASONING_TAIL_LINES}。
+     * 装配层传入 {@link reasoningTailBudget}。
+     */
+    maxRows?: number;
 }
 /**
- * live 区流式推理段：shimmer 头行 +（非展开时）尾 {@link REASONING_TAIL_LINES}
- * 行暗色推理文本（超宽截断加省略号）；展开时渲染全部推理行。
+ * live 区流式推理段：shimmer 头行 +（非展开时）尾 N 行暗色推理文本
+ * （N = {@link FormatReasoningLiveInput.maxRows}，缺省 {@link REASONING_TAIL_LINES}；
+ * wrap 后按显示行封顶）。展开时渲染全部推理行。
  * @param input - 推理文本、tick、耗时与终端列数。
  * @param theme - 当前主题（头行基色取 primary；16 色轨自动静态降级）。
  * @returns ANSI 行数组：头行 +（非紧凑时）尾巴/全文行。

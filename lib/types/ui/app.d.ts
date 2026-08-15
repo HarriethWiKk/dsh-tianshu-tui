@@ -216,6 +216,11 @@ export declare class TuiApp {
     private osc52WarningShown;
     /** bracketed paste 处理器 disposer（attach 注册，dispose 释放）。 */
     private pasteDisposer;
+    /**
+     * 动态段高水位（display rows），跨轮保留。回缩会使输入框上跳，并把旧轨线
+     * 留在空隙里（重影）。新会话 / 切会话时归零。
+     */
+    private dynamicRowsHighWater;
     /** 渲染帧合并器：事件路径走 schedule（16ms 合并），critical 路径走 flushLiveRender。 */
     private renderBatcher;
     /** 上次输入框获得焦点的时间戳（Ctrl+V 剪贴板读图防抖；overlay 关闭后

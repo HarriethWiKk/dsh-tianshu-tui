@@ -39,7 +39,9 @@ export declare function ambiguousWideEnabled(): boolean;
 export declare function resetWidthModeCache(): void;
 /** 宽度度量选项（displayWidth / wrapToDisplayWidth / truncateToDisplayWidth 共用）。 */
 export interface DisplayWidthOptions {
-    /** 把非 box/block 的 ambiguous 符号按 2 列计。默认 false（= string-width 行为）。 */
+    /** 把非 box/block 的 ambiguous 符号按 2 列计。缺省跟随全局档位
+     *  ambiguousWideEnabled()——与 LiveEngine.rowsForLine 的度量口径一致，
+     *  避免折叠点与行数估算错位。 */
     ambiguousAsWide?: boolean;
 }
 /**
