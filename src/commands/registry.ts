@@ -18,8 +18,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { getActiveThemeName, setTheme, THEME_NAMES } from '../theme.js'
-import { listSessions } from '../adapter/sessions.js'
-import { ensureSessionBriefs } from '../adapter/session-brief.js'
+import { listSessions, loadHistory } from '../adapter/sessions.js'
+import { sessionTitleFor } from '../adapter/session-title.js'
 import { collectDoctorReport, getDoctorFixGuidance } from '../format/doctor-report.js'
 
 /**
@@ -304,24 +304,14 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
             echo('（当前无会话）')
             return
           }
-          // 每行在 session id 旁展示会话主题梗概（研究问题/主题的任务标题式
-          // 短语）。梗概是 TUI 私有 sidecar 缓存（$DSH_HOME/tui/session-briefs.json），
-          // 不写 session log；缺失的会话（含旧版本产生的历史会话）在此按需
-          // 生成并落盘回填；无聊天记录的会话直接显示「新对话」。
-          const briefs = await ensureSessionBriefs(ctx, rows, {
-            onPending: (id, completed, total) => {
-              echo(`正在生成会话梗概 (${completed + 1}/${total}): ${id}`)
-            },
-            onFailed: (id) => {
-              echo(`⚠ 会话梗概生成失败: ${id}（可稍后再次 /session list 重试）`)
-            },
-          })
+          // 每行在 session id 旁展示会话标题。数据源为官方 log-backed
+          // `session/title` 事件（dsh-base 装配的 session-title + session-title-llm
+          // 在会话活跃时自动生成）；无标题事件的历史会话展示首条真人消息的
+          // 确定性 fallback；无聊天记录的会话显示「新对话」。只读纯函数，
+          // 不调 API、不写 sidecar、不写 session log。
           for (const row of rows) {
-            const brief = briefs.get(row.id)
-            const time = new Date(row.createdAt).toISOString()
-            echo(brief === undefined
-              ? `${row.id} · ${time}`
-              : `${row.id} · ${brief} · ${time}`)
+            const events = await loadHistory(ctx, row.id)
+            echo(`${row.id} · ${sessionTitleFor(events)} · ${new Date(row.createdAt).toISOString()}`)
           }
           return
         }

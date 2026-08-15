@@ -22,7 +22,7 @@
 | src/activity-store.ts | activity-store.ts | modified |
 | src/adapter/live.ts | — | new |
 | src/adapter/send.ts | — | new |
-| src/adapter/session-brief.ts | — | new（/session list 会话主题梗概：sidecar 缓存 + llm 辅助调用回填；无聊天记录显示「新对话」不调 API） |
+| src/adapter/session-title.ts | — | new（/session list 会话标题展示：官方 log-backed session/title 事件 fold → 确定性 fallback → 「新对话」；纯函数只读，不调 API、不写 sidecar） |
 | src/adapter/sessions.ts | — | new |
 | src/adapter/tool-view.ts | — | new（presenter 桥：镜像 apiproxy viewFor 的 presentCall/presentResult 软降级消费） |
 | src/adapter/transcript.ts | — | new |
