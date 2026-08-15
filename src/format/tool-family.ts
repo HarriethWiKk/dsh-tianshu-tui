@@ -40,17 +40,21 @@ const FAMILY_MAP: Record<string, ToolFamily> = {
   inspect_project: 'file',
   file_info: 'file',
   ls: 'file',
-  // shell 执行系（黄）
+  // shell 执行系（黄）：bash 原生 + PTC/Code Mode 的单一 run_code（wire 上
+  // 模型只能直呼 run_code，内部 SDK 子分发不进 durable 日志——按执行型着色）。
   bash: 'shell',
+  run_code: 'shell',
   // 检索系（绿）：文本/结构/语义搜索与相关测试定位
   grep: 'search',
   ast_grep: 'search',
   semantic_search: 'search',
   related_tests: 'search',
-  // 补丁编辑系（紫）：批量/结构性改动
+  // 补丁编辑系（紫）：批量/结构性改动；str_replace_editor 是 Minimal 锚定
+  // phase 与官方极简 preset 的文件编辑工具（schema 即 str_replace_editor）。
   apply_patch: 'edit',
   hash_edit: 'edit',
   str_replace: 'edit',
+  str_replace_editor: 'edit',
   // 网络系（青）：抓取与搜索
   web_fetch: 'network',
   web_search: 'network',

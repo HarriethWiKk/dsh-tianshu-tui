@@ -13,6 +13,8 @@ export interface RestorableSession {
   createdAt: number
   cwd: string | undefined
   parentSession: SessionId | undefined
+  /** Agent preset id（创建值 + 切换值 fold；未记录时 undefined）。 */
+  agentPreset: string | undefined
   live: boolean
 }
 
@@ -42,6 +44,7 @@ export function projectRestorableSessions(
     createdAt: s.createdAt,
     cwd: s.cwd,
     parentSession: s.parentSession,
+    agentPreset: s.agentPreset,
     live: liveIds !== undefined && liveIds.has(s.id),
   }))
 }
@@ -78,8 +81,9 @@ function basename(cwd: string | undefined): string | undefined {
 }
 
 /**
- * 展示行：live ● / persisted ○ + 相对年龄 + cwd basename + 短 id + fork 短父 id；
- * 空列表占位提示。maxRows 限高时超出部分折叠为一行提示（「… 还有 N 个会话」）。
+ * 展示行：live ● / persisted ○ + 相对年龄 + cwd basename + 短 id + fork 短父 id
+ * + agent preset（未记录不显示）；空列表占位提示。maxRows 限高时超出部分
+ * 折叠为一行提示（「… 还有 N 个会话」）。
  * @param rows - 可恢复会话视图行。
  * @param opts - 格式化选项（取 now 与 maxRows）。
  * @returns 每会话一行的展示文本。
@@ -98,6 +102,8 @@ export function formatRestorableSessions(
     if (base !== undefined) parts.push(base)
     parts.push(`#${shortId(r.id)}`)
     if (!r.live && r.parentSession !== undefined) parts.push(`fork #${shortId(r.parentSession)}`)
+    // agent preset 标注（恢复语义：preset 决定会话工具面，恢复时需知情）。
+    if (r.agentPreset !== undefined && r.agentPreset !== '') parts.push(`preset:${r.agentPreset}`)
     return parts.join(' · ')
   })
   const hidden = rows.length - shown.length

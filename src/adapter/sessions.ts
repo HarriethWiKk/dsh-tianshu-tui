@@ -9,6 +9,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { Session, SessionEvent, SessionForkSource, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
+import { resolvePresetId } from '../preset-surface.js'
 
 /**
  * `ctx.sessionPersistence` 的最小读面（metadata 列表 + 事件日志），不引入
@@ -33,6 +34,11 @@ export interface SessionSummary {
   readonly cwd: string | undefined
   /** The session this one was forked from, when known. */
   readonly parentSession: SessionId | undefined
+  /**
+   * Agent preset id in effect for the session (header 创建值 + 日志切换值 fold；
+   * 持久化会话无事件日志时回落 header 值）。null = 未记录（host 未装配 preset）。
+   */
+  readonly agentPreset: string | undefined
 }
 
 function toSummary(header: Session['header']): SessionSummary {
@@ -42,6 +48,7 @@ function toSummary(header: Session['header']): SessionSummary {
     createdAt: header.createdAt,
     cwd: header.cwd,
     parentSession: header.parentSession,
+    agentPreset: header.agentPreset,
   }
   return summary
 }
@@ -64,7 +71,17 @@ export async function listSessions(ctx: Context): Promise<SessionSummary[]> {
     ? await persistence.list()
     : ctx.sessions.list().map(session => session.header)
   return headers
-    .map(toSummary)
+    .map((header) => {
+      const summary = toSummary(header)
+      // live 会话的事件日志在内存，fold 切换值（blank 窗口 /preset 切换）——
+      // 比 header 创建值更新；持久化会话不 inspect（避免 N 次 IO），回落 header 值。
+      const live = ctx.sessions.get(header.id)
+      if (live !== undefined) {
+        const preset = resolvePresetId(summary.agentPreset, live.events)
+        if (preset !== undefined) return { ...summary, agentPreset: preset }
+      }
+      return summary
+    })
     .sort((a: SessionSummary, b: SessionSummary) => b.createdAt - a.createdAt)
 }
 
