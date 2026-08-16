@@ -4788,6 +4788,111 @@ describe('TuiApp 监听器生命周期（?? 短路 + 泄漏回归）', () => {
   })
 })
 
+describe('Issue #31 交互式选择器（/model /theme /session 无参打开）', () => {
+  /** attach 模式 boot（键盘链路在 attach 注册；2466 同款）。 */
+  async function bootPicker() {
+    const ctx = makeCtx()
+    const handlers = new Map<string, Array<(...args: unknown[]) => void>>()
+    ctx.on.mockImplementation((name: string, h: (...args: unknown[]) => void) => {
+      const list = handlers.get(name) ?? []
+      list.push(h)
+      handlers.set(name, list)
+      return () => { }
+    })
+    ctx.agents.create.mockImplementation(({ sessionId }: { sessionId: string }) => {
+      const agent = makeAgent(sessionId)
+      ctx.sessions.get.mockReturnValue(agent.session)
+      return makeHandle(agent)
+    })
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    const written = () => stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    const type = async (text: string) => {
+      for (const ch of text) stdin.emit('data', ch)
+      stdin.emit('data', '\r')
+      await new Promise(resolve => setTimeout(resolve, 30))
+    }
+    return { ctx, stdin, stdout, app, written, type }
+  }
+
+  it('/theme 无参 → 选择器打开（当前 ● 高亮）；↑ 选择 + Enter 切换主题', async () => {
+    setTheme('graphite')
+    const { stdin, app, written, type } = await bootPicker()
+    await type('/theme')
+    expect(written()).toContain('选择主题')
+    expect(written()).toContain('graphite（当前）')
+    // graphite 前一档是 cobalt（THEME_PALETTES 键序）；↑ 选中 + Enter 确认
+    stdin.emit('data', '\x1b[A')
+    stdin.emit('data', '\r')
+    await new Promise(resolve => setTimeout(resolve, 30))
+    expect(getActiveThemeName()).toBe('cobalt')
+    await app.dispose()
+  })
+
+  it('/theme 打开后 Esc 关闭选择器（不切换）', async () => {
+    setTheme('graphite')
+    const { stdin, stdout, app, written, type } = await bootPicker()
+    await type('/theme')
+    expect(written()).toContain('选择主题')
+    stdin.emit('data', '\x1b') // Esc
+    await new Promise(resolve => setTimeout(resolve, 30))
+    const before = stdout.write.mock.calls.length
+    stdin.emit('data', '\r') // 空输入 Enter：选择器已关闭，无操作
+    await new Promise(resolve => setTimeout(resolve, 30))
+    const after = stdout.write.mock.calls.slice(before).map(c => `${c[0]}`).join('')
+    expect(after).not.toContain('选择主题')
+    expect(getActiveThemeName()).toBe('graphite')
+    await app.dispose()
+  })
+
+  it('/model 无参 → 模型选择器（llm 目录 + 当前 ● 高亮）；Enter 确认持久化 + 热切', async () => {
+    const { ctx, stdin, app, written, type } = await bootPicker()
+    const currentSelection = vi.fn(() => ({ provider: 'deepseek-official', model: 'deepseek-v4-pro' }))
+    const saveSelection = vi.fn(async () => {})
+    ctx.agentDefaultModel = { currentSelection, saveSelection } as never
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'llm') {
+        return {
+          listProviders: () => [{ id: 'deepseek-official', name: 'DeepSeek' }],
+          listModels: async () => [
+            { id: 'deepseek-v4-flash', name: 'Flash' },
+            { id: 'deepseek-v4-pro', name: 'Pro' },
+          ],
+          // switchLiveModel → refreshVisionForSelection 会查模型模态
+          resolveModelInfo: async () => ({ inputModalities: undefined }),
+        }
+      }
+      return undefined
+    })
+    await type('/model')
+    expect(written()).toContain('选择模型')
+    expect(written()).toContain('deepseek-official/deepseek-v4-pro（当前）')
+    // 当前 pro 已选中；Enter 确认 → saveSelection + 热切（不重新选择）
+    stdin.emit('data', '\r')
+    await new Promise(resolve => setTimeout(resolve, 30))
+    expect(saveSelection).toHaveBeenCalledWith({ provider: 'deepseek-official', model: 'deepseek-v4-pro' })
+    await app.dispose()
+  })
+
+  it('/session 无参 → 会话选择器（列表渲染 + 当前 ● 高亮）', async () => {
+    const { ctx, app, written, type } = await bootPicker()
+    const headerOf = (id: string, createdAt: number) => ({
+      id: SessionId(id), createdAt, version: 0, cwd: undefined, parentSession: undefined,
+    })
+    ctx.sessions.list.mockReturnValue([
+      { id: 's-1', header: headerOf('s-1', 1_000) },
+      { id: 's-2', header: headerOf('s-2', 2_000) },
+    ])
+    await type('/session')
+    expect(written()).toContain('选择会话')
+    expect(written()).toContain('s-1')
+    expect(written()).toContain('s-2')
+    await app.dispose()
+  })
+})
+
 describe('C4 概念稿 菜单快捷键与三行底部区（提交后审查补测）', () => {
   function boot(over: Partial<ConstructorParameters<typeof TuiApp>[0]> = {}) {
     const ctx = makeCtx()
@@ -5071,14 +5176,15 @@ describe('slash 命令菜单接线（grok slash_dropdown 移植）', () => {
   it('Enter 精确命令：菜单关闭、提交且输入行清空', async () => {
     const { stdin, stdout, app } = boot()
     await app.attach()
-    for (const ch of ['/', 't', 'h', 'e', 'm', 'e']) stdin.emit('data', ch)
+    // /theme 无参现会打开选择器（#31）——用无回显的 /density 测「精确命令 Enter 提交」
+    for (const ch of ['/', 'd', 'e', 'n', 's', 'i', 't', 'y']) stdin.emit('data', ch)
     await writtenOf(stdout)
     stdout.write.mockClear() // 只统计 Enter 后的渲染
     stdin.emit('data', '\r')
     const written = await writtenOf(stdout)
-    expect(written).not.toContain('切换主题')
-    // 输入行清空（对齐正常提交路径；菜单提交不清空会残留 /theme）
-    expect(written).not.toContain('❯ /theme')
+    expect(written).not.toContain('切换紧凑工具卡渲染')
+    // 输入行清空（对齐正常提交路径；菜单提交不清空会残留 /density）
+    expect(written).not.toContain('❯ /density')
     expect(written.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '')).toContain('❯ █')
     expect(written).not.toContain('询问任何事')
     await app.dispose()
@@ -5146,15 +5252,16 @@ describe('slash 菜单阶段 2 接线（ghost 预览 / 参数模式 / MRU）', (
   it('参数模式：/cmd + 尾空格 → ghost 显示参数占位，Enter 提交完整行', async () => {
     const { stdin, stdout, app } = boot()
     await app.attach()
-    for (const ch of ['/', 't', 'h', 'e', 'm', 'e', ' ']) stdin.emit('data', ch)
+    // /theme 无参现会打开选择器（#31）——用带 argsHint 且无参安全的 /effort
+    for (const ch of ['/', 'e', 'f', 'f', 'o', 'r', 't', ' ']) stdin.emit('data', ch)
     await writtenOf(stdout)
-    // ghost 显示 argsHint 参数占位（/theme 的 argsHint 为 <name>）
+    // ghost 显示 argsHint 参数占位（/effort 的 argsHint 为 [off|high|max|auto]）
     const before = await writtenOf(stdout)
-    expect(before).toContain('\x1B[2m<name>\x1B[22m')
+    expect(before).toContain('\x1B[2m[off|high|max|auto]\x1B[22m')
     stdout.write.mockClear()
     stdin.emit('data', '\r')
     const after = await writtenOf(stdout)
-    // 提交后输入行清空（命令执行走 /theme 切换）
+    // 提交后输入行清空（命令执行走 /effort 无参回显）
     expect(after.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '')).toContain('❯ █')
     expect(after).not.toContain('询问任何事')
     await app.dispose()

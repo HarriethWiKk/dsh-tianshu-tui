@@ -114,6 +114,7 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 | src/mention-parser.ts | mention-parser.ts | modified |
 | src/pi/latex-block.ts | pi/latex-block.ts | modified |
 | src/pi/latex-to-unicode.ts | pi/latex-to-unicode.ts | modified |
+| src/picker.ts | — | new（Issue #31 交互式选择器：纯状态机 + 渲染 + PickerController，/model /theme /session 无参打开） |
 | src/port.ts | — | new |
 | src/preset-surface.ts | — | new（agent 预设展示面纯投影：preset 名 = header 创建值 + agent-preset/selected 切换值 fold（官方 resolveSessionPreset 等价）；wire 工具面 = 最近 request/header 的 tools 集合（foldRequestHeader）；只消费日志事实，不重放 preset 插件私有晋升逻辑） |
 | src/question-panel.ts | — | new |

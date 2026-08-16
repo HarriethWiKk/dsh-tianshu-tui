@@ -73,6 +73,9 @@ function commandByName(name: string) {
     currentAgent: vi.fn<() => Agent | null>(() => null),
     isBlankSession: vi.fn(() => true),
     setYoloMode: vi.fn(),
+    openModelPicker: vi.fn(),
+    openThemePicker: vi.fn(),
+    openSessionPicker: vi.fn(),
   }
   const commands = createBuiltinCommands(deps)
   const cmd = commands.find(c => c.name === name)
@@ -220,11 +223,12 @@ describe('内置命令 — /theme', () => {
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('未知主题: no-such-theme'))
   })
 
-  it('空参数回显用法', async () => {
-    const { cmd } = commandByName('theme')
+  it('空参数打开主题选择器（#31，替代用法回显）', async () => {
+    const { cmd, deps } = commandByName('theme')
     const { args, echo } = makeArgs({ text: '' })
     await cmd.run(args)
-    expect(echo).toHaveBeenCalledWith(expect.stringContaining('/theme <name>'))
+    expect(deps.openThemePicker).toHaveBeenCalled()
+    expect(echo).not.toHaveBeenCalled()
   })
 })
 
@@ -455,15 +459,16 @@ describe('内置命令 — /compact', () => {
 })
 
 describe('内置命令 — /model', () => {
-  it('无参数回显当前模型且不写选择', async () => {
-    const { cmd } = commandByName('model')
+  it('无参数打开模型选择器且不写选择（#31，替代回显）', async () => {
+    const { cmd, deps } = commandByName('model')
     const currentSelection = vi.fn(() => ({ provider: 'deepseek', model: 'v4-flash' }))
     const saveSelection = vi.fn(async () => {})
     const ctx = makeCtx({ agentDefaultModel: { currentSelection, saveSelection } })
     const { args, echo } = makeArgs({ text: '', ctx })
     await cmd.run(args)
-    expect(echo).toHaveBeenCalledWith(expect.stringContaining('deepseek/v4-flash'))
+    expect(deps.openModelPicker).toHaveBeenCalled()
     expect(saveSelection).not.toHaveBeenCalled()
+    expect(echo).not.toHaveBeenCalled()
   })
 
   it('provider/model 切换并持久化', async () => {
@@ -586,18 +591,17 @@ describe('内置命令 — /model', () => {
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('turbo'))
   })
 
-  it('无参回显包含当前 effort', async () => {
-    const { cmd } = commandByName('model')
+  it('无参打开模型选择器（#31；effort 信息由选择器 current 高亮承载）', async () => {
+    const { cmd, deps } = commandByName('model')
     const ctx = makeCtx({
       agentDefaultModel: {
         currentSelection: vi.fn(() => ({ provider: 'deepseek-spark', model: 'v4-flash', reasoningEffort: 'high' })),
         saveSelection: vi.fn(async () => {}),
       },
     })
-    const { args, echo } = makeArgs({ text: '', ctx })
+    const { args } = makeArgs({ text: '', ctx })
     await cmd.run(args)
-    expect(echo).toHaveBeenCalledWith(expect.stringContaining('deepseek-spark/v4-flash'))
-    expect(echo).toHaveBeenCalledWith(expect.stringContaining('effort: high'))
+    expect(deps.openModelPicker).toHaveBeenCalled()
   })
 
   it('C2 项 4：切换模型热切当前会话（switchLiveModel 被调，回显双生效）', async () => {
@@ -1353,6 +1357,9 @@ describe('内置命令 — /effort', () => {
       currentAgent: vi.fn(() => null),
       isBlankSession: vi.fn(() => true),
       setYoloMode: vi.fn(),
+      openModelPicker: vi.fn(),
+      openThemePicker: vi.fn(),
+      openSessionPicker: vi.fn(),
     }
     const cmd = createBuiltinCommands(deps).find(c => c.name === 'effort')
     if (cmd === undefined) throw new Error('builtin command not found: effort')

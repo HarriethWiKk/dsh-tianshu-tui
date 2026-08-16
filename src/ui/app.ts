@@ -19,7 +19,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { execSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import { writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join, resolve } from 'node:path'
@@ -56,7 +56,7 @@ import { controlsFromHandle, controlsFromRegistry, type AgentControls } from '..
 import { listSessions, flushAll, getSession, type SessionSummary } from '../adapter/sessions.js'
 import { updateNoticeText, readOwnVersion } from '../self-update.js'
 import { supportsOsc52 } from '../term-caps.js'
-import { getTheme, getActiveThemeName, setTheme, type RivetTheme } from '../theme.js'
+import { getTheme, getActiveThemeName, setTheme, THEME_NAMES, type RivetTheme, type ThemeName } from '../theme.js'
 import { displayWidth, ambiguousWideEnabled } from '../width.js'
 import { detectTerminalBackground, autoThemeFor } from '../theme-detect.js'
 import { formatUserMessage } from '../format/user-message.js'
@@ -211,7 +211,9 @@ import {
   SlashCommandRegistry,
   createBuiltinCommands,
   resolveSlashCommand,
+  type ModelFacet,
 } from '../commands/registry.js'
+import { PickerController, type PickerItem } from '../picker.js'
 import { renderTranscript, parseToolArguments, toolResultText, type RenderedRow } from './render.js'
 import { CommandPalette } from '../command-palette.js'
 import { OverlayController } from '../engine/overlay-controller.js'
@@ -404,7 +406,7 @@ function normalizeSubmitImages(images?: string[]): string[] | undefined {
 /** 检测当前目录是否为 git 仓库（静默，失败返回 false）。 */
 function isGitRepo(): boolean {
   try {
-    execSync('git rev-parse --is-inside-work-tree', { stdio: 'pipe', encoding: 'utf-8' })
+    execFileSync('git', ['rev-parse', '--is-inside-work-tree'], { stdio: 'pipe', encoding: 'utf-8' })
     return true
   } catch {
     return false
@@ -417,7 +419,7 @@ function isGitRepo(): boolean {
  */
 function gitBranch(): string | undefined {
   try {
-    const out = execSync('git rev-parse --abbrev-ref HEAD', {
+    const out = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
       stdio: ['ignore', 'pipe', 'ignore'],
       encoding: 'utf-8',
     }).trim()
@@ -434,7 +436,7 @@ function gitBranch(): string | undefined {
  */
 function gitDirtyCount(): number {
   try {
-    const out = execSync('git status --short', {
+    const out = execFileSync('git', ['status', '--short'], {
       stdio: ['ignore', 'pipe', 'ignore'],
       encoding: 'utf-8',
     })
@@ -499,6 +501,8 @@ export class TuiApp {
   private rewindOverlay: RewindOverlay | null = null
   /** P2：memory 浏览器 overlay（/memory 记忆列表/过滤/删除）。 */
   private memoryOverlay: MemoryBrowserOverlay | null = null
+  /** #31：交互式选择器 overlay（/model /theme /session 无参打开；上下键选择）。 */
+  private picker: PickerController | null = null
   /** Phase 9d：流利度追踪（tool 事件 → 渲染策略；stale 提示消费于 renderLive）。 */
   private readonly fluency = new FluencyTracker()
   /** Phase 5.3：底部 glance（状态/错误行派生 + 节流；renderLive 消费 current()）。 */
@@ -779,6 +783,10 @@ export class TuiApp {
       exportTranscript: path => this.exportTranscript(path),
       requestExit: () => { this.onExit?.() },
       setYoloMode: (flag) => { this.setYoloMode(flag) },
+      // #31：交互式选择器（/model /theme /session 无参打开）。
+      openModelPicker: () => { void this.openModelPicker() },
+      openThemePicker: () => { this.openThemePicker() },
+      openSessionPicker: () => { void this.openSessionPicker() },
     })) {
       this.slash.register(command)
     }
@@ -1056,6 +1064,9 @@ export class TuiApp {
     // P2：memory 浏览器 overlay（/memory）——条目快照 + 数据源在激活时注入。
     this.memoryOverlay = new MemoryBrowserOverlay()
     this.overlay.register('memory', this.memoryOverlay)
+    // #31：交互式选择器 overlay（/model /theme /session 无参打开；上下键选择）。
+    this.picker = new PickerController({ getTheme: () => this.theme })
+    this.overlay.register('picker', this.picker)
     this.input.setMode('input')
     this.ticker = setInterval(() => { this.tick++ ; this.renderLive() }, 120)
     this.ticker.unref()
@@ -1618,6 +1629,103 @@ export class TuiApp {
     }, hasMore)
     overlay.activate('memory')
     return true
+  }
+
+  /**
+   * #31：打开模型选择器。数据源 = llm 服务的 provider/model 目录（动态现取）；
+   * llm 服务缺失时 fails loud（不静默）。确认后走 /model 同路径
+   * （saveSelection + switchLiveModel 热切）。
+   */
+  private async openModelPicker(): Promise<void> {
+    const overlay = this.overlay
+    const picker = this.picker
+    if (overlay === null || picker === null) return
+    const llm = this.ctx.reflect.get('llm', false) as
+      | { listProviders(): Array<{ id: string; name: string }>; listModels(provider: string): Promise<Array<{ id: string; name: string }>> }
+      | undefined
+    if (llm === undefined) {
+      this.echoWarn('⚠ llm 服务不可用（未装配 llm 插件），模型选择器不可用')
+      return
+    }
+    const current = (this.ctx as unknown as { agentDefaultModel?: ModelFacet }).agentDefaultModel
+      ?.currentSelection()
+    const currentKey = current === undefined ? null : `${current.provider}/${current.model}`
+    const items: PickerItem[] = []
+    let selectedIndex = 0
+    for (const provider of llm.listProviders()) {
+      // listModels 为 adapter 通告目录（advisory）；失败/空目录跳过该 provider。
+      const models = await llm.listModels(provider.id).catch(() => [])
+      for (const model of models) {
+        const key = `${provider.id}/${model.id}`
+        const item: PickerItem = {
+          label: key === currentKey ? `${key}（当前）` : key,
+          value: key,
+          current: key === currentKey,
+        }
+        if (key === currentKey) selectedIndex = items.length
+        items.push(item)
+      }
+    }
+    if (items.length === 0) {
+      this.echoWarn('⚠ 无可用模型（llm 目录为空），模型选择器不可用')
+      return
+    }
+    picker.open('选择模型', items, (item) => {
+      const [provider, model] = item.value.split('/')
+      /* v8 ignore next -- split('/') 恒非空，[0] 必有值；noUncheckedIndexedAccess 防御 */
+      if (provider === undefined || model === undefined) return
+      const selection = { provider, model }
+      void (this.ctx as unknown as { agentDefaultModel?: ModelFacet }).agentDefaultModel
+        ?.saveSelection(selection)
+      const hot = this.switchLiveModel(selection)
+      this.commitToScrollback({ text: `模型已切换: ${provider}/${model}${hot ? '（当前会话与默认均生效）' : '（默认生效）'}`, trailingNewline: true })
+    }, selectedIndex)
+    overlay.activate('picker')
+  }
+
+  /** #31：打开主题选择器（THEME_NAMES + 当前主题 ● 高亮）。 */
+  private openThemePicker(): void {
+    const overlay = this.overlay
+    const picker = this.picker
+    if (overlay === null || picker === null) return
+    const active = getActiveThemeName()
+    const items: PickerItem[] = THEME_NAMES.map(name => ({
+      label: name === active ? `${name}（当前）` : name,
+      value: name,
+      current: name === active,
+    }))
+    const selectedIndex = Math.max(0, THEME_NAMES.indexOf(active as ThemeName))
+    picker.open('选择主题', items, (item) => {
+      if (setTheme(item.value)) {
+        this.commitToScrollback({ text: `主题已切换: ${item.value}`, trailingNewline: true })
+      }
+    }, selectedIndex)
+    overlay.activate('picker')
+  }
+
+  /** #31：打开会话选择器（listSessions 同源；当前会话 ● 高亮）。 */
+  private async openSessionPicker(): Promise<void> {
+    const overlay = this.overlay
+    const picker = this.picker
+    if (overlay === null || picker === null) return
+    const rows = await listSessions(this.ctx)
+    if (rows.length === 0) {
+      this.echoWarn('⚠ 当前无会话，会话选择器不可用')
+      return
+    }
+    const active = this.activeSessionId
+    const items: PickerItem[] = []
+    let selectedIndex = 0
+    for (const row of rows) {
+      const label = `${row.id}${row.id === active ? '（当前）' : ''}`
+      const item: PickerItem = { label, value: row.id, current: row.id === active }
+      if (row.id === active) selectedIndex = items.length
+      items.push(item)
+    }
+    picker.open('选择会话', items, (item) => {
+      void this.switchSession(SessionId(item.value))
+    }, selectedIndex)
+    overlay.activate('picker')
   }
 
   /**
@@ -2571,9 +2679,33 @@ export class TuiApp {
       }
       return
     }
+    // #31：选择器 overlay 打开：↑/↓（j/k）移动、PageUp/PageDown 翻页、
+    // Enter 确认、Esc/Ctrl+C/q 关闭。优先于输入行（overlay 独占焦点）。
+    if (this.overlay?.activeId() === 'picker' && this.picker !== null) {
+      const picker = this.picker
+      if (key.name === 'escape' || key.name === 'ctrl_c' || key.char === 'q') {
+        picker.close()
+        this.overlay.deactivate()
+      } else if (key.name === 'up' || key.char === 'k') {
+        picker.move(-1)
+        this.overlay.rerender()
+      } else if (key.name === 'down' || key.char === 'j') {
+        picker.move(1)
+        this.overlay.rerender()
+      } else if (key.name === 'pageup') {
+        picker.move(-10)
+        this.overlay.rerender()
+      } else if (key.name === 'pagedown') {
+        picker.move(10)
+        this.overlay.rerender()
+      } else if (key.name === 'return') {
+        picker.commit()
+        this.overlay.deactivate()
+      }
+      return
+    }
     // 搜索 overlay 打开：可打印字符进 query，Backspace 退格，n/N 跳转，Esc 关闭。
-    if (this.overlay?.activeId() === 'search' && this.searchOverlay !== null) {
-      if (key.name === 'escape' || key.name === 'ctrl_c') {
+    if (this.overlay?.activeId() === 'search' && this.searchOverlay !== null) {      if (key.name === 'escape' || key.name === 'ctrl_c') {
         this.overlay.deactivate()
       } else if (key.name === 'backspace') {
         this.searchOverlay.backspace()

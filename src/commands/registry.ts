@@ -78,7 +78,7 @@ interface CompactFacet {
 }
 
 /** /model 所需的最小 agent-default-model 服务面（不引入 dsh-agent-default-model 依赖）。 */
-interface ModelFacet {
+export interface ModelFacet {
   currentSelection(): { provider: string; model: string; reasoningEffort?: string }
   saveSelection(next: { provider: string; model: string; reasoningEffort?: string }): Promise<void>
 }
@@ -290,6 +290,12 @@ export interface BuiltinCommandDeps {
   isBlankSession(): boolean
   /** /yolo：开启/关闭全放行模式（approval always-approve 快捷入口；返回开启后提示）。 */
   setYoloMode(flag: boolean): void
+  /** #31：打开模型选择器（上下键选择替代命令参数输入）。 */
+  openModelPicker(): void
+  /** #31：打开主题选择器。 */
+  openThemePicker(): void
+  /** #31：打开会话选择器。 */
+  openSessionPicker(): void
 }
 
 /**
@@ -307,7 +313,8 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
       run: ({ text, echo }) => {
         const name = text.trim()
         if (name === '') {
-          echo(`用法: /theme <name>。可用: ${THEME_NAMES.join(', ')}`)
+          // #31：无参打开主题选择器（上下键选择替代命令输入）。
+          deps.openThemePicker()
           return
         }
         if (setTheme(name)) echo(`主题已切换: ${name}`)
@@ -321,6 +328,11 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
       run: async ({ text, echo, ctx }) => {
         /* v8 ignore next -- split(/\s+/) 恒返回非空数组，[0] 必有值；noUncheckedIndexedAccess 收窄防御 */
         const sub = text.split(/\s+/)[0] ?? ''
+        if (sub === '') {
+          // #31：无参打开会话选择器（上下键选择替代命令输入；当前会话 ● 高亮）。
+          deps.openSessionPicker()
+          return
+        }
         if (sub === 'new') {
           const id = await deps.newSession()
           echo(`已新建会话: ${id}`)
@@ -400,10 +412,8 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
         const current = facet.currentSelection()
         const raw = text.trim()
         if (raw === '') {
-          const effortPart = current.reasoningEffort === undefined
-            ? ''
-            : ` (effort: ${current.reasoningEffort})`
-          echo(`当前模型: ${current.provider}/${current.model}${effortPart}`)
+          // #31：无参打开模型选择器（上下键选择替代命令输入；当前值 ● 高亮）。
+          deps.openModelPicker()
           return
         }
         // 解析：目标（别名或 provider/model）与可选 effort（空格分隔，grok 同款形状）。

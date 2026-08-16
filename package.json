@@ -50,6 +50,7 @@
     "access": "public"
   },
   "dsh": {
+    "runtime": "host",
     "bundle": {
       "patch": "./cordis.patch.yml"
     }
