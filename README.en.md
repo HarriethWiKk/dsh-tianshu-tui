@@ -72,7 +72,20 @@ The companion vision plugin lives in `vision-ask/` if you need image re-interrog
 
 ## Release notes
 
-Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.8`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.8)).
+Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.9`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.9)).
+
+### 0.1.2-rc.9 (2026-08-16)
+
+Interaction overhaul: Esc interrupt + double-Esc rewind, session tab bar, cost summary, live theme preview.
+
+- **Dual Esc semantics (aligned with Claude Code)** — a single `Esc` interrupts an in-flight reply (same path as Ctrl+C, 80ms debounce); when idle, `Esc`+`Esc` (1s window) opens the **rewind panel**
+- **Rewind timeline UI** — the message list is now a timeline: type marks (❯ user / ✦ assistant) + relative time + turn separators + a scroll window that follows the selection (older messages reachable)
+- **Session tab bar** — with multiple sessions, a persistent tab row sits above the input rail (current marked ●, narrow widths fold into `+N`); `Ctrl+X` cycles, `Alt+1`~`Alt+9` jumps
+- **`/cost` session cost summary** — usage accumulates per model, printing per-model detail (input/cache-read/write/output/reasoning) plus a total $ estimate
+- **Live theme preview** — the `/theme` picker switches the theme as you move ↑/↓, Enter settles, Esc restores
+- Engineering: the `lib` bundle is rebuilt and tracked with this release
+
+Users already on `0.1.x-rc.6` pick this up on the next launch. Restart after you see `插件已更新到 …，请重启 dsh 后生效`.
 
 ### 0.1.2-rc.8 (2026-08-16)
 

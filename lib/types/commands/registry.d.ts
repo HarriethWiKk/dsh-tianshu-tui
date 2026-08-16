@@ -77,7 +77,7 @@ export interface ModelFacet {
  * /subagents、/workflow、/tasks 的命令定义在 createBuiltinCommands（deps 注入
  * TuiApp 的显隐切换）；/status 保持 TuiApp 内注册。
  */
-export declare const BUILTIN_COMMAND_NAMES: readonly ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'yolo', 'help'];
+export declare const BUILTIN_COMMAND_NAMES: readonly ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'yolo', 'help', 'cost'];
 /**
  * 最小唯一前缀解析：`/` 前缀 + 命令名 `startsWith` 匹配。
  * 歧义（多命令同前缀）或未知名返回 null——不猜命令。
@@ -182,6 +182,8 @@ export interface BuiltinCommandDeps {
     openThemePicker(): void;
     /** #31：打开会话选择器。 */
     openSessionPicker(): void;
+    /** /cost：当前会话累计用量与成本报告行（app 侧汇总；无数据时返回占位行）。 */
+    sessionCostReport(): string[];
 }
 /**
  * 装配内置命令（/theme /session /clear /compact）。

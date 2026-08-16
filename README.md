@@ -73,7 +73,20 @@ DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh --profile tui
 
 ## 更新说明
 
-当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.8`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.8)）。
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.9`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.9)）。
+
+### 0.1.2-rc.9（2026-08-16）
+
+交互体验大补强:Esc 打断与双击回退、会话 tab 栏、成本汇总、主题实时预览。
+
+- **Esc 双语义(对齐 Claude Code)** — 在途输出时单次 `Esc` 打断(与 Ctrl+C 同路径,80ms 防误触);空闲时 `Esc`+`Esc`(1s 窗口)打开 **rewind 回退面板**
+- **rewind 时间线界面** — 消息列表升级:类型标记(❯ 用户/✦ 助手)+ 相对时间 + turn 分隔线 + 滚动窗口跟随选中(可滚到更早消息)
+- **会话 tab 栏** — 多会话时输入轨上方常驻显示短 id 列表(当前 ● 高亮,窄宽折叠 `+N`);`Ctrl+X` 循环切换、`Alt+1`~`Alt+9` 直接跳转
+- **`/cost` 会话成本汇总** — usage 按模型分桶累计,输出每模型明细(输入/缓存读/写/输出/推理)+ 合计 $ 估算
+- **主题选择器实时预览** — `/theme` 选择器 ↑↓ 移动即切换主题,Enter 落定、Esc 还原
+- 工程:`lib` bundle 随版本重建跟仓
+
+已装 `0.1.x-rc.6` 的用户下次启动会自动写入 profile。看到「插件已更新到 …，请重启 dsh 后生效」后重启即可。
 
 ### 0.1.2-rc.8（2026-08-16）
 

@@ -19,6 +19,10 @@ export interface PickerItem {
 }
 /** 确认回调：选中条目 → 调用方执行动作。 */
 export type PickerCommit = (item: PickerItem) => void;
+/** 预览回调：选中变化时以新选中条目调用（实时预览，如主题切换）。 */
+export type PickerPreview = (item: PickerItem) => void;
+/** 取消回调：选择器被关闭（Esc/q，非确认路径）时调用（还原预览等）。 */
+export type PickerCancel = () => void;
 /** 选择器状态：开合 + 选中下标 + 标题。 */
 export interface PickerState {
     open: boolean;
@@ -72,22 +76,29 @@ export declare class PickerController {
     private state;
     private items;
     private onCommit;
+    private onPreview;
+    private onCancel;
     private readonly getTheme;
     constructor(opts: PickerOptions);
     /** 选择器是否打开。 */
     isOpen(): boolean;
     /**
-     * 打开选择器：注入条目与确认回调，选中可指定（缺省 0）。
+     * 打开选择器：注入条目、确认回调与可选预览/取消回调，选中可指定（缺省 0）。
      * @param title - 面板标题。
      * @param items - 条目列表。
      * @param commit - 确认回调（Enter 时以选中条目调用）。
      * @param selectedIndex - 初始选中下标（缺省 0）。
+     * @param hooks - 可选：onPreview（选中变化时调用，实时预览）；
+     *   onCancel（Esc/q 关闭时调用，还原预览）。
      */
-    open(title: string, items: readonly PickerItem[], commit: PickerCommit, selectedIndex?: number): void;
-    /** 关闭选择器（保留条目；下次 open 重建）。 */
+    open(title: string, items: readonly PickerItem[], commit: PickerCommit, selectedIndex?: number, hooks?: {
+        onPreview?: PickerPreview;
+        onCancel?: PickerCancel;
+    }): void;
+    /** 关闭选择器（Esc/q 路径；触发 onCancel 还原预览；保留条目，下次 open 重建）。 */
     close(): void;
     /**
-     * 移动选中项（夹紧在条目范围内）。
+     * 移动选中项（夹紧在条目范围内）；选中变化时触发 onPreview（实时预览）。
      * @param delta - 移动量（负上正下）。
      */
     move(delta: number): void;
@@ -97,7 +108,7 @@ export declare class PickerController {
     get count(): number;
     /**
      * 确认当前选中项：以选中条目调用注入的确认回调并关闭；无选中或未注入
-     * 回调时不动作。
+     * 回调时不动作。确认路径不触发 onCancel（预览已由确认落定，无需还原）。
      */
     commit(): void;
     /**

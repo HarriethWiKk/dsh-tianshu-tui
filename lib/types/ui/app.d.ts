@@ -115,6 +115,12 @@ export declare class TuiApp {
     private memoryOverlay;
     /** #31：交互式选择器 overlay（/model /theme /session 无参打开；上下键选择）。 */
     private picker;
+    /** 双击 Esc 触发 rewind：第一次 Esc 的时间戳（0 = 无待定；窗口内第二次 Esc
+     *  打开 rewind overlay，对齐 Claude Code 的 Esc+Esc 时间回溯）。 */
+    private escRewindPendingSince;
+    /** 会话 tab 栏缓存（attach/newSession/switchSession 后经 listSessions 刷新；
+     *  >1 会话时在 chrome 段渲染一行；Ctrl+X / Alt+数字 切换）。 */
+    private sessionTabs;
     /** Phase 9d：流利度追踪（tool 事件 → 渲染策略；stale 提示消费于 renderLive）。 */
     private readonly fluency;
     /** Phase 5.3：底部 glance（状态/错误行派生 + 节流；renderLive 消费 current()）。 */
@@ -129,6 +135,9 @@ export declare class TuiApp {
     /** 会话内最后一条 assistant/message 的 usage（缓存命中/上下文占比数据源；
      *  streamFeed 折叠，随会话挂载/卸载）。 */
     private usageFold;
+    /** 会话成本累计（assistant/message usage 按模型分桶；/cost 数据源，
+     *  随会话卸载复位）。 */
+    private sessionCosts;
     /** 当前模型路由的上下文窗口（request/context 事件折叠；adapter 未报时 null）。 */
     private contextWindow;
     /** git 未提交改动文件数（gitDirtyCount 快照；attach + turn/end 刷新，0 = 干净/非仓库）。 */
@@ -450,7 +459,8 @@ export declare class TuiApp {
      * （saveSelection + switchLiveModel 热切）。
      */
     private openModelPicker;
-    /** #31：打开主题选择器（THEME_NAMES + 当前主题 ● 高亮）。 */
+    /** #31/#33：打开主题选择器（THEME_NAMES + 当前主题 ● 高亮）。
+     *  实时预览：↑↓ 移动即 setTheme 生效；Enter 落定；Esc/q 还原打开前主题。 */
     private openThemePicker;
     /** #31：打开会话选择器（listSessions 同源；当前会话 ● 高亮）。 */
     private openSessionPicker;
@@ -482,6 +492,10 @@ export declare class TuiApp {
      * @param id - 目标会话 id；必须是 live store 中已存在的会话。
      */
     switchSession(id: SessionId): Promise<void>;
+    /** 会话 tab 栏缓存刷新：listSessions → 短 id + 当前标记 → 缓存并调度重绘。 */
+    private refreshSessionTabs;
+    /** 会话 tab 栏：Ctrl+X 切到下一个会话（循环；仅一个会话时无操作）。 */
+    private switchToNextTab;
     /**
      * 挂载当前会话的投影与控制面：transcript/live/controls 就位后，
      * 将已提交的历史渲染进 scrollback。

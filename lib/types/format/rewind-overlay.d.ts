@@ -13,6 +13,10 @@ import type { RivetTheme } from '../theme.js';
 export interface RewindableMessage {
     readonly seq: number;
     readonly turn: number;
+    /** 消息归属（用户/助手；时间线类型标记）。 */
+    readonly kind: 'user' | 'assistant';
+    /** Unix epoch 毫秒（相对时间显示）。 */
+    readonly time: number;
     readonly text: string;
 }
 /** 回退粒度（对齐天枢 RewindMode 前 3 种）。 */

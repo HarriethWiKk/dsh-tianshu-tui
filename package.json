@@ -1,7 +1,7 @@
 {
   "name": "@huiliyi37/dsh-tianshu-tui",
   "description": "dsh-tianshu-tui: an interactive TUI layer over the dsh-base profile, installable as a plugin (`dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui`)",
-  "version": "0.1.2-rc.8",
+  "version": "0.1.2-rc.9",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
