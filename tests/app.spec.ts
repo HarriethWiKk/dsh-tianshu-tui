@@ -4966,6 +4966,70 @@ describe('C4 概念稿 菜单快捷键与三行底部区（提交后审查补测
     await app.dispose()
   })
 
+  it('会话 tab 栏：多会话 attach 渲染（当前 ●）；Ctrl+X 切下一个；Alt+2 跳转', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('tab-1')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const s1 = SessionId('session-tab-one')
+    const s2 = SessionId('session-tab-two')
+    const s3 = SessionId('session-tab-three')
+    const headerOf = (id: SessionId, createdAt: number) => ({
+      id, createdAt, version: 0, cwd: undefined, parentSession: undefined,
+    })
+    // listSessions 按 createdAt 降序（新→旧）——s1 最新保证 tab 序 [s1,s2,s3]
+    ctx.sessions.list.mockReturnValue([
+      { id: s1, header: headerOf(s1, Date.now() - 1_000), events: [] },
+      { id: s2, header: headerOf(s2, Date.now() - 2_000), events: [] },
+      { id: s3, header: headerOf(s3, Date.now() - 3_000), events: [] },
+    ])
+    ctx.agents.get.mockReturnValue(agent)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    expect(app.sessionId).toBe(s1)
+    // tab 栏渲染：短 id + 当前 ●（s1 当前）
+    await new Promise(resolve => setTimeout(resolve, 50))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('session-tab-one'.slice(0, 8) + '●')
+    // Ctrl+X → 下一个（s2）
+    stdin.emit('data', '\x18')
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(app.sessionId).toBe(s2)
+    // Alt+3 → 跳第 3 个（s3）
+    stdin.emit('data', '\x1b3')
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(app.sessionId).toBe(s3)
+    // Alt+9 越界 → 无操作（仍 s3）
+    stdin.emit('data', '\x1b9')
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(app.sessionId).toBe(s3)
+    await app.dispose()
+  })
+
+  it('会话 tab 栏：仅一个会话时不渲染 tab 行', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('tab-1')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const only = SessionId('session-tab-only')
+    ctx.sessions.list.mockReturnValue([
+      { id: only, header: { id: only, createdAt: Date.now(), version: 0, cwd: undefined, parentSession: undefined }, events: [] },
+    ])
+    ctx.agents.get.mockReturnValue(agent)
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    await app.attach()
+    await new Promise(resolve => setTimeout(resolve, 50))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    // 单会话：tab 行不渲染（避免占一行）
+    expect(written).not.toContain('session-tab-only'.slice(0, 8) + '●')
+    await app.dispose()
+  })
+
   it('/exit 触发 onExit（与 Ctrl+Q 同一退出路径）', async () => {
     const onExit = vi.fn()
     const { app } = boot({ onExit })

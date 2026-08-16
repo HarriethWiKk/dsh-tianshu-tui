@@ -10,10 +10,14 @@ All of dsh-tianshu-tui's interactions: shortcuts, commands, input surfaces, and 
 |---|---|
 | `Ctrl+N` | New session |
 | `Ctrl+S` | Resume the most recent session |
+| `Ctrl+X` | Session tab bar: switch to the next session (cyclic) |
+| `Alt+1`~`Alt+9` | Session tab bar: jump to the Nth session |
 | `Ctrl+Q` | Exit (same as `/exit`; when idle, two `Ctrl+C`s on an empty input also exit) |
 | `Ctrl+.` | Keymap overlay (always available) |
 | `Ctrl+P` | Command palette (fuzzy search + Enter to fill) |
 | `Ctrl+F` | History search (`n`/`N` next, `p`/`P` previous) |
+
+When there is more than one session, a **session tab bar** appears above the input rail (short-id list, current session marked ●; narrow widths drop the oldest tabs and fold into `+N`).
 
 ### Input
 
