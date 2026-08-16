@@ -1493,7 +1493,8 @@ export class TuiApp {
       { keyHint: 'ctrl+o', label: '展开推理' },
       { keyHint: 'shift+tab', label: '模式循环' },
     ]
-    for (const line of formatWelcomeHero({ width: cols, whale, env, tips }, this.theme)) {
+    const ownVersion = readOwnVersion(fileURLToPath(new URL('.', import.meta.url)))
+    for (const line of formatWelcomeHero({ width: cols, whale, env, tips, ...(ownVersion === undefined ? {} : { version: ownVersion }) }, this.theme)) {
       commitLine(line)
     }
     // 空行收尾：命令回显（如「模型已切换」）与欢迎页在视觉上自然分离。

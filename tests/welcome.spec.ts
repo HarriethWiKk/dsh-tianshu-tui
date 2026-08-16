@@ -46,6 +46,13 @@ function tips(over: Partial<WelcomeTipItem>[] = []): WelcomeTipItem[] {
 }
 
 describe('formatBrandWelcome（欢迎页品牌区）', () => {
+  it('version 提供时副标题行追加 · v<version>', () => {
+    const lines = formatBrandWelcome({ width: 80, version: '0.1.2-rc.9' }, fakeTheme())
+    const [brand, sub] = plain(lines)
+    expect(brand!.trim()).toBe('dsh-tianshu-tui')
+    expect(sub!.trim()).toBe('DeepSeek Harness · v0.1.2-rc.9')
+  })
+
   it('两行：主标 dsh-tianshu-tui 居中 BOLD + 副标居中 muted，宽度守恒', () => {
     const lines = formatBrandWelcome({ width: 80 }, fakeTheme())
     expect(lines.length).toBe(2)
