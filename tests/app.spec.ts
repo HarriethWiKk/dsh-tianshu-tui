@@ -5304,7 +5304,7 @@ describe('C4 概念稿 菜单快捷键与三行底部区（提交后审查补测
     // tab 栏渲染：短 id + 当前 ●（s1 当前）
     await new Promise(resolve => setTimeout(resolve, 50))
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).toContain('session-tab-one'.slice(0, 8) + '●')
+    expect(written).toContain('session-tab-one'.replace(/^session-/, '').slice(0, 8) + '●')
     // Ctrl+X → 下一个（s2）
     stdin.emit('data', '\x18')
     await new Promise(resolve => setTimeout(resolve, 50))
@@ -5317,6 +5317,36 @@ describe('C4 概念稿 菜单快捷键与三行底部区（提交后审查补测
     stdin.emit('data', '\x1b9')
     await new Promise(resolve => setTimeout(resolve, 50))
     expect(app.sessionId).toBe(s3)
+    await app.dispose()
+  })
+
+  it('会话 tab 栏：真实 id 形态（session- 前缀）标签去前缀显示，不出现 [session-] 空壳', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('tab-real')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const s1 = SessionId('session-aaaabbbbcccc-rest')
+    const s2 = SessionId('session-ddddeeeeffff-rest')
+    const headerOf = (id: SessionId, createdAt: number) => ({
+      id, createdAt, version: 0, cwd: undefined, parentSession: undefined,
+    })
+    ctx.sessions.list.mockReturnValue([
+      { id: s1, header: headerOf(s1, Date.now() - 1_000), events: [] },
+      { id: s2, header: headerOf(s2, Date.now() - 2_000), events: [] },
+    ])
+    ctx.agents.get.mockReturnValue(agent)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    await new Promise(resolve => setTimeout(resolve, 50))
+    // 数据层断言：label 是去 session- 前缀后的短 id（formatSessionTabs 渲染
+    // [label●] 时不再出现 [session-] 空壳）。
+    // sessionTabs 是 TuiApp 私有成员：测试经类型断言读取（vitest 运行时可见）。
+    const tabs = (app as unknown as { sessionTabs: { label: string }[] }).sessionTabs
+    expect(tabs.map(t => t.label)).toEqual(['aaaabbbb', 'ddddeeee'])
+    expect(tabs.some(t => t.label.includes('session-'))).toBe(false)
     await app.dispose()
   })
 
