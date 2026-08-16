@@ -37,7 +37,8 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
 
 | 按键 | 作用 |
 |---|---|
-| `Ctrl+C` | 打断在途回合 |
+| `Ctrl+C` | 打断在途回合(即时) |
+| `Esc`(在途) | 打断在途回合(对齐 Claude Code 单次 Esc;lone ESC 80ms 防误触;overlay/菜单打开时仍先关闭面板) |
 | `Ctrl+O` | 展开/收起最近推理块 |
 | `Enter`(空输入) | 切换最后一张进行中工具卡的展开(显示参数 JSON) |
 | `Shift+Tab` | 模式循环:normal → plan → always-approve |

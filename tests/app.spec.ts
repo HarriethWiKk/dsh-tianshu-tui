@@ -565,6 +565,80 @@ describe('TuiApp 审查 HIGH 修复回归（177c12e）', () => {
     await app.dispose()
   })
 
+  it('agent running 时 Esc → handleAbort（对齐 Claude Code 单次 Esc 打断）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('abort-esc')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const onExit = vi.fn()
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin, onExit })
+    await app.attach()
+    const id = app.sessionId
+    if (id === null) throw new Error('sessionId missing after attach')
+    const statusHandlers = (ctx.on as ReturnType<typeof vi.fn>).mock.calls
+      .filter((call: unknown[]) => call[0] === 'agent/status')
+      .map(call => call[1] as (payload: { agent: { id: SessionId }; status: string }) => void)
+    for (const handler of statusHandlers) handler({ agent: { id }, status: 'running' })
+
+    // lone ESC 走 80ms 防误触超时才派发
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 150))
+    expect(onExit).not.toHaveBeenCalled()
+    expect(agent.cancel).toHaveBeenCalledTimes(1)
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('已取消')
+    await app.dispose()
+  })
+
+  it('空闲时 Esc → 无操作（不退出、不打断）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('idle-esc')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const onExit = vi.fn()
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin, onExit })
+    await app.attach()
+    const written0 = stdout.write.mock.calls.length
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 150))
+    expect(onExit).not.toHaveBeenCalled()
+    expect(agent.cancel).not.toHaveBeenCalled()
+    const written = stdout.write.mock.calls.slice(written0).map(c => `${c[0]}`).join('')
+    expect(written).not.toContain('已取消')
+    await app.dispose()
+  })
+
+  it('slash 菜单打开 + running + Esc → 关菜单不打断', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('slash-esc')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    const id = app.sessionId
+    if (id === null) throw new Error('sessionId missing after attach')
+    const statusHandlers = (ctx.on as ReturnType<typeof vi.fn>).mock.calls
+      .filter((call: unknown[]) => call[0] === 'agent/status')
+      .map(call => call[1] as (payload: { agent: { id: SessionId }; status: string }) => void)
+    for (const handler of statusHandlers) handler({ agent: { id }, status: 'running' })
+    // 打开 slash 菜单（输入 / 触发）
+    stdin.emit('data', '/')
+    await new Promise(resolve => setTimeout(resolve, 50))
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 150))
+    expect(agent.cancel).not.toHaveBeenCalled() // 关菜单优先,不打断
+    await app.dispose()
+  })
+
   it('dispose 先 flushAll 再释放 owned handle', async () => {
     const ctx = makeCtx()
     const agent = makeAgent('order-1')

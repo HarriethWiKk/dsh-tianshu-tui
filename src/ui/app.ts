@@ -2885,6 +2885,16 @@ export class TuiApp {
       }
       return
     }
+    // Esc 打断：对齐 Claude Code 单次 Esc 停止输出。位于挂起交互分支之后——
+    // overlay/菜单打开时 Esc 仍先关面板；仅「无挂起交互 + running」才打断；
+    // 空闲不动作（不退出、不触发任何东西）。lone ESC 走 80ms 防误触派发，
+    // 与 Ctrl+C 的即时打断形成互补。
+    if (key.name === 'escape' && !this.inputController.slashMenu.open) {
+      if (this.liveAgent?.state.status === 'running') {
+        this.handleAbort()
+        return
+      }
+    }
     if (key.name === 'ctrl_c') {
       // raw-mode 下 Ctrl+C 是 0x03 数据字节而非 SIGINT。
       // 在途：打断当前 turn。空闲空输入：连按两次才 onExit（单次 dispose

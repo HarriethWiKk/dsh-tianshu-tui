@@ -77,3 +77,39 @@
 - B 级各项需先与官方(deepseek-harness)确认契约扩展意愿——按本仓历史(官方不接受社区 PR),
   大概率走「本地分支存档参考实现」或放弃,同 spark 截断与 LSP diagnostics 模式。
 - 本报告未改任何代码;实施时按单条 A 级项拆小计划,各自带测试。
+
+## 六、2026-08-16 更新:A 级完成后与 Claude Code 2026 动态对标
+
+A 级 5 项已全部落地(提交 b0c0143),另有 #31 选择器、主题实时预览、workflow
+观察面、preset 展示面。Claude Code 2026 新动态(自愈功能、桌面版并行 agent 重构
+[官方博客](https://claude.com/blog/claude-code-desktop-redesign)):
+自愈属 agent 行为(harness 侧),桌面版并行超出终端 TUI 范围——TUI 层差距如下。
+
+### 插件侧可直接做(新增候选,数据/服务已够)
+
+| # | 差距 | 说明 |
+|---|---|---|
+| 1 | 会话 tab 栏 | 顶部栏加多会话短 id 列表(当前会话高亮,点击/快捷键切换)——Claude Code 桌面版并行会话的 TUI 形态;数据 = listSessions 已有 |
+| 2 | 会话成本汇总 | `/cost` 式:当前会话累计 $ 与 token 统计面板;数据 = usage 折叠 + pricing 表已有 |
+| 3 | 大 diff 分页查看 | 审批/工具卡 diff 超过视口时 Enter 分页/滚动查看(现全量渲染或折叠);纯交互 |
+| 4 | 上下文剩余预算条 | glance tokens 段加剩余百分比(现只有 used/max 文本);纯渲染 |
+| 5 | 任务完成 OS 通知 | 后台任务/subagent 完成时经 `terminal-notifier` 等发系统通知(固定 argv,审计合规);可选 |
+| 6 | 会话时间线分组 | `/session list` 按日期分组(今天/昨天/更早);纯函数 |
+| 7 | 自愈过程可视化 | harness 侧若发布修复尝试事件(重试/回滚),TUI 展示"修复中"状态;需先确认 harness 事件面(暂列为候选) |
+
+### 需 harness 配合(上一轮 B 级,未变)
+
+1. **审批 diff 编辑**(最大交互差距,`ApprovalRequest` 无 patch 字段)
+2. 权限规则浏览(/permissions 式,permission 服务未暴露规则清单)
+3. subagent 卡片上下文/成本(subagent 事件无 usage 数据)
+4. checkpoint 时间线浏览(checkpoint 服务数据面)
+
+### 契约硬边界(不变)
+
+plan 强制只读、auto-compact 自动触发、workflow 控制面、请求体改写。
+
+### 建议
+
+插件侧 7 项里 1(会话 tab 栏)与 2(成本汇总)信息增益最大且零依赖;
+3/4/6 是小而纯的渲染/交互补强;5 需确认通知方式;7 待 harness 事件面。
+B 级仍需先与官方确认契约,按历史大概率存档或放弃。
