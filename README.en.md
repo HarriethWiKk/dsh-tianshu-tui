@@ -57,7 +57,22 @@ The companion vision plugin lives in `vision-ask/` if you need image re-interrog
 
 ## Release notes
 
-Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.7`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.7)).
+Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.8`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.8)).
+
+### 0.1.2-rc.8 (2026-08-16)
+
+Interactive pickers, Claude Code benchmark improvements, workflow observation surface, and an audit fix.
+
+- **Interactive pickers ([#31](https://github.com/huiliyi37/dsh-tianshu-tui/issues/31))** — `/theme`, `/model`, `/session` with no arguments now open a picker: ↑/↓ (or j/k) to select, PageUp/PageDown to page, Enter to confirm, Esc to close, with the current value marked ●; the model list comes from the llm directory, and argument forms are unchanged
+- **Cost and context watermark** — the footer now shows a $ cost estimate (built-in flash/pro pricing table; unknown models are not guessed) and prefixes ⚠ to the context usage segment at ≥95%
+- **Git dirty indicator** — footer shows `●N` (uncommitted-file count, refreshed at turn boundaries)
+- **`/help` command** — a registry-driven list of every command (`/help <cmd>` for one entry's detail)
+- **Manual tool-card expansion** — Enter on an empty input toggles the last in-flight tool card, expanding its argument JSON
+- **Workflow panel observation surface** — running time now renders real elapsed (was a raw timestamp), meta is completed (run name/description/phase count), and `workflow/log` narration lines appear in the expanded view
+- **Audit fix ([#30](https://github.com/huiliyi37/dsh-tianshu-tui/issues/30))** — `dsh.runtime: "host"` declared and all 4 subprocess calls converted to fixed-argv forms (execSync → execFileSync)
+- Engineering: the `lib` bundle is rebuilt and tracked with this release
+
+Users already on `0.1.x-rc.6` pick this up on the next launch. Restart after you see `插件已更新到 …，请重启 dsh 后生效`.
 
 ### 0.1.2-rc.7 (2026-08-15)
 

@@ -56,6 +56,19 @@ export interface SlashParse {
     command: SlashCommand;
     text: string;
 }
+/** /model 所需的最小 agent-default-model 服务面（不引入 dsh-agent-default-model 依赖）。 */
+export interface ModelFacet {
+    currentSelection(): {
+        provider: string;
+        model: string;
+        reasoningEffort?: string;
+    };
+    saveSelection(next: {
+        provider: string;
+        model: string;
+        reasoningEffort?: string;
+    }): Promise<void>;
+}
 /**
  * 内置命令名（解析 + 提示的单一事实来源；描述/argsHint 见 createBuiltinCommands）。
  * 含 /steer：TuiApp 复用既有 handleSteer 入口，此处只参与前缀匹配。
@@ -64,7 +77,7 @@ export interface SlashParse {
  * /subagents、/workflow、/tasks 的命令定义在 createBuiltinCommands（deps 注入
  * TuiApp 的显隐切换）；/status 保持 TuiApp 内注册。
  */
-export declare const BUILTIN_COMMAND_NAMES: readonly ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'yolo'];
+export declare const BUILTIN_COMMAND_NAMES: readonly ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'yolo', 'help'];
 /**
  * 最小唯一前缀解析：`/` 前缀 + 命令名 `startsWith` 匹配。
  * 歧义（多命令同前缀）或未知名返回 null——不猜命令。
@@ -163,6 +176,12 @@ export interface BuiltinCommandDeps {
     isBlankSession(): boolean;
     /** /yolo：开启/关闭全放行模式（approval always-approve 快捷入口；返回开启后提示）。 */
     setYoloMode(flag: boolean): void;
+    /** #31：打开模型选择器（上下键选择替代命令参数输入）。 */
+    openModelPicker(): void;
+    /** #31：打开主题选择器。 */
+    openThemePicker(): void;
+    /** #31：打开会话选择器。 */
+    openSessionPicker(): void;
 }
 /**
  * 装配内置命令（/theme /session /clear /compact）。

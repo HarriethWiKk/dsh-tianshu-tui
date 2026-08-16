@@ -123,6 +123,8 @@ export interface FormatToolCardLiveInput {
     elapsedMs?: number;
     /** 末尾输出显示行数 */
     tailLines?: number;
+    /** 展开态（A5：空输入 Enter 切换）：标题下渲染工具参数 JSON 行。 */
+    expanded?: boolean;
     /** 终端列数 */
     columns: number;
     /** 动画帧序号；提供时用 spinner 替代静态 bullet */

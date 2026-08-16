@@ -57,6 +57,8 @@ export interface WorkflowRunView {
     result?: WorkflowResultInfoInput;
     /** 已运行时长（毫秒）；缺省不渲染时间段。 */
     elapsedMs?: number;
+    /** 脚本叙述行（workflow/log 回放；缺省/空数组不渲染）。 */
+    logs?: string[];
 }
 /** 面板选项。 */
 export interface WorkflowPanelOptions {

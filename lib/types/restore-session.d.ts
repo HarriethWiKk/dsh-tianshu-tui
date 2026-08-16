@@ -12,6 +12,8 @@ export interface RestorableSession {
     createdAt: number;
     cwd: string | undefined;
     parentSession: SessionId | undefined;
+    /** Agent preset id（创建值 + 切换值 fold；未记录时 undefined）。 */
+    agentPreset: string | undefined;
     live: boolean;
 }
 /** 投影/格式化选项。 */
@@ -38,8 +40,9 @@ export declare function projectRestorableSessions(sessions: readonly SessionSumm
  */
 export declare function formatSessionAge(createdAt: number, now: number): string;
 /**
- * 展示行：live ● / persisted ○ + 相对年龄 + cwd basename + 短 id + fork 短父 id；
- * 空列表占位提示。maxRows 限高时超出部分折叠为一行提示（「… 还有 N 个会话」）。
+ * 展示行：live ● / persisted ○ + 相对年龄 + cwd basename + 短 id + fork 短父 id
+ * + agent preset（未记录不显示）；空列表占位提示。maxRows 限高时超出部分
+ * 折叠为一行提示（「… 还有 N 个会话」）。
  * @param rows - 可恢复会话视图行。
  * @param opts - 格式化选项（取 now 与 maxRows）。
  * @returns 每会话一行的展示文本。

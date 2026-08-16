@@ -20,6 +20,11 @@ export interface SessionSummary {
     readonly cwd: string | undefined;
     /** The session this one was forked from, when known. */
     readonly parentSession: SessionId | undefined;
+    /**
+     * Agent preset id in effect for the session (header 创建值 + 日志切换值 fold；
+     * 持久化会话无事件日志时回落 header 值）。null = 未记录（host 未装配 preset）。
+     */
+    readonly agentPreset: string | undefined;
 }
 /**
  * List known sessions, newest first. Persisted sessions come from

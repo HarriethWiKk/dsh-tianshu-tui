@@ -25,9 +25,11 @@ export interface FormatGlanceBarInput {
     stalled?: boolean;
     ascii?: boolean;
 }
+/** 上下文占用警告阈值（≥ 此比例前缀 ⚠ 提示近满；与 Claude Code context 高水位对齐）。 */
+export declare const CONTEXT_WARN_RATIO = 0.95;
 /**
  * 段组装（纯函数；返回 ANSI 段列表，外层按 ` · ` 拼接）。
- * @param input - metrics 输入；仅组装已提供的段（turn/cost 只在 density full 档）。
+ * @param input - metrics 输入；仅组装已提供的段（cost 有值即显示；turn 只在 density full 档）。
  * @returns 无色段文本列表，按固定顺序。
  */
 export declare function glanceBarSegments(input: FormatGlanceBarInput): string[];

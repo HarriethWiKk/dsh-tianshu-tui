@@ -64,10 +64,12 @@ export declare function renderSkillsPanel(snapshot: LiveSnapshot): string[];
  */
 export declare function renderDelegationPanel(snapshot: LiveSnapshot): string[];
 /**
- * 渲染 /workflow 运行态面板（列表行 + 终态汇总）。面板隐藏 → 空数组。
+ * 渲染 /workflow 运行态面板（列表行 + 展开的叙述/roster + 终态汇总）。面板隐藏 → 空数组。
  * projectWorkflow 只消费 meta.name；本适配层把 run id 注入列表行
  * （meta.description 追加 "(id)" 后缀；name 已是 id 时不重复），使 run 标识
  * 在面板可见且不破坏 [name] 徽标形态。
+ * 展开集合：运行中 run（result 未结算）自动展开——叙述行与 roster 是运行期
+ * 唯一可见面，折叠会让 workflow/log 消费无处呈现。
  * @param snapshot - 当前帧快照。
  * @returns 面板行数组。
  */

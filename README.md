@@ -58,7 +58,22 @@ DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh --profile tui
 
 ## 更新说明
 
-当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.7`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.7)）。
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.8`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.8)）。
+
+### 0.1.2-rc.8（2026-08-16）
+
+交互式选择器、Claude Code 对标补强、workflow 观察面、审计修复。
+
+- **交互式选择器（[#31](https://github.com/huiliyi37/dsh-tianshu-tui/issues/31)）** — `/theme` `/model` `/session` 无参数回车即打开选择器：↑/↓（j/k）选择、PageUp/PageDown 翻页、Enter 确认、Esc 关闭，当前值 ● 高亮；模型列表来自 llm 目录，有参数用法不变
+- **成本与上下文水位** — footer 新增 $ 成本估算（flash/pro 内置定价表，未知模型不猜价）；上下文占用 ≥95% 前缀 ⚠
+- **git 未提交提示** — footer 显示 `●N`（未提交文件数，回合边界刷新）
+- **`/help` 命令** — 注册表驱动的全部命令清单（`/help <cmd>` 单条详情）
+- **工具卡手动展开** — 空输入 Enter 切换最后一张进行中工具卡，展开显示参数 JSON
+- **workflow 面板观察面** — 运行时长改真实差值（此前误显时间戳）、meta 补全（run 名/描述/阶段数）、`workflow/log` 叙述行进展开视图
+- **审计修复（[#30](https://github.com/huiliyi37/dsh-tianshu-tui/issues/30)）** — `dsh.runtime: "host"` 声明 + 4 处 subprocess 固定 argv 化（execSync → execFileSync）
+- 工程：`lib` bundle 随版本重建跟仓
+
+已装 `0.1.x-rc.6` 的用户下次启动会自动写入 profile。看到「插件已更新到 …，请重启 dsh 后生效」后重启即可。
 
 ### 0.1.2-rc.7（2026-08-15）
 

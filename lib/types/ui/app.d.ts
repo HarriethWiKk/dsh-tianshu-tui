@@ -113,6 +113,8 @@ export declare class TuiApp {
     private rewindOverlay;
     /** P2：memory 浏览器 overlay（/memory 记忆列表/过滤/删除）。 */
     private memoryOverlay;
+    /** #31：交互式选择器 overlay（/model /theme /session 无参打开；上下键选择）。 */
+    private picker;
     /** Phase 9d：流利度追踪（tool 事件 → 渲染策略；stale 提示消费于 renderLive）。 */
     private readonly fluency;
     /** Phase 5.3：底部 glance（状态/错误行派生 + 节流；renderLive 消费 current()）。 */
@@ -129,6 +131,10 @@ export declare class TuiApp {
     private usageFold;
     /** 当前模型路由的上下文窗口（request/context 事件折叠；adapter 未报时 null）。 */
     private contextWindow;
+    /** git 未提交改动文件数（gitDirtyCount 快照；attach + turn/end 刷新，0 = 干净/非仓库）。 */
+    private gitDirty;
+    /** A5：手动展开的进行中工具卡 callId（空输入 Enter 切换；turn/end 复位）。 */
+    private expandedToolCallId;
     private transcript;
     private liveAgent;
     private controls;
@@ -438,6 +444,16 @@ export declare class TuiApp {
      * @returns 是否已打开。
      */
     private openMemoryBrowser;
+    /**
+     * #31：打开模型选择器。数据源 = llm 服务的 provider/model 目录（动态现取）；
+     * llm 服务缺失时 fails loud（不静默）。确认后走 /model 同路径
+     * （saveSelection + switchLiveModel 热切）。
+     */
+    private openModelPicker;
+    /** #31：打开主题选择器（THEME_NAMES + 当前主题 ● 高亮）。 */
+    private openThemePicker;
+    /** #31：打开会话选择器（listSessions 同源；当前会话 ● 高亮）。 */
+    private openSessionPicker;
     /**
      * C3 项 3：执行回退。mode 决定范围：
      * - convo：仅截断会话（内存 + 持久化）
