@@ -288,9 +288,9 @@ export declare class InputLine {
     private moveEnd;
     private moveWordLeft;
     private moveWordRight;
-    /** 当前光标的（行,列），列以 code-unit 计。 */
+    /** 当前光标的（行,列），列以 grapheme 计（CJK/emoji/组合簇不被拆开）。 */
     private getLineCol;
-    /** 由（行,列）还原 code-unit 偏移，col 超出行长则贴到行尾。 */
+    /** 由（行,grapheme 列）还原 code-unit 偏移，col 超出行长则贴到行尾。 */
     private posFromLineCol;
     /** Up：多行且不在首行时上移一行，否则取上一条历史。 */
     private moveUpOrHistory;

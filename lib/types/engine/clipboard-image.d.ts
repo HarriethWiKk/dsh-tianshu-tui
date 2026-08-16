@@ -21,6 +21,9 @@ export interface ClipboardImage {
 /** 剪贴板读图器契约（测试注入与真实实现共用）。 */
 export interface ClipboardReader {
     readImage(): Promise<ClipboardImage | null>;
+    /** 可选：文本读取也走注入（测试密封化——否则文本路径会调真实 pbpaste，
+     *  剪贴板有内容时用例被环境扰动）。 */
+    readText?(): Promise<string | null>;
 }
 /** tryShellClipboard 的注入参数（测试覆盖各平台 shell 分支）。 */
 export interface ShellClipboardOpts {

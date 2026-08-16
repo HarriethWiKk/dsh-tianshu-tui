@@ -38,18 +38,18 @@
 | src/controllers/question-controller.ts | — | new |
 | src/controllers/session-manager.ts | — | new |
 | src/delegation-panel.ts | — | new |
-| src/engine/ansi.ts | engine/ansi.ts | modified |
-| src/engine/clipboard-image.ts | engine/clipboard-image.ts | modified（移除未声明的 @mariozechner/clipboard native 路径，保留 shell 链 + 注入点） |
+| src/engine/ansi.ts | engine/ansi.ts | modified（新增 DECSCUSR 光标形状常量：稳态竖条 + 默认恢复，overlay 输入光标用） |
+| src/engine/clipboard-image.ts | engine/clipboard-image.ts | modified（移除未声明的 @mariozechner/clipboard native 路径，保留 shell 链 + 注入点；readText 注入测试密封化） |
 | src/engine/commit-engine.ts | engine/commit-engine.ts | modified |
 | src/engine/image-attach.ts | engine/image-attach.ts | modified（三级自适应压缩：1568px 保透明 PNG / JPEG 0.82 → JPEG 0.55 → 1024px+0.55，语义对齐上游 desktop 子树 image-compress.ts 的 compressImageSafe；probeImageSize 头部解析为 dsh 新增） |
-| src/engine/image-tool.ts | engine/image-tool.ts | modified（新增 resizeJpegCandidates——长边缩放 + JPEG 质量候选链，win32 脚本含 EncoderParameter 质量参数；语义对齐上游 desktop 子树 image-compress.ts） |
+| src/engine/image-tool.ts | engine/image-tool.ts | modified（新增 resizeJpegCandidates——长边缩放 + JPEG 质量候选链，win32 脚本含 EncoderParameter 质量参数；语义对齐上游 desktop 子树 image-compress.ts；resize 链 sips 显式 -s format png） |
 | src/engine/input-controller.ts | engine/input-controller.ts | modified（类型内联；`tabComplete` Tab 补全状态机驱动） |
 | src/engine/input-handler.ts | engine/input-handler.ts | modified |
-| src/engine/input-line.ts | engine/input-line.ts | modified |
+| src/engine/input-line.ts | engine/input-line.ts | modified（多行 ↑↓ 导航 grapheme 列保持——CJK/emoji 跨行不拆簇，上游 dfe8b6f41 同步） |
 | src/engine/live-engine.ts | engine/live-engine.ts | modified |
 | src/engine/metrics-glance-controller.ts | engine/metrics-glance-controller.ts | modified |
 | src/engine/overlay-controller.ts | engine/overlay-controller.ts | modified |
-| src/engine/overlay-engine.ts | engine/overlay-engine.ts | modified |
+| src/engine/overlay-engine.ts | engine/overlay-engine.ts | modified（caret 钩子：输入类 overlay 硬件光标 + DECSCUSR 稳态竖条，caret 写不受空 diff 短路；退出恢复光标形状） |
 | src/engine/perf-monitor.ts | engine/perf-monitor.ts | modified |
 | src/engine/resize-handler.ts | engine/resize-handler.ts | ported |
 | src/engine/stream-renderer.ts | engine/stream-renderer.ts | modified |
