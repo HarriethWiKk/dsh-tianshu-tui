@@ -6,6 +6,8 @@ export interface FormatBrandWelcomeInput {
     brand?: string;
     /** 副标题（缺省 'DeepSeek Harness'）。 */
     subtitle?: string;
+    /** 插件版本号（提供时副标题行追加 ` · v<version>`；缺省不追加）。 */
+    version?: string;
     /** 水平对齐；hero 左栏用 left，窄屏叠放用 center（缺省）。 */
     align?: 'center' | 'left';
 }
@@ -76,6 +78,8 @@ export interface FormatWelcomeHeroInput {
     whale: readonly string[];
     env: WelcomeEnvCheck;
     tips: readonly WelcomeTipItem[];
+    /** 插件版本号（透传 formatBrandWelcome 副标题行）。 */
+    version?: string;
 }
 /**
  * 欢迎英雄区：宽屏左鲸鱼/品牌/环境 + 右 Tips zip；窄屏垂直居中叠放。

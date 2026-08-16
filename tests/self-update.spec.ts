@@ -14,6 +14,7 @@ import {
   runSelfUpdate,
   shouldCheckForUpdate,
   updateNoticeText,
+  autoRestartNoticeText,
 } from '../src/self-update.js'
 
 describe('isNpmVersionSpec', () => {
@@ -145,5 +146,9 @@ describe('runSelfUpdate', () => {
 describe('updateNoticeText', () => {
   it('提示重启后生效', () => {
     expect(updateNoticeText('0.1.0-rc.7')).toBe('插件已更新到 0.1.0-rc.7，请重启 dsh 后生效')
+  })
+
+  it('autoRestartNoticeText 提示自动重启', () => {
+    expect(autoRestartNoticeText('0.1.0-rc.7')).toBe('插件已更新到 0.1.0-rc.7，正在自动重启…')
   })
 })

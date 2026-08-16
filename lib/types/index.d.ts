@@ -48,6 +48,8 @@ export interface TuiRunnerConfig {
         /** 单次诊断拉取超时（毫秒）；缺省 2000。 */
         timeoutMs?: number;
     };
+    /** 启动自更新落盘后自动重启生效（缺省 true；false 时仅提示后手动 /restart）。 */
+    autoRestartOnUpdate?: boolean;
 }
 /**
  * Mount the terminal UI runner.

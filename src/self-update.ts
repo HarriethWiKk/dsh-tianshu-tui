@@ -189,3 +189,8 @@ export async function runSelfUpdate(opts: RunSelfUpdateOptions = {}): Promise<Up
 export function updateNoticeText(version: string): string {
   return `插件已更新到 ${version}，请重启 dsh 后生效`
 }
+
+/** 更新后将自动重启（autoRestartOnUpdate）时的提示。 */
+export function autoRestartNoticeText(version: string): string {
+  return `插件已更新到 ${version}，正在自动重启…`
+}

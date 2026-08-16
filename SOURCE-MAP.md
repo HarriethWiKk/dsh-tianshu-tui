@@ -126,6 +126,7 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 | src/ring-buffer.ts | ring-buffer.ts | modified |
 | src/scrollback-transcript.ts | scrollback-transcript.ts | modified |
 | src/self-update.ts | — | new（启动自更新：对照 npm latest 写 profile，dsh 原创） |
+| src/restart.ts | — | new（#34：同命令行重启原语——argv 重放 + stdio inherit + POSIX detached；/restart 命令与更新后自动重启共用） |
 | src/skill-panel.ts | — | new |
 | src/status-panel.ts | — | new |
 | src/statusline.ts | statusline.ts | modified（追加工作流投影层 + WorkflowStatusLine） |

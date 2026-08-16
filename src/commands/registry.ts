@@ -141,7 +141,7 @@ interface MemoryFacet {
  * /subagents、/workflow、/tasks 的命令定义在 createBuiltinCommands（deps 注入
  * TuiApp 的显隐切换）；/status 保持 TuiApp 内注册。
  */
-export const BUILTIN_COMMAND_NAMES = ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'yolo', 'help', 'cost'] as const
+export const BUILTIN_COMMAND_NAMES = ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'restart', 'yolo', 'help', 'cost'] as const
 
 /**
  * /model 一键切换别名（TUI 便捷层）：展开为已注册的 deepseek-official
@@ -284,6 +284,8 @@ export interface BuiltinCommandDeps {
   exportTranscript(path?: string): Promise<string>
   /** /exit：请求退出 TUI（与 Ctrl+Q 同一 onExit 路径）。 */
   requestExit(): void
+  /** /restart：以相同命令重启当前 dsh 进程（dispose → spawn 同 argv → 退出）。 */
+  requestRestart(): void
   /** /preset：当前会话的 agent（recompose/composedPreset 的 agentCtx 来源；无会话为 null）。 */
   currentAgent(): Agent | null
   /** /preset：当前会话是否 blank（无消息且无进行中工具调用）——recompose 的调用方契约。 */
@@ -893,6 +895,11 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
       name: 'exit',
       description: '退出 TUI（与 Ctrl+Q 相同）',
       run: () => { deps.requestExit() },
+    },
+    {
+      name: 'restart',
+      description: '重启当前 dsh 进程（同命令重新启动；插件更新后无需手动重跑）',
+      run: () => { deps.requestRestart() },
     },
     {
       name: 'yolo',

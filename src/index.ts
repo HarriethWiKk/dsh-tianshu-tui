@@ -15,6 +15,7 @@ import type { ReadStream, WriteStream } from 'node:tty'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { KeyName } from './engine/input-handler.ts'
 import { runSelfUpdate } from './self-update.ts'
+import { spawnSelfRestart } from './restart.ts'
 import { TuiApp } from './ui/app.ts'
 
 /** Stable Cordis plugin name the bundle patch inserts. */
@@ -54,6 +55,8 @@ export interface TuiRunnerConfig {
     /** 单次诊断拉取超时（毫秒）；缺省 2000。 */
     timeoutMs?: number
   }
+  /** 启动自更新落盘后自动重启生效（缺省 true；false 时仅提示后手动 /restart）。 */
+  autoRestartOnUpdate?: boolean
 }
 
 /**
@@ -91,8 +94,18 @@ export function apply(ctx: Context, config: TuiRunnerConfig = {}): void {
       if (typeof exit === 'function') exit(0)
       else process.exit(0)
     }
-    const teardown = async (quit: boolean): Promise<void> => {
+    const teardown = async (quit: boolean, restart = false): Promise<void> => {
       await app.dispose()
+      if (restart) {
+        // 重启：dispose（恢复终端）后以相同命令行 spawn 新进程，成功即退出当前进程。
+        // 新进程 stdio inherit 同一 TTY（POSIX detached 防 SIGHUP/SIGTTIN）。
+        const ok = await spawnSelfRestart()
+        if (!ok) {
+          console.error('[tui-runner] 重启失败：无法重新启动当前命令，请手动运行 dsh --profile tui')
+        }
+        requestHostExit()
+        return
+      }
       if (quit) requestHostExit()
     }
     const onSigint = (): void => { void teardown(true) }
@@ -101,6 +114,7 @@ export function apply(ctx: Context, config: TuiRunnerConfig = {}): void {
       stdin,
       stdout,
       onExit: () => { void teardown(true) },
+      onRestart: () => { void teardown(true, true) },
       ...(config.initialSessionId === undefined ? {} : { initialSessionId: config.initialSessionId }),
       ...(config.editorKey === undefined ? {} : { editorKey: config.editorKey }),
       ...(config.vimEnabled === undefined ? {} : { vimEnabled: config.vimEnabled }),
@@ -113,14 +127,30 @@ export function apply(ctx: Context, config: TuiRunnerConfig = {}): void {
       stdin.off('SIGINT', onSigint)
       return teardown(false)
     })
-    void app.attach().catch((err: unknown) => {
+    // attach 的 promise 保存下来：更新完成后自动重启需等 attach 落定（避免半初始化重启）。
+    // attach 失败标记 attachFailed——新版本持续启动失败时跳过自动重启，避免重启循环。
+    let attachFailed = false
+    const attachPromise = app.attach().catch((err: unknown) => {
+      attachFailed = true
       // attach 失败：恢复终端（dispose 幂等）后上报，避免半初始化终端残留。
       void app.dispose().finally(() => { console.error('[tui-runner] attach failed:', err) })
     })
     // 启动自更新：对照 npm latest，写入 profile。已加载模块不热替换，提示重启。
     // CI/VITEST/非 npm 安装会 noop，不挡 attach。
-    void runSelfUpdate({ startDir: fileURLToPath(new URL('.', import.meta.url)) }).then((result) => {
-      if (result.kind === 'updated') app.notifyPluginUpdated(result.version)
+    const autoRestartOnUpdate = config.autoRestartOnUpdate !== false
+    void runSelfUpdate({ startDir: fileURLToPath(new URL('.', import.meta.url)) }).then(async (result) => {
+      if (result.kind === 'updated') {
+        await attachPromise
+        if (attachFailed) return
+        if (autoRestartOnUpdate) {
+          app.notifyAutoRestart(result.version)
+          // 留 400ms 让提示可见（dispose 不清屏，新进程随后重绘 TUI）
+          await new Promise((r) => setTimeout(r, 400))
+          void teardown(true, true)
+        } else {
+          app.notifyPluginUpdated(result.version)
+        }
+      }
       // P1-1：更新失败不再静默——attach 后回显 warning（附 DSH_TUI_SKIP_UPDATE=1 提示）
       else if (result.kind === 'failed') app.notifyPluginUpdateFailed(result.error)
     })

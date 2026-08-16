@@ -60,3 +60,5 @@ export declare function installNpmVersion(latest: string, profileDir: string, ti
  */
 export declare function runSelfUpdate(opts?: RunSelfUpdateOptions): Promise<UpdateResult>;
 export declare function updateNoticeText(version: string): string;
+/** 更新后将自动重启（autoRestartOnUpdate）时的提示。 */
+export declare function autoRestartNoticeText(version: string): string;

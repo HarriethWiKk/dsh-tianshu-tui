@@ -35,6 +35,8 @@ export interface TuiAppOptions {
     theme?: string;
     /** 输入行为空时 Ctrl+C 的退出回调（raw-mode 下 Ctrl+C 是数据字节非 SIGINT）。 */
     onExit?: () => void;
+    /** /restart 与更新后自动重启的回调（装配方负责 dispose + spawn 同 argv + 退出）。 */
+    onRestart?: () => void;
     /** 外部编辑器触发键（KeyName）；缺省 'ctrl_e'（ctrl+o 已恢复为推理展开，Phase 6.4）。 */
     editorKey?: KeyName;
     /** 外部编辑器命令；缺省 $VISUAL/$EDITOR/平台缺省（测试注入点）。 */
@@ -156,6 +158,7 @@ export declare class TuiApp {
     private readonly initialSessionId;
     private readonly themeName;
     private readonly onExit;
+    private readonly onRestart;
     /** 外部编辑器触发键（Phase 6.4）；缺省 ctrl_e（ctrl+o 已恢复为推理展开）。 */
     private readonly editorKey;
     /** 外部编辑器命令注入（测试用）；缺省走环境变量/平台缺省。 */
@@ -310,6 +313,10 @@ export declare class TuiApp {
      * attach 完成前调用则排队，完成后写入 scrollback。
      */
     notifyPluginUpdated(version: string): void;
+    /** 自更新后将自动重启的提示（装配方随后触发重启）。 */
+    notifyAutoRestart(version: string): void;
+    /** 更新提示落盘：attach 完成前排队（pendingUpdateNotice），完成后写 scrollback。 */
+    private notifyUpdateLine;
     /**
      * 自更新失败的用户提示（P1-1）：回显一行 warning，附 SKIP 开关提示。
      * attach 完成前调用则排队，完成后写入 scrollback。

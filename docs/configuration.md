@@ -19,6 +19,7 @@ dsh-tianshu-tui 的配置分三层:**装配时配置**(TuiRunnerConfig,插件注
 | `workflowHistoryLimit` | `50` | `/workflow` 面板已结算 run 缓存上限(drop-oldest) |
 | `lsp.enabled` | `true` | LSP 诊断拉取开关(本地语言服务桥) |
 | `lsp.timeoutMs` | `2000` | 单次诊断拉取超时 |
+| `autoRestartOnUpdate` | `true` | 启动自更新落盘后自动重启生效;`false` 时仅提示,手动 `/restart` |
 
 ## 环境变量
 

@@ -70,6 +70,7 @@ function commandByName(name: string) {
     switchSession: vi.fn(async () => undefined),
     exportTranscript: vi.fn(async (path?: string) => path ?? '/tmp/dsh-export-s1.md'),
     requestExit: vi.fn(),
+    requestRestart: vi.fn(),
     currentAgent: vi.fn<() => Agent | null>(() => null),
     isBlankSession: vi.fn(() => true),
     setYoloMode: vi.fn(),
@@ -686,6 +687,22 @@ describe('内置命令 — /exit', () => {
     const { args, echo } = makeArgs()
     await cmd.run(args)
     expect(deps.requestExit).toHaveBeenCalledTimes(1)
+    expect(echo).not.toHaveBeenCalled()
+  })
+})
+
+describe('内置命令 — /restart（#34）', () => {
+  it('内置命令集含 /restart，完整名与 /rest 前缀可解析', () => {
+    expect(BUILTIN_COMMAND_NAMES).toContain('restart')
+    expect(resolveSlashCommand('/restart', BUILTIN_COMMAND_NAMES)?.command.name).toBe('restart')
+    expect(resolveSlashCommand('/rest', BUILTIN_COMMAND_NAMES)?.command.name).toBe('restart')
+  })
+
+  it('/restart 调用 requestRestart（dispose + 同命令重启）', async () => {
+    const { cmd, deps } = commandByName('restart')
+    const { args, echo } = makeArgs()
+    await cmd.run(args)
+    expect(deps.requestRestart).toHaveBeenCalledTimes(1)
     expect(echo).not.toHaveBeenCalled()
   })
 })
@@ -1379,6 +1396,7 @@ describe('内置命令 — /effort', () => {
       switchSession: vi.fn(async () => undefined),
       exportTranscript: vi.fn(async (path?: string) => path ?? '/tmp/dsh-export-s1.md'),
       requestExit: vi.fn(),
+    requestRestart: vi.fn(),
       currentAgent: vi.fn(() => null),
       isBlankSession: vi.fn(() => true),
       setYoloMode: vi.fn(),

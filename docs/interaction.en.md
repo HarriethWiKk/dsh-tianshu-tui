@@ -53,7 +53,7 @@ When there is more than one session, a **session tab bar** appears above the inp
 | Digits | Structured-question panel options |
 | In pickers: `↑`/`↓` (j/k) select, `Enter` confirm, `Esc`/`q` close | No-arg `/model` `/theme` `/session` pickers |
 
-## Command Reference (28 commands)
+## Command Reference (29 commands)
 
 ### Sessions
 
@@ -107,6 +107,7 @@ When there is more than one session, a **session tab bar** appears above the inp
 |---|---|
 | `/theme [name]` | Switch theme (no args opens the picker) |
 | `/steer <text>` | Steer mid-turn |
+| `/restart` | Restart the current dsh process (same command re-launched; applies plugin updates) |
 | `/exit` | Exit the TUI |
 
 ## Input Surfaces
