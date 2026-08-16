@@ -12,6 +12,21 @@
 
 **dsh-tianshu-tui**（`@huiliyi37/dsh-tianshu-tui`）是官方 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 上的交互式终端 UI 插件。渲染核心从 [天枢 Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) 演进而来（Apache-2.0；逐文件来源见 [SOURCE-MAP.md](SOURCE-MAP.md)）。UI 是纯展示层：所有 agent 状态都来自会话事件流。并做了harness工程层的个性化改造。比如TDD驱动的工作流，证据门，图像和视觉桥接，代码智能检索、记忆和跨会话召回等功能。
 
+## 文档
+
+| 文档 | 说明 |
+|---|---|
+| [快速开始](docs/getting-started.md) | 安装、启动与常见问题 |
+| [交互手册](docs/interaction.md) | 快捷键与命令全表 |
+| [配置](docs/configuration.md) | 装配选项、环境变量与运行时配置 |
+| [架构](docs/architecture.md) | 分层、数据流与设计决策 |
+| [主题](docs/themes.md) | 16 个内置主题与自定义 |
+| [插件生态](docs/plugins.md) | 伴生插件与扩展点 |
+| [VS Code](docs/vscode.md) | 在 VS Code 中使用 |
+| [ADAPTER.md](ADAPTER.md) | TUI ↔ harness 边界契约 |
+| [贡献指南](CONTRIBUTING.md) | PR 规范与验证矩阵 |
+| [开发说明](DEVELOPING.md) | 结构、构建与发布 |
+
 ## 安装
 
 本包不是独立程序。须先有官方 CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh)（`0.1.0-rc.6`）。只 `npm i` 本包跑不起来。

@@ -11,6 +11,21 @@
 
 **dsh-tianshu-tui** (`@huiliyi37/dsh-tianshu-tui`) is the interactive terminal UI plugin for the official [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). The render core evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) (Apache-2.0; file-by-file provenance in [SOURCE-MAP.md](SOURCE-MAP.md)). The UI is a pure presentation layer: every piece of agent state arrives through the session event stream.
 
+## Documentation
+
+| Doc | What it covers |
+|---|---|
+| [Getting started](docs/getting-started.md) | Install, launch, and troubleshooting |
+| [Interaction](docs/interaction.md) | Full keymap and command reference |
+| [Configuration](docs/configuration.md) | Assembly options, env vars, runtime config |
+| [Architecture](docs/architecture.md) | Layers, data flow, design decisions |
+| [Themes](docs/themes.md) | The 16 built-in palettes and custom themes |
+| [Plugin ecosystem](docs/plugins.md) | Companion plugins and extension points |
+| [VS Code](docs/vscode.md) | Running inside VS Code |
+| [ADAPTER.md](ADAPTER.md) | TUI ↔ harness boundary contract |
+| [Contributing](CONTRIBUTING.md) | PR guidelines and the verification matrix |
+| [Developing](DEVELOPING.md) | Structure, build, release |
+
 ## Install
 
 This package is not a standalone app. You need the official CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh) (`0.1.0-rc.6`). `npm i` of this package alone will not run.
