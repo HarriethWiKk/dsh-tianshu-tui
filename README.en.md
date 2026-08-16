@@ -15,15 +15,15 @@
 
 | Doc | What it covers |
 |---|---|
-| [Getting started](docs/getting-started.md) | Install, launch, and troubleshooting |
-| [Interaction](docs/interaction.md) | Full keymap and command reference |
-| [Configuration](docs/configuration.md) | Assembly options, env vars, runtime config |
-| [Architecture](docs/architecture.md) | Layers, data flow, design decisions |
-| [Themes](docs/themes.md) | The 16 built-in palettes and custom themes |
-| [Plugin ecosystem](docs/plugins.md) | Companion plugins and extension points |
-| [VS Code](docs/vscode.md) | Running inside VS Code |
+| [Getting started](docs/getting-started.en.md) | Install, launch, and troubleshooting |
+| [Interaction](docs/interaction.en.md) | Full keymap and command reference |
+| [Configuration](docs/configuration.en.md) | Assembly options, env vars, runtime config |
+| [Architecture](docs/architecture.en.md) | Layers, data flow, design decisions |
+| [Themes](docs/themes.en.md) | The 16 built-in palettes and custom themes |
+| [Plugin ecosystem](docs/plugins.en.md) | Companion plugins and extension points |
+| [VS Code](docs/vscode.en.md) | Running inside VS Code |
 | [ADAPTER.md](ADAPTER.md) | TUI ↔ harness boundary contract |
-| [Contributing](CONTRIBUTING.md) | PR guidelines and the verification matrix |
+| [Contributing](CONTRIBUTING.en.md) | PR guidelines and the verification matrix |
 | [Developing](DEVELOPING.md) | Structure, build, release |
 
 ## Install
