@@ -2850,7 +2850,12 @@ export class TuiApp {
         const committed = this.palette.commit()
         this.overlay?.deactivate()
         this.palette.close()
-        if (committed !== null) this.inputLine.setValue(committed.text)
+        if (committed !== null) {
+          // execute 模式（Tab 命令菜单，#31）：直接执行无参命令
+          // （/model /theme /session → 对应选择器）；backfill 模式（Ctrl+P）回填。
+          if (committed.execute) this.handleSubmit(committed.text)
+          else this.inputLine.setValue(committed.text)
+        }
       } else if (key.name === 'up' || key.name === 'down') {
         this.palette.move(key.name === 'up' ? -1 : 1)
         this.overlay?.rerender()
@@ -3022,6 +3027,21 @@ export class TuiApp {
         this.flushLiveRender()
         return
       }
+    }
+    // 空输入框 Tab → 命令菜单（palette execute 模式，#31 参考 Claude Code）：
+    // 选命令回车直接执行（/model → 模型选择器），省去输入 /cmd 一步。
+    // 非空输入框 Tab 走 @ 补全（下方 inputLine.handleKey → onTabComplete）；
+    // slash 菜单打开时 Tab 已被上方分支拦截（接受补全）。
+    if (key.name === 'tab' && this.inputLine.value === '') {
+      const palette = this.palette
+      const overlay = this.overlay
+      /* v8 ignore next 2 -- palette/overlay 在 attach 时恒创建，null 仅类型收窄 */
+      if (palette !== null && overlay !== null) {
+        palette.open(true)
+        overlay.activate('command-palette')
+        this.flushLiveRender()
+      }
+      return
     }
     if (key.name === 'up' || key.name === 'down') {
       // 交给 InputLine 的历史导航（InputLineEvent 'history' 不消费即已处理）

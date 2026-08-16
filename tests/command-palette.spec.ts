@@ -237,6 +237,20 @@ describe('CommandPalette 控制器', () => {
     expect(palette.isOpen()).toBe(false)
   })
 
+  it('#31 execute 模式：open(true) 后 commit 返回 `/name`（无空格）+ execute=true；缺省 backfill 不变', () => {
+    const palette = new CommandPalette({ getCommands: () => SAMPLE, getTheme: () => THEME })
+    palette.open(true)
+    const exec = palette.commit()
+    expect(exec?.execute).toBe(true)
+    expect(exec?.text).toBe('/theme')
+    expect(exec?.entry.name).toBe('theme')
+    palette.close()
+    palette.open() // Ctrl+P 路径，缺省 backfill
+    const backfill = palette.commit()
+    expect(backfill?.execute).toBe(false)
+    expect(backfill?.text).toBe('/theme ')
+  })
+
   it('open 状态下 toggle 关闭（toggle 的 if 分支）', () => {
     const palette = new CommandPalette({ getCommands: () => SAMPLE, getTheme: () => THEME })
     palette.open()

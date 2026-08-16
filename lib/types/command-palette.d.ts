@@ -1,8 +1,12 @@
 /**
- * command-palette — Ctrl+P 命令面板（纯状态机 + 渲染）。
+ * command-palette — Ctrl+P 命令面板 / Tab 命令菜单（纯状态机 + 渲染）。
  *
  * 数据源 = SlashCommandRegistry（getCommands 现取，插件扩展后可见）；
  * 过滤 = 名称/描述子串 + 名称子序列，前缀优先；状态机 open/type/backspace/move/close。
+ * 两种确认模式：
+ * - backfill（Ctrl+P，缺省）：Enter 回填 `/name ` 到输入框，用户续写参数。
+ * - execute（Tab 空输入框打开，#31 参考 Claude Code）：Enter 直接执行 `/name`
+ *   无参语义（/model /theme /session 无参即打开对应选择器），省去输入命令一步。
  */
 import type { SlashCommand } from './commands/registry.js';
 import type { RivetTheme } from './theme.js';
@@ -94,14 +98,20 @@ export declare class CommandPalette {
     private state;
     private readonly getCommands;
     private readonly getTheme;
+    /** 确认模式：true = execute（Enter 直接执行 `/name`）；false = backfill（回填 `/name `）。 */
+    private executeMode;
     constructor(opts: CommandPaletteOptions);
     /**
      * 面板是否打开。
      * @returns 开合状态。
      */
     isOpen(): boolean;
-    /** 打开面板（重置查询与选中）。 */
-    open(): void;
+    /**
+     * 打开面板（重置查询与选中）。
+     * @param execute - true 为 execute 模式（Enter 直接执行 `/name`，Tab 命令菜单用）；
+     *                  缺省 false 为 backfill 模式（Ctrl+P 命令面板，回填 `/name `）。
+     */
+    open(execute?: boolean): void;
     /** 关闭面板（保留查询，下次 open 时重置）。 */
     close(): void;
     /** 开合切换。 */
@@ -126,12 +136,15 @@ export declare class CommandPalette {
      */
     paletteVisible(): PaletteEntry[];
     /**
-     * 提交选中项：返回条目 + 回填文本；无选中返回 null。
-     * @returns 条目与回填文本；选中越界（如无匹配）返回 null。
+     * 提交选中项：返回条目 + 文本 + 确认模式；无选中返回 null。
+     * execute 模式文本为 `/name`（无尾随空格，调用方直接执行）；backfill 模式
+     * 为 `/name `（含尾随空格，调用方回填输入框续写参数）。
+     * @returns 条目与文本/模式；选中越界（如无匹配）返回 null。
      */
     commit(): {
         entry: PaletteEntry;
         text: string;
+        execute: boolean;
     } | null;
     /**
      * OverlayRenderer 契约：render(width, height) → string[]。

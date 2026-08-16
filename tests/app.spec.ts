@@ -2197,6 +2197,48 @@ describe('TuiApp 命令面板（Ctrl+P overlay）', () => {
     expect(written).not.toContain('❯ /theme')
     await app.dispose()
   })
+
+  it('#31 空输入框 Tab → execute 模式：过滤 /exit 回车直接执行（onExit 触发，不经输入框回填）', async () => {
+    const onExit = vi.fn()
+    const ctx = makeCtx()
+    const agent = makeAgent('tab-exec-1')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdin = makeStdin()
+    const app = new TuiApp({ ctx, stdout: makeStdout(), stdin, theme: 'paper', onExit })
+    await app.attach()
+
+    stdin.emit('data', '\x09') // Tab（空输入框）→ execute 模式命令菜单
+    await new Promise(resolve => setImmediate(resolve))
+    stdin.emit('data', 'exit') // 过滤 → /exit（'ex' 会同时命中 export，输入完整名）
+    stdin.emit('data', '\r')   // Enter → 直接执行 /exit（无参）→ onExit
+    await new Promise(resolve => setImmediate(resolve))
+
+    expect(onExit).toHaveBeenCalledTimes(1)
+    await app.dispose()
+  })
+
+  it('#31 空输入框 Tab 打开 execute 模式后 Esc 关闭（不执行、不回填）', async () => {
+    const onExit = vi.fn()
+    const ctx = makeCtx()
+    const agent = makeAgent('tab-exec-2')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin, theme: 'paper', onExit })
+    await app.attach()
+
+    stdin.emit('data', '\x09') // Tab → execute 模式菜单
+    await new Promise(resolve => setImmediate(resolve))
+    stdin.emit('data', '\x1b') // Esc 关闭
+    await new Promise(resolve => setTimeout(resolve, 200))
+
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('\x1B[?1049l') // 退出 alt screen（菜单已关闭）
+    expect(onExit).not.toHaveBeenCalled()     // 未执行任何命令
+    await app.dispose()
+  })
 })
 
 describe('TuiApp T4 任务窗格（/tasks + sessionProjections）', () => {
