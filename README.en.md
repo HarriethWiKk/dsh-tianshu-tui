@@ -68,6 +68,27 @@ DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh --profile tui
 
 Do not run tsdown for this package from the DeepSeek Harness workspace root: it rewrites imports to unpublished `@deepseek-ai/dsh-root`, and loading fails.
 
+## Coexisting with other distributions
+
+This plugin runs on top of the official DeepSeek Harness (`@deepseek-ai/dsh`) and uses the
+official home `~/.dsh`. The standalone integrated distribution **oh-my-tianshu** (formerly
+tianshu-public, `@huiliyi37/dsh-tianshu`, a full harness with its own `tianshu` CLI) is a
+separate distribution line that uses its own `$DSH_HOME` (`~/.dsh-tianshu` once the
+default-home isolation lands) — the two homes are isolated, so both can be **installed side
+by side without conflicts** (sessions / profiles / settings stay separate). To coexist, set
+`export DSH_HOME=~/.dsh-tianshu` on the tianshu side.
+
+**Naming memo (avoid confusion):**
+
+| Name | What it is |
+|---|---|
+| `dsh-tianshu-tui` (this plugin) | The TUI plugin for the official dsh (this repo) |
+| `oh-my-tianshu` / `@huiliyi37/dsh-tianshu` (formerly tianshu-public) | Standalone integrated distribution with its own CLI |
+| `Tianshu-Tui` (upstream) | Apache-2.0 source of this plugin's render core |
+
+> Renaming plan (phase 2): oh-my-tianshu's launch command and npm package name will be
+> renamed to eliminate semantic confusion; this section will be updated then.
+
 The companion vision plugin lives in `vision-ask/` if you need image re-interrogation.
 
 ## Release notes

@@ -69,6 +69,24 @@ DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh --profile tui
 
 不要在 DeepSeek Harness 工作区根目录对本包跑 tsdown：会把未发布的 `@deepseek-ai/dsh-root` 写进 bundle，加载必失败。
 
+## 与其他发行版共存
+
+本插件运行在官方 DeepSeek Harness（`@deepseek-ai/dsh`）之上，数据 home 为 `~/.dsh`。
+独立集成发行 **oh-my-tianshu**（原 tianshu-public，`@huiliyi37/dsh-tianshu`，自带 `tianshu`
+CLI 的完整 harness）是另一条独立发行线，使用独立的 `$DSH_HOME`（默认值独立化落地后为
+`~/.dsh-tianshu`）——两套系统 home 隔离，**可同时安装、互不干扰**（会话 / profile /
+settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tianshu` 即可。
+
+**命名备忘（防止混淆）**：
+
+| 名字 | 是什么 |
+|---|---|
+| `dsh-tianshu-tui`（本插件） | 官方 dsh 的 TUI 插件（本仓库） |
+| `oh-my-tianshu` / `@huiliyi37/dsh-tianshu`（原 tianshu-public） | 独立集成发行，自带 CLI |
+| `Tianshu-Tui`（上游） | 本插件渲染核心的 Apache-2.0 来源（天枢） |
+
+> 更名计划（第二批）：oh-my-tianshu 的启动命令与 npm 包名将统一改名，届时本说明同步更新。
+
 需要图片再询问能力时，再装配同仓伴生包 `vision-ask/`；需要 LSP 模型工具面（模型可调 `lsp_goto_definition` / `lsp_find_references` / `lsp_diagnostics`）时装配社区插件 [`omdsh-dev/dsh-lsp`](https://github.com/omdsh-dev/dsh-lsp)（`npx -y @deepseek-ai/dsh plugin --profile tui add github:omdsh-dev/dsh-lsp`）——装配后 TUI 展示桥自动消费其 `lsp` 服务（与模型工具面共享同一 LSP server 集，不双份 spawn）。TUI 桥的诊断源探测顺序：社区插件服务（getDiagnostics 形状）→ 官方 `ctx.lsp` seam（deepseek-harness 的 dsh-lsp，经 query(getDiagnostics) 适配）→ 内置桥降级。
 
 ## 更新说明
