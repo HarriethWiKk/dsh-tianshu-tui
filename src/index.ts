@@ -72,6 +72,12 @@ export function apply(ctx: Context, config: TuiRunnerConfig = {}): void {
   }
   const stdin = config.stdin ?? process.stdin
   const stdout = config.stdout ?? process.stdout
+  // 兜底：任何异常退出路径都恢复终端（raw mode off）——本体（opencode-tui）
+  // 同款 best-effort。防止异常跳过 dispose 时残留 raw mode（终端乱/输入框不可见）。
+  // exit 时进程将结束，handler 无需卸载。
+  process.on('exit', () => {
+    try { if (stdin.isTTY && typeof stdin.setRawMode === 'function') stdin.setRawMode(false) } catch { /* best-effort */ }
+  })
   // 服务隔离：sessions/agents/agentDefaultModel 是注入属性，访问前必须
   // 声明依赖（Cordis 4 注入语义，未声明访问抛 "without inject"；web-app 同款
   // 模式）。cmdlineArgs/appExit 是 launcher 在 boot prepare 里 provide 的宿主服务，
@@ -108,7 +114,6 @@ export function apply(ctx: Context, config: TuiRunnerConfig = {}): void {
       }
       if (quit) requestHostExit()
     }
-    const onSigint = (): void => { void teardown(true) }
     const app = new TuiApp({
       ctx: runtimeCtx,
       stdin,
@@ -122,9 +127,26 @@ export function apply(ctx: Context, config: TuiRunnerConfig = {}): void {
       ...(config.workflowHistoryLimit === undefined ? {} : { workflowHistoryLimit: config.workflowHistoryLimit }),
       ...(config.lsp === undefined ? {} : { lsp: config.lsp }),
     })
+    // Windows 控制台（PowerShell/conhost）下 Ctrl+C 可能同时产生 0x03 字节
+    // 与 SIGINT 信号：0x03 已走 handleAbort（打断），紧随的 SIGINT 若直接
+    // teardown 会把刚打断的 TUI 拆掉（输入框消失、进程存活）——800ms 内已有
+    // ctrl_c 字节处理则忽略 SIGINT（shouldDeferSigint）。SIGINT 自身去重兜底
+    // （process + stdin 双注册时同一信号只处理一次）。
+    let lastSigintAt = 0
+    const onSigint = (): void => {
+      const now = Date.now()
+      if (app.shouldDeferSigint(now)) return
+      if (now - lastSigintAt < 500) return
+      lastSigintAt = now
+      void teardown(true)
+    }
+    // SIGINT 双注册：Windows 上 stdin 流对 SIGINT 的转发不可靠，process 级
+    // 注册（POSIX/Windows 均可靠）为双保险；stdin 级保留（与既有测试/语义兼容）。
+    process.on('SIGINT', onSigint)
     stdin.on('SIGINT', onSigint)
     ctx.effect(() => () => {
       stdin.off('SIGINT', onSigint)
+      process.off('SIGINT', onSigint)
       return teardown(false)
     })
     // attach 的 promise 保存下来：更新完成后自动重启需等 attach 落定（避免半初始化重启）。

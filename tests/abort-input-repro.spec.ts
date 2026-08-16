@@ -265,4 +265,17 @@ describe('复现：Ctrl+C 打断后输入框可见性', () => {
     expect(out).toContain('已取消')
     await app.dispose()
   })
+
+  it('I: 0x03 Ctrl+C 处理后 shouldDeferSigint=true（Windows 双触发防护门）', async () => {
+    const { app, stdin } = await bootApp()
+    expect(app.shouldDeferSigint(Date.now())).toBe(false) // 未处理过 0x03
+
+    stdin.emit('data', '\x03') // 空闲空输入：第一次 Ctrl+C（双击退出窗口开始）
+    await new Promise(r => setImmediate(r))
+    expect(app.shouldDeferSigint(Date.now())).toBe(true) // 800ms 窗口内
+
+    await new Promise(r => setTimeout(r, 900))
+    expect(app.shouldDeferSigint(Date.now())).toBe(false) // 窗口过后不再 defer
+    await app.dispose()
+  })
 })

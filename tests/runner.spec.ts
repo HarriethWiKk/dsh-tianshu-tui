@@ -209,6 +209,32 @@ describe('index apply() 装配与退出生命周期', () => {
       expect(process.exit).toHaveBeenCalledWith(0)
     })
   })
+
+  it('Windows 双触发防护：shouldDeferSigint=true 时 SIGINT 被忽略（不 teardown）', async () => {
+    const ctx = makeCtx()
+    const appExit = vi.fn()
+    ctx.reflect.get.mockImplementation((name: string) => name === 'appExit' ? appExit : undefined)
+    vi.spyOn(TuiApp.prototype, 'attach').mockResolvedValue(undefined)
+    vi.spyOn(TuiApp.prototype, 'dispose').mockResolvedValue(undefined)
+    vi.spyOn(TuiApp.prototype, 'shouldDeferSigint').mockReturnValue(true)
+    const stdin = makeStdin()
+    apply(ctx, { stdin, stdout: makeStdout() })
+    stdin.emit('SIGINT')
+    await new Promise(r => setTimeout(r, 100))
+    expect(appExit).not.toHaveBeenCalled()
+    const cleanup = ctx.effect.mock.results[0]?.value as (() => void) | undefined
+    cleanup?.()
+  })
+
+  it('装配注册 process.on exit 终端恢复兜底（raw mode off best-effort）', () => {
+    const ctx = makeCtx()
+    vi.spyOn(TuiApp.prototype, 'attach').mockResolvedValue(undefined)
+    const before = process.listeners('exit').length
+    apply(ctx, { stdin: makeStdin(), stdout: makeStdout() })
+    expect(process.listeners('exit').length).toBeGreaterThan(before)
+    const cleanup = ctx.effect.mock.results[0]?.value as (() => void) | undefined
+    cleanup?.()
+  })
 })
 
 describe('index apply() — 更新后自动重启装配（#34 审查补测）', () => {

@@ -2520,6 +2520,20 @@ export class TuiApp {
   }
 
   /** 取消当前运行（Esc/Ctrl+C）：cancel agent、丢弃未发出的流式/推理缓冲并重置流渲染。 */
+  /** 最近一次 Ctrl+C 字节（0x03）处理时间戳；0 = 未处理过（SIGINT 防抖用）。 */
+  private lastCtrlCAt = 0
+
+  /**
+   * Windows 双触发防护：最近 800ms 内 Ctrl+C 字节（0x03）已处理（打断/退出）时，
+   * 紧随的 SIGINT 应被忽略——否则刚打断的 TUI 被 teardown 拆掉（输入框消失、
+   * 进程存活）。装配层（index.ts）的 SIGINT handler 先查此门再决定是否退出。
+   * @param now - 当前时间戳（注入便于测试）。
+   * @returns true = SIGINT 应忽略（0x03 刚处理过）。
+   */
+  shouldDeferSigint(now: number): boolean {
+    return now - this.lastCtrlCAt < 800
+  }
+
   handleAbort(): void {
     // 防御：打断优先于 overlay——释放任何激活的全屏 overlay（palette/search/
     // rewind/picker），保证主屏（含输入轨）在下一帧必然恢复。按键路径上 overlay
@@ -2952,6 +2966,10 @@ export class TuiApp {
       this.escRewindPendingSince = now
     }
     if (key.name === 'ctrl_c') {
+      // Windows 控制台（PowerShell/conhost）下 Ctrl+C 可能同时产生 0x03 字节
+      // 与 SIGINT：记录字节处理时间，供 index.ts 的 SIGINT 防抖（双触发时
+      // SIGINT 忽略，避免刚打断的 TUI 被 teardown 拆掉——「输入框消失」）。
+      this.lastCtrlCAt = Date.now()
       // raw-mode 下 Ctrl+C 是 0x03 数据字节而非 SIGINT。
       // 在途：打断当前 turn。空闲空输入：连按两次才 onExit（单次 dispose
       // 会拆掉 TUI 而 dsh 进程仍在，表现为“按 Ctrl+C 后无法继续、只能再按一次退出”）。
