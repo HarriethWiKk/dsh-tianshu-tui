@@ -97,6 +97,7 @@ When there is more than one session, a **session tab bar** appears above the inp
 | `/doctor` | Terminal diagnostics + fix guide |
 | `/mcp [tools <name>]` | List MCP servers and their tools |
 | `/help [cmd]` | Command help |
+| `/cost` | Current-session cumulative usage and cost estimate (per model) |
 
 ### Other
 

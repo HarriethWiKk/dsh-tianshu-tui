@@ -80,6 +80,7 @@
 | src/format/reasoning.ts | — | new（think 推理两态渲染：live shimmer 头行 + 尾巴、结算全文块，纯渲染） |
 | src/format/rewind-overlay.ts | — | new |
 | src/format/separator.ts | separator.ts | modified（目录重排：上游根 → src/format/） |
+| src/format/session-cost.ts | — | new（/cost 会话成本汇总：usage 按模型分桶累计 + 报告渲染，纯函数） |
 | src/format/session-tabs.ts | — | new（会话 tab 栏：短 id + 当前 ●，窄宽丢旧 +N 折叠，纯渲染） |
 | src/format/shimmer.ts | — | new（光带扫过动画：tick 驱动逐字符插值，样式源用户提供的 deep-diving.gif） |
 | src/format/slash-menu.ts | — | new（grok slash_dropdown 移植：slash 命令下拉菜单，纯渲染） |

@@ -4901,6 +4901,67 @@ describe('Issue #31 交互式选择器（/model /theme /session 无参打开）'
   })
 })
 
+describe('/cost 会话成本汇总', () => {
+  async function costSetup(agentId: string) {
+    const ctx = makeCtx()
+    const agent = makeAgent(agentId)
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    await app.attach()
+    return { ctx, stdout, app }
+  }
+
+  it('usage 事件按模型累计；/cost 输出明细与合计', async () => {
+    const { ctx, stdout, app } = await costSetup('cost-1')
+    const bus = sessionEventBus(ctx)
+    const id = app.sessionId
+    if (id === null) throw new Error('no active session')
+    // 模型 A 两次请求(累计)
+    bus(id, {
+      seq: 1, time: 1, type: 'request/header',
+      data: { header: { config: { provider: 'mock', model: 'deepseek-v4-flash' } }, reason: 'initial' },
+    })
+    bus(id, {
+      seq: 2, time: 2, type: 'assistant/message',
+      data: { turn: 1, step: 0, message: { role: 'assistant', content: [{ type: 'text', text: 'a' }] }, usage: { inputTokens: 1_000_000, outputTokens: 200_000 } },
+    })
+    bus(id, {
+      seq: 3, time: 3, type: 'assistant/message',
+      data: { turn: 1, step: 1, message: { role: 'assistant', content: [{ type: 'text', text: 'b' }] }, usage: { inputTokens: 500_000, outputTokens: 100_000 } },
+    })
+    // 模型 B 一次请求
+    bus(id, {
+      seq: 4, time: 4, type: 'request/header',
+      data: { header: { config: { provider: 'mock', model: 'deepseek-v4-pro' } }, reason: 'change' },
+    })
+    bus(id, {
+      seq: 5, time: 5, type: 'assistant/message',
+      data: { turn: 1, step: 2, message: { role: 'assistant', content: [{ type: 'text', text: 'c' }] }, usage: { inputTokens: 500_000, outputTokens: 100_000 } },
+    })
+    app.handleSubmit('/cost')
+    await new Promise(resolve => setImmediate(resolve))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('会话成本统计')
+    expect(written).toContain('deepseek-v4-flash')
+    expect(written).toContain('输入 1.50M')
+    expect(written).toContain('输出 300k')
+    expect(written).toContain('deepseek-v4-pro')
+    expect(written).toContain('合计:输入 2.00M')
+    await app.dispose()
+  })
+
+  it('/cost 无用量数据 → 占位提示', async () => {
+    const { stdout, app } = await costSetup('cost-empty')
+    app.handleSubmit('/cost')
+    await new Promise(resolve => setImmediate(resolve))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('（本会话尚无用量数据）')
+    await app.dispose()
+  })
+})
+
 describe('C4 概念稿 菜单快捷键与三行底部区（提交后审查补测）', () => {
   function boot(over: Partial<ConstructorParameters<typeof TuiApp>[0]> = {}) {
     const ctx = makeCtx()

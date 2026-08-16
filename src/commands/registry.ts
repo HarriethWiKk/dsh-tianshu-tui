@@ -141,7 +141,7 @@ interface MemoryFacet {
  * /subagents、/workflow、/tasks 的命令定义在 createBuiltinCommands（deps 注入
  * TuiApp 的显隐切换）；/status 保持 TuiApp 内注册。
  */
-export const BUILTIN_COMMAND_NAMES = ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'yolo', 'help'] as const
+export const BUILTIN_COMMAND_NAMES = ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'yolo', 'help', 'cost'] as const
 
 /**
  * /model 一键切换别名（TUI 便捷层）：展开为已注册的 deepseek-official
@@ -296,6 +296,8 @@ export interface BuiltinCommandDeps {
   openThemePicker(): void
   /** #31：打开会话选择器。 */
   openSessionPicker(): void
+  /** /cost：当前会话累计用量与成本报告行（app 侧汇总；无数据时返回占位行）。 */
+  sessionCostReport(): string[]
 }
 
 /**
@@ -940,6 +942,14 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
           echo(`  /${command.name}${command.argsHint === undefined ? '' : ` ${command.argsHint}`} — ${command.description}`)
         }
         echo('快捷键见 Ctrl+. 键位表')
+      },
+    },
+    {
+      name: 'cost',
+      description: '当前会话累计用量与成本估算（按模型分桶）',
+      argsHint: '',
+      run: ({ echo }) => {
+        for (const line of deps.sessionCostReport()) echo(line)
       },
     },
   ]

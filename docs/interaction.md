@@ -98,6 +98,7 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
 | `/doctor` | 终端诊断 + 修复指引 |
 | `/mcp [tools <name>]` | 列出 MCP server 与工具 |
 | `/help [cmd]` | 命令帮助 |
+| `/cost` | 当前会话累计用量与成本估算(按模型分桶) |
 
 ### 其他
 

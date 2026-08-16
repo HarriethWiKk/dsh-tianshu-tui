@@ -76,6 +76,7 @@ function commandByName(name: string) {
     openModelPicker: vi.fn(),
     openThemePicker: vi.fn(),
     openSessionPicker: vi.fn(),
+    sessionCostReport: vi.fn<() => string[]>(() => []),
   }
   const commands = createBuiltinCommands(deps)
   const cmd = commands.find(c => c.name === name)
@@ -716,6 +717,30 @@ describe('内置命令 — /yolo', () => {
     await cmd.run(args)
     expect(deps.setYoloMode).not.toHaveBeenCalled()
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('用法'))
+  })
+})
+
+describe('内置命令 — /cost', () => {
+  it('内置命令集含 /cost', () => {
+    expect(BUILTIN_COMMAND_NAMES).toContain('cost')
+  })
+
+  it('/cost 无数据 → 占位提示行（formatSessionCostReport 空桶语义）', async () => {
+    const { cmd, deps } = commandByName('cost')
+    deps.sessionCostReport.mockReturnValue(['会话成本统计', '（本会话尚无用量数据）'])
+    const { args, echo } = makeArgs()
+    await cmd.run(args)
+    expect(echo).toHaveBeenCalledWith('（本会话尚无用量数据）')
+  })
+
+  it('/cost 有数据 → 逐行 echo 报告', async () => {
+    const { cmd, deps } = commandByName('cost')
+    deps.sessionCostReport.mockReturnValue(['会话成本统计', '· deepseek-v4-flash — $0.53', '合计:输入 1.00M'])
+    const { args, echo } = makeArgs()
+    await cmd.run(args)
+    expect(echo).toHaveBeenNthCalledWith(1, '会话成本统计')
+    expect(echo).toHaveBeenNthCalledWith(2, '· deepseek-v4-flash — $0.53')
+    expect(echo).toHaveBeenNthCalledWith(3, '合计:输入 1.00M')
   })
 })
 
@@ -1360,6 +1385,7 @@ describe('内置命令 — /effort', () => {
       openModelPicker: vi.fn(),
       openThemePicker: vi.fn(),
       openSessionPicker: vi.fn(),
+      sessionCostReport: vi.fn<() => string[]>(() => []),
     }
     const cmd = createBuiltinCommands(deps).find(c => c.name === 'effort')
     if (cmd === undefined) throw new Error('builtin command not found: effort')

@@ -215,6 +215,7 @@ import {
 } from '../commands/registry.js'
 import { PickerController, type PickerItem } from '../picker.js'
 import { formatSessionTabs, type SessionTab } from '../format/session-tabs.js'
+import { accumulateUsage, formatSessionCostReport, type SessionCostBucket } from '../format/session-cost.js'
 import { renderTranscript, parseToolArguments, toolResultText, type RenderedRow } from './render.js'
 import { CommandPalette } from '../command-palette.js'
 import { OverlayController } from '../engine/overlay-controller.js'
@@ -521,6 +522,9 @@ export class TuiApp {
   /** 会话内最后一条 assistant/message 的 usage（缓存命中/上下文占比数据源；
    *  streamFeed 折叠，随会话挂载/卸载）。 */
   private usageFold: TokenUsage | null = null
+  /** 会话成本累计（assistant/message usage 按模型分桶；/cost 数据源，
+   *  随会话卸载复位）。 */
+  private sessionCosts = new Map<string, SessionCostBucket>()
   /** 当前模型路由的上下文窗口（request/context 事件折叠；adapter 未报时 null）。 */
   private contextWindow: number | null = null
   /** git 未提交改动文件数（gitDirtyCount 快照；attach + turn/end 刷新，0 = 干净/非仓库）。 */
@@ -791,6 +795,8 @@ export class TuiApp {
       openModelPicker: () => { void this.openModelPicker() },
       openThemePicker: () => { this.openThemePicker() },
       openSessionPicker: () => { void this.openSessionPicker() },
+      // /cost：当前会话累计用量与成本报告（Map 保持首次出现序）。
+      sessionCostReport: () => formatSessionCostReport([...this.sessionCosts.values()]),
     })) {
       this.slash.register(command)
     }
@@ -3075,7 +3081,12 @@ export class TuiApp {
         this.commitReasoningBlock()
         // 最后一次请求的 token 计量（缓存命中率/上下文占比数据源；适配器未报
         // usage 时保持上一次折叠——同一会话内后续段仍可用）。
-        if (event.data.usage !== undefined) this.usageFold = event.data.usage
+        if (event.data.usage !== undefined) {
+          this.usageFold = event.data.usage
+          // /cost 会话累计：按最近一次 request/header 的模型分桶累加。
+          const model = this.glanceModelName ?? 'unknown'
+          this.sessionCosts.set(model, accumulateUsage(this.sessionCosts.get(model), event.data.usage, model))
+        }
         void this.flushStream()
         break
       }
@@ -3711,6 +3722,7 @@ export class TuiApp {
     this.taskNotice = null
     // glance 数据（usage/effort/contextWindow）随会话卸载复位——新会话重挂载重折叠。
     this.usageFold = null
+    this.sessionCosts.clear()
     this.glanceEffort = null
     this.contextWindow = null
     this.projectionCache = null
