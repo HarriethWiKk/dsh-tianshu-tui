@@ -8,14 +8,17 @@ This repo contains two independent plugins: the root `@huiliyi37/dsh-tianshu-tui
 
 - **Report a bug or request a feature**: open an issue with a clear reproduction and your terminal environment.
 - **Open a PR**: base against `main`. Keep changes focused — one logical change per PR. Describe motivation, changes, and how you verified.
-- **Run the verification matrix below before requesting review** — CI runs exactly these commands.
+- **Run the verification matrix below before requesting review** — CI runs exactly these commands (ubuntu + windows matrix, plus a bundle-freshness gate: any `src/` change must commit the rebuilt `lib/`).
 - New features should come with or extend a focused test (prefer pure-function layers: render/fold logic in `format/`-style modules, where tests are cheapest).
+- To run the TUI locally for debugging: `./scripts/dev.sh` (macOS/Linux) or `node scripts/dev.mjs` (cross-platform, the Windows entry point) — see [docs/LOCAL-DEV.md](docs/LOCAL-DEV.md).
 
 ## Verification Matrix
 
 ```sh
-npm run typecheck   # tsc --noEmit (src + tests) + vision-ask's own tsconfig
-npm test            # vitest run (main repo) + vitest run --root vision-ask
+npm run lint       # oxlint correctness-only (correctness issues only, no style rules)
+npm run typecheck  # tsc --noEmit (src + tests) + vision-ask's own tsconfig
+npm test           # vitest run (main repo) + vitest run --root vision-ask
+npm run build      # two-stage build; required after any src/ change — lib/ is tracked (CI checks freshness)
 ```
 
 - The main repo and vision-ask each have their own test suite; run whichever you touch, full suite before committing.

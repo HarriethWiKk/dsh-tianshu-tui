@@ -1,7 +1,8 @@
 name: CI
 
-# 最小 CI（P1-2）：三门禁均已本地化——typecheck + test + build。
-# lockfile 已跟踪，npm ci 可复现。node 矩阵对齐 engines（^22.19 || >=24）。
+# 四门禁（lint + typecheck + test + build）。lockfile 已跟踪，npm ci 可复现。
+# node 矩阵对齐 engines（^22.19 || >=24）；os 矩阵含 windows-latest——Windows
+# 是一等目标平台（Ctrl+C/路径容错等兼容修复自 rc.10 起），spec 需在真 Windows 回归。
 on:
   push:
     branches: [main]
@@ -9,10 +10,11 @@ on:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest]
         node-version: ['22', '24']
     steps:
       - uses: actions/checkout@v4
@@ -21,6 +23,13 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
       - run: npm ci
+      - run: npm run lint
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # bundle 新鲜度门禁（仅 ubuntu：Windows 行尾转换会产生假 diff）。
+      # lib/index.js / lib/invariant.js / lib/types/**/*.d.ts 跟仓，github:/npm
+      # 安装吃 bundle——改了 src 必须同 commit 重建 lib（RELEASE.md 跟仓策略）。
+      - name: bundle freshness (tracked lib/ must match fresh build)
+        if: matrix.os == 'ubuntu-latest'
+        run: git diff --exit-code -- lib/

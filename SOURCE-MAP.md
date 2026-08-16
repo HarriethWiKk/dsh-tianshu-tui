@@ -101,8 +101,8 @@
 | src/gutter.ts | gutter.ts | ported |
 | src/index.ts | — | new |
 | src/lsp/lsp-bridge.ts | — | new（LSP 诊断桥：懒生命周期 + 展示层诊断缓存；扩展名不支持/server 未安装一次标记；per-file 合并与冷却） |
-| src/lsp/manager.ts | lsp/manager.ts | ported（单 LSP server：initialize/didOpen/changeFile/getFileDiagnostics，pull 优先 + publishDiagnostics 缓存） |
-| src/lsp/multi-manager.ts | lsp/multi-manager.ts | modified（spawn 简化：弃上游 spawnHidden/resolve-node-cli 桌面 bundle 适配，用 node:child_process spawn 直连） |
+| src/lsp/manager.ts | lsp/manager.ts | modified（initialize 竞速进程早夭：rpc 无超时，进程死掉时 pending 请求永不 settle → error/close settle 入 catch，防 ensure() 永久挂起） |
+| src/lsp/multi-manager.ts | lsp/multi-manager.ts | modified（spawn 简化：弃上游 spawnHidden/resolve-node-cli 桌面 bundle 适配，用 node:child_process spawn 直连；win32 经 cmd.exe /d /c 派发 .cmd——npx 不经 shell 直接 spawn 抛 EINVAL） |
 | src/lsp/rpc.ts | lsp/rpc.ts | ported（JSON-RPC over stdio：Content-Length 帧编解码 + 请求/通知分发） |
 | src/lsp/server-registry.ts | lsp/server-registry.ts | ported（语言 → server 映射：typescript 经 npx / pyright / gopls / rust-analyzer / clangd / jdtls + which 探测） |
 

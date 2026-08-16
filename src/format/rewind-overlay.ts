@@ -180,7 +180,6 @@ export class RewindOverlay implements OverlayRenderer {
           lastTurn = m.turn
         }
         const mark = m.kind === 'user' ? '❯' : '✦'
-        const markColor = m.kind === 'user' ? theme.userColor : theme.assistantColor
         const age = formatElapsedHuman(Date.now() - m.time)
         const line = truncateToDisplayWidth(
           `${mark} ${age} 前 ${m.text.replace(/\n/g, ' ')}`,

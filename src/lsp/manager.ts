@@ -2,7 +2,7 @@ import type { ChildProcess } from 'node:child_process'
 import { isAbsolute, resolve as resolvePath, relative as relativePath } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import { createRpcClient, type RpcClient } from './rpc.js'
-import { PassThrough, type Readable, type Writable } from 'node:stream'
+import type { Readable, Writable } from 'node:stream'
 
 interface Location {
   uri: string
@@ -96,10 +96,9 @@ export function createLspManager(spawnFn: SpawnFn, cwd: string): LspManager {
    * and does not rely on the text content from didOpen.
    * Caches opened URIs — only sends didOpen + waits on first access.
    */
-  async function ensureDocument(filePath: string): Promise<void> {
-    if (!rpc) return
-    const absPath = absFromCwd(filePath, cwd)
-    const uri = fileToUri(filePath, cwd)
+    async function ensureDocument(filePath: string): Promise<void> {
+      if (!rpc) return
+      const uri = fileToUri(filePath, cwd)
     if (openedDocs.has(uri)) return
     openedDocs.add(uri)
     try {
@@ -121,7 +120,8 @@ export function createLspManager(spawnFn: SpawnFn, cwd: string): LspManager {
   return {
     async initialize() {
       try {
-        proc = spawnFn()
+        const child: ChildProcess = spawnFn()
+        proc = child
 
         // stdin is writable (we send requests), stdout is readable (we receive responses)
         const stdin = proc.stdin as Writable
@@ -134,22 +134,29 @@ export function createLspManager(spawnFn: SpawnFn, cwd: string): LspManager {
           })
         }
 
-        proc.on('error', () => {
-          ready = false
+        // rpc.request 无超时：进程在 initialize 应答前死掉（spawn 异步 ENOENT、
+        // server 启动即崩）时 pending 请求永不 settle，ensure() 将永久挂起。
+        // 进程早夭 promise 参与竞速使 initialize 落入下方 catch；error/close 亦
+        // 翻 ready=false（原语义：后续查询直接返回空，不挂在死连接上）。
+        const procDied = new Promise<never>((_, reject) => {
+          child.on('error', (err: Error) => { ready = false; reject(err) })
+          child.on('close', () => { ready = false; reject(new Error('lsp server exited before initialize')) })
         })
 
         rpc = createRpcClient(stdout, stdin)
-
-        const initResult = await rpc.request('initialize', {
-          processId: process.pid,
-          rootUri: pathToFileURL(cwd).href,
-          capabilities: {
-            textDocument: {
-              definition: { linkSupport: false },
-              references: {},
+        const initResult = await Promise.race([
+          rpc.request('initialize', {
+            processId: process.pid,
+            rootUri: pathToFileURL(cwd).href,
+            capabilities: {
+              textDocument: {
+                definition: { linkSupport: false },
+                references: {},
+              },
             },
-          },
-        }) as { capabilities: ServerCapabilities }
+          }),
+          procDied,
+        ]) as { capabilities: ServerCapabilities }
 
         capabilities = initResult.capabilities
         rpc.notify('initialized', {})
@@ -165,7 +172,7 @@ export function createLspManager(spawnFn: SpawnFn, cwd: string): LspManager {
         // Wait for server to fully settle after initialization
         await new Promise(r => setTimeout(r, 200))
         ready = true
-      } catch (err) {
+      } catch {
         ready = false
         try { proc?.kill() } catch { /* ignore */ }
         proc = null

@@ -195,7 +195,7 @@ describe('BtwController', () => {
       timeoutMs: 1000,
     })
     await controller.ask('q')
-    const btwId = (ctx.agents.create.mock.calls[0]?.[0] as { sessionId: SessionId }).sessionId
+    const btwId = (ctx.agents.create.mock.calls[0]![0] as { sessionId: SessionId }).sessionId
 
     emit(ACTIVE, event(0, 'assistant/chunk', { chunk: { type: 'text-delta', text: '答' } }))
     emit(btwId, event(1, 'assistant/chunk', { chunk: { type: 'text-delta', text: '案' } }))
@@ -213,7 +213,7 @@ describe('BtwController', () => {
     const { ctx, emit } = makeCtx()
     const controller = new BtwController({ ctx, activeSessionId: () => ACTIVE, timeoutMs: 1000 })
     await controller.ask('q')
-    const btwId = (ctx.agents.create.mock.calls[0]?.[0] as { sessionId: SessionId }).sessionId
+    const btwId = (ctx.agents.create.mock.calls[0]![0] as { sessionId: SessionId }).sessionId
     emit(ACTIVE, event(0, 'assistant/chunk', { chunk: { type: 'text-delta', text: '主会话' } }))
     emit(btwId, event(1, 'turn/end', { reason: { kind: 'stop' } }))
     expect(controller.peek()).toEqual({ status: 'done', question: 'q', answer: '' })
@@ -225,7 +225,7 @@ describe('BtwController', () => {
     const onAnswer = vi.fn()
     const controller = new BtwController({ ctx, activeSessionId: () => ACTIVE, onAnswer, timeoutMs: 1000 })
     await controller.ask('q')
-    const btwId = (ctx.agents.create.mock.calls[0]?.[0] as { sessionId: SessionId }).sessionId
+    const btwId = (ctx.agents.create.mock.calls[0]![0] as { sessionId: SessionId }).sessionId
     emit(btwId, event(0, 'assistant/chunk', { chunk: { type: 'text-delta', text: '答案' } }))
     emit(btwId, event(1, 'turn/end', { reason: { kind: 'stop' } }))
 
@@ -281,7 +281,7 @@ describe('BtwController', () => {
     const onAnswer = vi.fn()
     const controller = new BtwController({ ctx, activeSessionId: () => ACTIVE, onAnswer, timeoutMs: 1000 })
     await controller.ask('q')
-    const btwId = (ctx.agents.create.mock.calls[0]?.[0] as { sessionId: SessionId }).sessionId
+    const btwId = (ctx.agents.create.mock.calls[0]![0] as { sessionId: SessionId }).sessionId
     emit(btwId, event(0, 'turn/end', { reason: { kind: 'stop' } }))
     controller.dispose()
     expect(handle.dispose).toHaveBeenCalledTimes(1)

@@ -208,7 +208,7 @@ describe('LspBridge 外部源（伴生插件 provide lsp 服务）', () => {
   it('source 存在时消费服务而非内置 manager（不 spawn）', async () => {
     const sourceDispose = vi.fn()
     const source = {
-      getDiagnostics: vi.fn(async (path: string) => [
+      getDiagnostics: vi.fn(async (_path: string) => [
         { range: { start: { line: 1, character: 2 }, end: { line: 1, character: 8 } }, severity: 2 as const, message: '服务诊断' },
       ]),
       isAvailable: vi.fn(() => true),

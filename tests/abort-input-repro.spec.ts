@@ -224,7 +224,7 @@ describe('复现：Ctrl+C 打断后输入框可见性', () => {
   })
 
   it('G: abort 后宿主销毁 agent（agent/disposed → live=false）→ 主屏仍含输入轨且可输入', async () => {
-    const { app, ctx, agent, stdin, stdout } = await bootApp()
+    const { app, ctx, stdin, stdout } = await bootApp()
     const id = app.sessionId
     if (id === null) throw new Error('no session')
     forceRunning(ctx, app)

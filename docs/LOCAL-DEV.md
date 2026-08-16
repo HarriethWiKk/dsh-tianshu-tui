@@ -5,7 +5,8 @@
 ## 一、每天怎么用
 
 ```sh
-./scripts/dev.sh        # 一条命令启动 TUI（全离线，含 API key）
+./scripts/dev.sh        # 一条命令启动 TUI（全离线，含 API key；macOS/Linux）
+node scripts/dev.mjs    # 同等逻辑的跨平台入口（Windows 主入口；vendor 缺失时自动从 npx 缓存重建）
 ```
 
 启动成功标志：欢迎页出现 `dsh-tianshu-tui` 品牌，状态行 `API Key ✓ · Git ✓`。`Ctrl+Q` 或 `/exit` 退出。
@@ -44,6 +45,9 @@ node vendor/dsh-runtime/node_modules/@deepseek-ai/dsh/lib/bin.js \
   mkdir -p vendor && cp -R ~/.npm/_npx/*/node_modules vendor/dsh-runtime/node_modules
   ```
   （`npx -y @deepseek-ai/dsh` 跑过一次后缓存即存在；注意目标必须是 `node_modules` 层级）
+- 跨平台替代：`node scripts/dev.mjs` 在 vendor 缺失时自动定位 npx 缓存并拷贝
+  （POSIX `~/.npm/_npx`、Windows `%LocalAppData%\npm-cache\_npx`），无需手工 cp；
+  上述 cp 命令仅适用于 POSIX 手工路径。
 
 ## 四、当前环境信息快照（2026-08-16）
 

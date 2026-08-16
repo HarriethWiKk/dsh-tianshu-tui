@@ -11,15 +11,21 @@
 - **报告 bug 或请求功能**:提交 issue,附清晰的复现步骤与终端环境。
 - **提交 PR**:base 指向 `main`。保持改动聚焦——一个 PR 一个逻辑改动。描述写清
   动机、改动点与验证方式。
-- **请求 review 前先跑验证矩阵**(下方)。CI 运行的就是这些命令。
+- **请求 review 前先跑验证矩阵**(下方)。CI 运行的就是这些命令(ubuntu +
+  windows 双平台矩阵;另有 bundle 新鲜度门禁——改了 `src/` 必须同 commit
+  重建 `lib/`)。
 - 新功能应附带或扩展一个聚焦的测试(纯函数层优先——渲染/折叠逻辑放 `format/`
   等无 I/O 模块,测试成本最低)。
+- 本地跑 TUI 调试:`./scripts/dev.sh`(macOS/Linux)或 `node scripts/dev.mjs`
+  (跨平台,Windows 主入口),详见 [docs/LOCAL-DEV.md](docs/LOCAL-DEV.md)。
 
 ## 验证矩阵
 
 ```sh
+npm run lint         # oxlint correctness-only(只拦正确性问题,风格不拦)
 npm run typecheck   # tsc --noEmit(src + tests)+ vision-ask 独立 tsconfig
 npm test            # vitest run(主仓)+ vitest run --root vision-ask
+npm run build       # 两段构建;改了 src/ 后必须跑,lib/ 跟仓(CI 校验新鲜度)
 ```
 
 - 主仓与 vision-ask 各是一套独立测试;改哪边跑哪边,提交前全量。
