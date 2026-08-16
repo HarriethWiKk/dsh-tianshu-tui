@@ -4,16 +4,21 @@
  */
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import {
   TUI_PACKAGE,
+  UPDATE_CACHE_TTL_MS,
+  fetchLatestWithCache,
   findProfileDir,
+  isCacheFresh,
   isNpmVersionSpec,
   planSelfUpdate,
+  readUpdateCache,
   runSelfUpdate,
   shouldCheckForUpdate,
   updateNoticeText,
+  writeUpdateCache,
   autoRestartNoticeText,
 } from '../src/self-update.js'
 
@@ -150,5 +155,95 @@ describe('updateNoticeText', () => {
 
   it('autoRestartNoticeText 提示自动重启', () => {
     expect(autoRestartNoticeText('0.1.0-rc.7')).toBe('插件已更新到 0.1.0-rc.7，正在自动重启…')
+  })
+})
+
+describe('更新检查磁盘缓存（免每启联网）', () => {
+  function cacheFile(): string {
+    return join(mkdtempSync(join(tmpdir(), 'dsh-update-cache-')), 'update-cache.json')
+  }
+
+  it('write/read 往返 + isCacheFresh 新鲜度判定', () => {
+    const p = cacheFile()
+    const now = 1_700_000_000_000
+    writeUpdateCache(p, '0.1.2-rc.11', now)
+    const cached = readUpdateCache(p)
+    expect(cached).toEqual({ timestamp: now, latest: '0.1.2-rc.11' })
+    expect(isCacheFresh(cached!, now + UPDATE_CACHE_TTL_MS - 1)).toBe(true)
+    expect(isCacheFresh(cached!, now + UPDATE_CACHE_TTL_MS)).toBe(false)
+    expect(isCacheFresh(cached!, now - 5_000), '时钟回拨到写入前视为新鲜').toBe(true)
+  })
+
+  it('read 容错：缺失 / 损坏 JSON / 形状不对 → null', () => {
+    const dir = dirname(cacheFile())
+    expect(readUpdateCache(join(dir, 'missing.json'))).toBeNull()
+    const corrupt = join(dir, 'corrupt.json')
+    writeFileSync(corrupt, '{not json')
+    expect(readUpdateCache(corrupt)).toBeNull()
+    const wrongShape = join(dir, 'wrong.json')
+    writeFileSync(wrongShape, JSON.stringify({ timestamp: 'x', latest: 1 }))
+    expect(readUpdateCache(wrongShape)).toBeNull()
+  })
+
+  it('fetchLatestWithCache：新鲜缓存零联网（fetchNet 不被调用）', async () => {
+    const p = cacheFile()
+    const now = 1_700_000_000_000
+    writeUpdateCache(p, '0.1.2-rc.11', now)
+    const fetchNet = vi.fn(async () => { throw new Error('不该联网') })
+    const latest = await fetchLatestWithCache({ cachePath: p, now: now + 1_000, fetchNet })
+    expect(latest).toBe('0.1.2-rc.11')
+    expect(fetchNet).not.toHaveBeenCalled()
+  })
+
+  it('fetchLatestWithCache：缓存缺失 → 联网并原子回写', async () => {
+    const p = cacheFile()
+    const now = 1_700_000_000_000
+    const latest = await fetchLatestWithCache({ cachePath: p, now, fetchNet: async () => '0.1.2-rc.12' })
+    expect(latest).toBe('0.1.2-rc.12')
+    expect(readUpdateCache(p)).toEqual({ timestamp: now, latest: '0.1.2-rc.12' })
+  })
+
+  it('fetchLatestWithCache：缓存过期 → 重新联网并覆盖旧值', async () => {
+    const p = cacheFile()
+    const old = 1_700_000_000_000
+    writeUpdateCache(p, '0.1.2-rc.11', old)
+    const latest = await fetchLatestWithCache({
+      cachePath: p,
+      now: old + UPDATE_CACHE_TTL_MS + 1,
+      fetchNet: async () => '0.1.2-rc.12',
+    })
+    expect(latest).toBe('0.1.2-rc.12')
+    expect(readUpdateCache(p)?.latest).toBe('0.1.2-rc.12')
+  })
+
+  it('fetchLatestWithCache：网络失败 → null，不回退旧值也不回写', async () => {
+    const p = cacheFile()
+    const old = 1_700_000_000_000
+    writeUpdateCache(p, '0.1.2-rc.11', old)
+    const latest = await fetchLatestWithCache({
+      cachePath: p,
+      now: old + UPDATE_CACHE_TTL_MS + 1,
+      fetchNet: async () => null,
+    })
+    expect(latest).toBeNull()
+    expect(readUpdateCache(p)?.latest, '旧缓存保留（下次仍可判旧鲜度）').toBe('0.1.2-rc.11')
+  })
+
+  it('runSelfUpdate 集成：cachePath + now 注入，新鲜缓存生效不联网', async () => {
+    const p = cacheFile()
+    const now = 1_700_000_000_000
+    writeUpdateCache(p, '0.1.2-rc.11', now)
+    const install = vi.fn(async () => { })
+    const result = await runSelfUpdate({
+      env: {},
+      currentVersion: '0.1.2-rc.10',
+      profileDir: '/tmp/profile',
+      installSpec: '0.1.2-rc.10',
+      install,
+      cachePath: p,
+      now: () => now + 60_000, // 缓存仍新鲜 → 真实路径直接用缓存，零联网
+    })
+    expect(result).toEqual({ kind: 'updated', version: '0.1.2-rc.11' })
+    expect(install).toHaveBeenCalledWith('0.1.2-rc.11', '/tmp/profile')
   })
 })

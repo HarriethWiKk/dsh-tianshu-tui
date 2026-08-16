@@ -125,7 +125,7 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 | src/restore-session.ts | restore-session.ts | modified |
 | src/ring-buffer.ts | ring-buffer.ts | modified |
 | src/scrollback-transcript.ts | scrollback-transcript.ts | modified |
-| src/self-update.ts | — | new（启动自更新：对照 npm latest 写 profile，dsh 原创） |
+| src/self-update.ts | — | new（启动自更新：对照 npm latest 写 profile，dsh 原创；1h 磁盘缓存免每启联网——~/.dsh-tui/update-cache.json 原子写） |
 | src/restart.ts | — | new（#34：同命令行重启原语——argv 重放 + stdio inherit + POSIX detached；/restart 命令与更新后自动重启共用） |
 | src/skill-panel.ts | — | new |
 | src/status-panel.ts | — | new |

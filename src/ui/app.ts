@@ -443,7 +443,7 @@ function looksLikeFilePath(
 /** 检测当前目录是否为 git 仓库（静默，失败返回 false）。 */
 function isGitRepo(): boolean {
   try {
-    execFileSync('git', ['rev-parse', '--is-inside-work-tree'], { stdio: 'pipe', encoding: 'utf-8' })
+    execFileSync('git', ['rev-parse', '--is-inside-work-tree'], { stdio: 'pipe', encoding: 'utf-8', windowsHide: true })
     return true
   } catch {
     return false
@@ -459,6 +459,7 @@ function gitBranch(): string | undefined {
     const out = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
       stdio: ['ignore', 'pipe', 'ignore'],
       encoding: 'utf-8',
+      windowsHide: true,
     }).trim()
     return out === '' || out === 'HEAD' ? undefined : out
   } catch {
@@ -476,6 +477,7 @@ function gitDirtyCount(): number {
     const out = execFileSync('git', ['status', '--short'], {
       stdio: ['ignore', 'pipe', 'ignore'],
       encoding: 'utf-8',
+      windowsHide: true,
     })
     return out.split('\n').filter(l => l.trim() !== '').length
   } catch {

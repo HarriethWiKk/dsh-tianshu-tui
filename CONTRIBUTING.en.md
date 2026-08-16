@@ -32,7 +32,8 @@ git hash-object README.md README.en.md
 ## Code Conventions
 
 - Types first: `noUncheckedIndexedAccess` is on — guard index access explicitly; `exactOptionalPropertyTypes` is on — use conditional spreads for optional fields, never pass explicit `undefined`.
-- Pure-function discipline: render/fold functions touch no I/O and no global time (inject or parameterize).
+- Pure-function discipline: render/fold functions touch no I/O and no global time (inject or parameterize). `format/` and `render/` must not import child_process/fs/net/http (an architecture-guard test enforces it).
+- Architecture guards (`tests/architecture-guards.spec.ts`): no `process.stdout.write` anywhere in src (rendering goes through the injected WriteStream); every child-process call carries `windowsHide: true`; max-lines ratchet — baseline files like `ui/app.ts` only shrink, everything else stays ≤ 750 lines.
 - Naming and comments follow the existing Chinese-comment style (module-header JSDoc stating responsibility and data source).
 - High-risk command discipline and sensitive-file rules: see [AGENTS.md](AGENTS.md) (required reading for agents; applies to humans too).
 

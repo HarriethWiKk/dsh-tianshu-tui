@@ -95,21 +95,21 @@ export async function readTextFromClipboard(): Promise<string | null> {
   const pf = process.platform
   try {
     if (pf === 'darwin') {
-      const r = await execFileAsync('pbpaste', [], { timeout: 5_000, maxBuffer: 1024 * 1024 })
+      const r = await execFileAsync('pbpaste', [], { timeout: 5_000, maxBuffer: 1024 * 1024, windowsHide: true })
       return r.stdout
     }
     if (pf === 'linux') {
       // Wayland 优先（wl-paste），X11 fallback（xclip）
       try {
-        const r = await execFileAsync('wl-paste', [], { timeout: 5_000, maxBuffer: 1024 * 1024 })
+        const r = await execFileAsync('wl-paste', [], { timeout: 5_000, maxBuffer: 1024 * 1024, windowsHide: true })
         return r.stdout
       } catch {
-        const r = await execFileAsync('xclip', ['-selection', 'clipboard', '-o'], { timeout: 5_000, maxBuffer: 1024 * 1024 })
+        const r = await execFileAsync('xclip', ['-selection', 'clipboard', '-o'], { timeout: 5_000, maxBuffer: 1024 * 1024, windowsHide: true })
         return r.stdout
       }
     }
     if (pf === 'win32') {
-      const r = await execFileAsync('powershell', ['-NoProfile', '-Command', 'Get-Clipboard'], { timeout: 5_000, maxBuffer: 1024 * 1024 })
+      const r = await execFileAsync('powershell', ['-NoProfile', '-Command', 'Get-Clipboard'], { timeout: 5_000, maxBuffer: 1024 * 1024, windowsHide: true })
       return r.stdout
     }
   } catch {
@@ -130,7 +130,7 @@ export async function tryShellClipboard(opts?: ShellClipboardOpts): Promise<Clip
   // latin1 解码：execFile 的 stdout 以 latin1 逐字节解码，二进制图（PNG/JPEG）字节
   // 才能经 Buffer.from(stdout, 'latin1') 无损回绕；utf8 解码会替换/丢弃非法字节。
   const ef = opts?.execFile ?? (async (bin, args) => {
-    const r = await execFileAsync(bin, args, { timeout: 15_000, maxBuffer: 50 * 1024 * 1024, encoding: 'latin1' })
+    const r = await execFileAsync(bin, args, { timeout: 15_000, maxBuffer: 50 * 1024 * 1024, encoding: 'latin1', windowsHide: true })
     return { stdout: r.stdout, stderr: r.stderr }
   })
   const pf = opts?.platform ?? process.platform

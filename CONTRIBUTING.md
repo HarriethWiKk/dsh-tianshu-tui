@@ -41,6 +41,10 @@ git hash-object README.md README.en.md
 - 类型优先:`noUncheckedIndexedAccess` 开启,索引访问做显式防御;
   `exactOptionalPropertyTypes` 开启,可选字段用条件展开,不显式传 `undefined`。
 - 纯函数纪律:渲染/折叠函数不碰 I/O、不依赖全局时间(注入或参数化)。
+  `format/` 与 `render/` 禁止 import child_process/fs/net/http(架构守护测试拦截)。
+- 架构守护(`tests/architecture-guards.spec.ts`):src 全域禁 `process.stdout.write`
+  (渲染只经注入 WriteStream);子进程调用必须带 `windowsHide: true`;行数棘轮
+  ——`ui/app.ts` 等基线文件只降不升,其余文件 ≤ 750 行。
 - 命名与注释跟随现有中文注释风格(模块头 JSDoc 说明职责与数据源)。
 - 高危命令纪律与敏感文件规则见 [AGENTS.md](AGENTS.md)(agent 必读,人同样适用)。
 
