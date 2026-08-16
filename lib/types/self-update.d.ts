@@ -2,7 +2,7 @@
  * 启动时对照 npm `latest`，把 profile 里的本包升到新版本。
  * 已加载的模块不会热替换——更新落盘后需重启才生效。
  *
- * @module @deepseek-ai/dsh-tianshu-tui/self-update
+ * @module @huiliyi37/dsh-tianshu-tui/self-update
  */
 /** 与 package.json name 对齐；profile 依赖键、npm 包名都用它。 */
 export declare const TUI_PACKAGE = "@huiliyi37/dsh-tianshu-tui";

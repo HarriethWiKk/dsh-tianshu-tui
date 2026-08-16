@@ -1,12 +1,12 @@
 /**
- * @deepseek-ai/dsh-tianshu-tui — interactive terminal UI profile bundle. The bundle
+ * @huiliyi37/dsh-tianshu-tui — interactive terminal UI profile bundle. The bundle
  * patch rides over dsh-base and inserts this runner under the stable
  * `tui-runner` id. Render core: the terminal rendering engine ported from
  * `.rivet/tui-source/tui/` (Apache-2.0 source; see SOURCE-MAP.md for the
  * per-file mapping). The engine is pure presentation — all agent state arrives
  * via {@link TuiPort}.
  *
- * @module @deepseek-ai/dsh-tianshu-tui
+ * @module @huiliyi37/dsh-tianshu-tui
  */
 
 import { fileURLToPath } from 'node:url'
@@ -142,12 +142,13 @@ export function apply(ctx: Context, config: TuiRunnerConfig = {}): void {
       if (result.kind === 'updated') {
         await attachPromise
         if (attachFailed) return
-        if (autoRestartOnUpdate) {
+        if (autoRestartOnUpdate && app.isBlankSession()) {
           app.notifyAutoRestart(result.version)
           // 留 400ms 让提示可见（dispose 不清屏，新进程随后重绘 TUI）
           await new Promise((r) => setTimeout(r, 400))
           void teardown(true, true)
         } else {
+          // 会话非空白（用户已开始工作）或自动重启被关闭：只提示，不打断。
           app.notifyPluginUpdated(result.version)
         }
       }

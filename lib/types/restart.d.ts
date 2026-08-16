@@ -9,7 +9,8 @@
  * Windows 上不用 detached（会另开控制台窗口），stdio 继承 +
  * windowsHide 让子进程继续占用同一控制台。
  *
- * @module @huiliyi37/dsh-tianshu-tui/restart
+ * 注：本模块是 tui-runner 内部原语（index.ts 装配层使用），不是公共 API——
+ * 不提供 package exports 子路径，请勿按 @huiliyi37/dsh-tianshu-tui/restart 导入。
  */
 export interface SpawnSelfRestartOptions {
     /** 重启命令行；缺省 process.argv（argv[0]=node 可执行，argv[1..]=脚本+参数）。 */

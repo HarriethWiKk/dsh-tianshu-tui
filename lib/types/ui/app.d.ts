@@ -315,6 +315,11 @@ export declare class TuiApp {
     notifyPluginUpdated(version: string): void;
     /** 自更新后将自动重启的提示（装配方随后触发重启）。 */
     notifyAutoRestart(version: string): void;
+    /**
+     * 当前会话是否 blank：无消息且无未结算工具调用。
+     * /preset recompose 与更新后自动重启的守卫共用（非空白不打断会话）。
+     */
+    isBlankSession(): boolean;
     /** 更新提示落盘：attach 完成前排队（pendingUpdateNotice），完成后写 scrollback。 */
     private notifyUpdateLine;
     /**

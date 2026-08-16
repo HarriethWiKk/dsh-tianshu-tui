@@ -2,7 +2,7 @@
  * 启动时对照 npm `latest`，把 profile 里的本包升到新版本。
  * 已加载的模块不会热替换——更新落盘后需重启才生效。
  *
- * @module @deepseek-ai/dsh-tianshu-tui/self-update
+ * @module @huiliyi37/dsh-tianshu-tui/self-update
  */
 
 import { spawn } from 'node:child_process'

@@ -30,6 +30,10 @@ dsh-tianshu-tui 的配置分三层:**装配时配置**(TuiRunnerConfig,插件注
 | `EDITOR` / `VISUAL` | `Ctrl+E` 外部编辑器的命令(Windows 上支持 `.cmd`/`.bat`) |
 | `HTTP_PROXY` / `HTTPS_PROXY` | 网络代理(自更新等联网操作) |
 
+> **自更新的包管理器前置**:启动自更新经 `pnpm add` 安装新版本(当前仅支持
+> pnpm 管理的 profile)。npm/yarn 管理的 profile 会被混入 pnpm 锁文件,
+> 建议安装 pnpm 或用 `DSH_TUI_SKIP_UPDATE=1` 显式关闭自更新。
+
 ## 运行时配置
 
 ### `/config` 面板

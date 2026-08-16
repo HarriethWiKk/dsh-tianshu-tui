@@ -758,11 +758,7 @@ export class TuiApp {
       },
       // /preset：blank 判定（recompose 调用方契约——换工具集会留下历史
       // tool call 与新组成不匹配）：无消息且无未结算工具调用。
-      isBlankSession: () => {
-        const view = this.transcript?.view
-        return (view?.messages ?? []).length === 0
-          && (view?.tools ?? []).every(t => t.result !== undefined)
-      },
+      isBlankSession: () => this.isBlankSession(),
       clearScrollback: () => {
         this.commit.reset()
         // 真实清屏（对齐 README「清空滚动区视图」）：2J 擦可见屏、3J 清终端
@@ -1129,6 +1125,16 @@ export class TuiApp {
   /** 自更新后将自动重启的提示（装配方随后触发重启）。 */
   notifyAutoRestart(version: string): void {
     this.notifyUpdateLine(autoRestartNoticeText(version))
+  }
+
+  /**
+   * 当前会话是否 blank：无消息且无未结算工具调用。
+   * /preset recompose 与更新后自动重启的守卫共用（非空白不打断会话）。
+   */
+  isBlankSession(): boolean {
+    const view = this.transcript?.view
+    return (view?.messages ?? []).length === 0
+      && (view?.tools ?? []).every(t => t.result !== undefined)
   }
 
   /** 更新提示落盘：attach 完成前排队（pendingUpdateNotice），完成后写 scrollback。 */

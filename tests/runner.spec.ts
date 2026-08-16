@@ -5,6 +5,17 @@ import type { WriteStream } from 'node:tty'
 import type { Session } from '@deepseek-ai/dsh-session'
 import { apply } from '../src/index.js'
 import { TuiApp } from '../src/ui/app.js'
+import { runSelfUpdate } from '../src/self-update.js'
+import { spawnSelfRestart } from '../src/restart.js'
+
+// 装配测试：runSelfUpdate / spawnSelfRestart 全部 mock（缺省 noop/true，
+// 不影响现有装配用例；自动重启用例里按分支覆写返回值）。
+vi.mock('../src/self-update.js', () => ({
+  runSelfUpdate: vi.fn(async () => ({ kind: 'noop' })),
+}))
+vi.mock('../src/restart.js', () => ({
+  spawnSelfRestart: vi.fn(async () => true),
+}))
 
 /** 最小可渲染 stdout 替身：宽/高/写入记录，以及 ResizeHandler 需要的 on/removeListener。 */
 function makeStdout(): WriteStream {
@@ -197,5 +208,66 @@ describe('index apply() 装配与退出生命周期', () => {
     await vi.waitFor(() => {
       expect(process.exit).toHaveBeenCalledWith(0)
     })
+  })
+})
+
+describe('index apply() — 更新后自动重启装配（#34 审查补测）', () => {
+  const updated = { kind: 'updated', version: '0.1.2-rc.10' } as const
+
+  beforeEach(() => {
+    vi.mocked(runSelfUpdate).mockReset().mockResolvedValue(updated)
+    vi.mocked(spawnSelfRestart).mockReset().mockResolvedValue(true)
+    vi.spyOn(TuiApp.prototype, 'attach').mockResolvedValue(undefined)
+    vi.spyOn(TuiApp.prototype, 'dispose').mockResolvedValue(undefined)
+  })
+
+  it('updated + 空白会话 + autoRestart 缺省 true → 自动重启（提示 + spawn + 退出）', async () => {
+    const ctx = makeCtx()
+    const appExit = vi.fn()
+    ctx.reflect.get.mockImplementation((name: string) => name === 'appExit' ? appExit : undefined)
+    const notifyAutoRestart = vi.spyOn(TuiApp.prototype, 'notifyAutoRestart').mockReturnValue(undefined)
+    vi.spyOn(TuiApp.prototype, 'isBlankSession').mockReturnValue(true)
+
+    apply(ctx, { stdin: makeStdin(), stdout: makeStdout() })
+
+    await vi.waitFor(() => { expect(notifyAutoRestart).toHaveBeenCalledWith('0.1.2-rc.10') })
+    await vi.waitFor(() => { expect(spawnSelfRestart).toHaveBeenCalledTimes(1) })
+    await vi.waitFor(() => { expect(appExit).toHaveBeenCalledWith(0) })
+  })
+
+  it('updated + 会话非空白 → 只提示（notifyPluginUpdated），不自动重启', async () => {
+    const ctx = makeCtx()
+    const notifyPluginUpdated = vi.spyOn(TuiApp.prototype, 'notifyPluginUpdated').mockReturnValue(undefined)
+    vi.spyOn(TuiApp.prototype, 'isBlankSession').mockReturnValue(false)
+
+    apply(ctx, { stdin: makeStdin(), stdout: makeStdout() })
+
+    await vi.waitFor(() => { expect(notifyPluginUpdated).toHaveBeenCalledWith('0.1.2-rc.10') })
+    // 留出 400ms 重启窗口，确认未触发
+    await new Promise(r => setTimeout(r, 450))
+    expect(spawnSelfRestart).not.toHaveBeenCalled()
+  })
+
+  it('updated + autoRestartOnUpdate=false → 只提示，不自动重启', async () => {
+    const ctx = makeCtx()
+    const notifyPluginUpdated = vi.spyOn(TuiApp.prototype, 'notifyPluginUpdated').mockReturnValue(undefined)
+
+    apply(ctx, { stdin: makeStdin(), stdout: makeStdout(), autoRestartOnUpdate: false })
+
+    await vi.waitFor(() => { expect(notifyPluginUpdated).toHaveBeenCalledWith('0.1.2-rc.10') })
+    await new Promise(r => setTimeout(r, 450))
+    expect(spawnSelfRestart).not.toHaveBeenCalled()
+  })
+
+  it('updated + attach 失败 → 不自动重启（attachFailed 防循环守卫）', async () => {
+    const ctx = makeCtx()
+    vi.spyOn(TuiApp.prototype, 'attach').mockRejectedValue(new Error('attach boom'))
+    vi.spyOn(TuiApp.prototype, 'dispose').mockResolvedValue(undefined)
+
+    apply(ctx, { stdin: makeStdin(), stdout: makeStdout() })
+
+    // 给 attach rejection + runSelfUpdate 微任务留时间
+    await new Promise(r => setTimeout(r, 50))
+    expect(spawnSelfRestart).not.toHaveBeenCalled()
   })
 })
