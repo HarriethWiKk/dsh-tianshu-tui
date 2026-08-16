@@ -6,7 +6,7 @@
  */
 
 import { spawn } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 /** 与 package.json name 对齐；profile 依赖键、npm 包名都用它。 */
@@ -128,20 +128,52 @@ export async function fetchNpmLatest(packageName: string = TUI_PACKAGE, timeoutM
   return typeof body.version === 'string' ? body.version : null
 }
 
+export type PackageManager = 'pnpm' | 'npm' | 'yarn'
+
+/**
+ * 按 profile 锁文件探测包管理器（安装历史的确定性证据）：
+ * pnpm-lock.yaml → pnpm；package-lock.json → npm；yarn.lock → yarn；
+ * node_modules/.package-lock.json（npm v7+ 隐藏锁文件）→ npm；
+ * 均无 → 默认 pnpm（历史行为；npm install 会重写 pnpm symlink 布局，更糟）。
+ */
+export function detectPackageManager(profileDir: string): PackageManager {
+  if (existsSync(join(profileDir, 'pnpm-lock.yaml'))) return 'pnpm'
+  if (existsSync(join(profileDir, 'package-lock.json'))) return 'npm'
+  if (existsSync(join(profileDir, 'yarn.lock'))) return 'yarn'
+  if (existsSync(join(profileDir, 'node_modules', '.package-lock.json'))) return 'npm'
+  return 'pnpm'
+}
+
+export interface InstallInvocation {
+  /** win32 下为 cmd.exe（/d /c 派发 .cmd）；否则为包管理器可执行名。 */
+  command: string
+  args: string[]
+  /** 错误消息用的人类可读标签，如 'pnpm add' / 'npm install'。 */
+  label: string
+}
+
+/** 包管理器 → 安装调用。win32 经 cmd.exe /d /c 派发（.cmd 不能不经 shell 启动，
+ *  DEP0190 约束保持：shell:false + args 数组）。 */
+export function installCommandFor(pm: PackageManager, latest: string): InstallInvocation {
+  const spec = `${TUI_PACKAGE}@${latest}`
+  const sub = pm === 'npm' ? 'install' : 'add'
+  const label = `${pm} ${sub}`
+  const isWin = process.platform === 'win32'
+  return isWin
+    ? { command: process.env.ComSpec ?? 'cmd.exe', args: ['/d', '/c', pm, sub, spec], label }
+    : { command: pm, args: [sub, spec], label }
+}
+
 export function installNpmVersion(latest: string, profileDir: string, timeoutMs = 60_000): Promise<void> {
+  const { command, args, label } = installCommandFor(detectPackageManager(profileDir), latest)
   return new Promise((resolve, reject) => {
-    // Windows 上 pnpm 是 pnpm.cmd，spawn 直接执行会 EINVAL（.cmd 不能
+    // Windows 上 pnpm/npm/yarn 是 .cmd，spawn 直接执行会 EINVAL（.cmd 不能
     // 不经 shell 启动），传 'pnpm' 又会 ENOENT（无扩展名不在 PATH）。
     // 经 cmd.exe /d /c 显式派发：shell:false 时 args 作为 argv 传给
     // cmd.exe，不触发 Node DEP0190 弃用警告（shell:true + args 数组组合
     // 会把警告经 stderr 渲染进 TUI 输入框区域）。version 来自 npm registry
     // 的 semver 字符串，字符集受限（无空格/引号/&|<> 等元字符），实际注入
     // 面低；cmd /c 对参数数组按 argv 传递，不拼 shell 字符串。
-    const isWin = process.platform === 'win32'
-    const command = isWin ? (process.env.ComSpec ?? 'cmd.exe') : 'pnpm'
-    const args = isWin
-      ? ['/d', '/c', 'pnpm', 'add', `${TUI_PACKAGE}@${latest}`]
-      : ['add', `${TUI_PACKAGE}@${latest}`]
     const child = spawn(command, args, {
       cwd: profileDir,
       stdio: 'ignore',
@@ -149,7 +181,7 @@ export function installNpmVersion(latest: string, profileDir: string, timeoutMs 
     })
     const timer = setTimeout(() => {
       child.kill()
-      reject(new Error('pnpm add timed out'))
+      reject(new Error(`${label} timed out`))
     }, timeoutMs)
     child.on('error', (err) => {
       clearTimeout(timer)
@@ -158,7 +190,7 @@ export function installNpmVersion(latest: string, profileDir: string, timeoutMs 
     child.on('exit', (code) => {
       clearTimeout(timer)
       if (code === 0) resolve()
-      else reject(new Error(`pnpm add exited ${code ?? 'null'}`))
+      else reject(new Error(`${label} exited ${code ?? 'null'}`))
     })
   })
 }

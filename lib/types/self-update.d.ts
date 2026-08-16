@@ -54,6 +54,24 @@ export declare function planSelfUpdate(input: {
     latest: string | null;
 }): UpdatePlan;
 export declare function fetchNpmLatest(packageName?: string, timeoutMs?: number): Promise<string | null>;
+export type PackageManager = 'pnpm' | 'npm' | 'yarn';
+/**
+ * 按 profile 锁文件探测包管理器（安装历史的确定性证据）：
+ * pnpm-lock.yaml → pnpm；package-lock.json → npm；yarn.lock → yarn；
+ * node_modules/.package-lock.json（npm v7+ 隐藏锁文件）→ npm；
+ * 均无 → 默认 pnpm（历史行为；npm install 会重写 pnpm symlink 布局，更糟）。
+ */
+export declare function detectPackageManager(profileDir: string): PackageManager;
+export interface InstallInvocation {
+    /** win32 下为 cmd.exe（/d /c 派发 .cmd）；否则为包管理器可执行名。 */
+    command: string;
+    args: string[];
+    /** 错误消息用的人类可读标签，如 'pnpm add' / 'npm install'。 */
+    label: string;
+}
+/** 包管理器 → 安装调用。win32 经 cmd.exe /d /c 派发（.cmd 不能不经 shell 启动，
+ *  DEP0190 约束保持：shell:false + args 数组）。 */
+export declare function installCommandFor(pm: PackageManager, latest: string): InstallInvocation;
 export declare function installNpmVersion(latest: string, profileDir: string, timeoutMs?: number): Promise<void>;
 /**
  * 对照 npm latest；需要时在 profile 里安装。失败不抛（启动不能被更新拖死）。
