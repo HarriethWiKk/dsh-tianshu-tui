@@ -191,6 +191,10 @@ interface WorkflowResultWire {
 /** 单个 run 保留的最近叙述行上限（workflow/log drop-oldest 防刷屏）。 */
 const WORKFLOW_LOG_CAP = 20
 
+/** 双击 Esc 触发 rewind 的窗口（ms；对齐 Claude Code 的 Esc+Esc 时间回溯）。
+ *  比 Ctrl+C 双击退出的 2s 短——rewind 是高频操作，双击节奏更跟手。 */
+const REWIND_DOUBLE_ESC_MS = 1000
+
 /** T2.2：运行中 workflow 缓存项（key = payload.id；随 start 建、end 移除）。 */
 interface WorkflowRunState {
   readonly id: string
@@ -505,6 +509,9 @@ export class TuiApp {
   private memoryOverlay: MemoryBrowserOverlay | null = null
   /** #31：交互式选择器 overlay（/model /theme /session 无参打开；上下键选择）。 */
   private picker: PickerController | null = null
+  /** 双击 Esc 触发 rewind：第一次 Esc 的时间戳（0 = 无待定；窗口内第二次 Esc
+   *  打开 rewind overlay，对齐 Claude Code 的 Esc+Esc 时间回溯）。 */
+  private escRewindPendingSince = 0
   /** 会话 tab 栏缓存（attach/newSession/switchSession 后经 listSessions 刷新；
    *  >1 会话时在 chrome 段渲染一行；Ctrl+X / Alt+数字 切换）。 */
   private sessionTabs: SessionTab[] = []
@@ -2652,6 +2659,10 @@ export class TuiApp {
     if (key.name !== 'ctrl_c' && this.inputController.ctrlCPendingSince !== 0) {
       this.inputController.ctrlCPendingSince = 0
     }
+    // 双击 Esc 待定窗口：任何非 Esc 键打断（与 ctrlCPendingSince 同模式）。
+    if (key.name !== 'escape' && this.escRewindPendingSince !== 0) {
+      this.escRewindPendingSince = 0
+    }
     // A5：空输入 Enter 切换最后一张进行中工具卡的展开/收起（非空时 Enter 是
     // 提交路径，不劫持；工具卡已结算时 callId 不匹配自然失效）。
     if (key.name === 'return' && this.inputLine.value === '') {
@@ -2894,6 +2905,16 @@ export class TuiApp {
         this.handleAbort()
         return
       }
+      // 空闲：双击 Esc（窗口内第二次）触发 rewind（CC 的 Esc+Esc 时间回溯）；
+      // 第一次只记时间戳并继续流向后续分支（vim 等空闲 Esc 语义保留），
+      // 窗口过期后第二次仅刷新时间戳。
+      const now = Date.now()
+      if (this.escRewindPendingSince !== 0 && now - this.escRewindPendingSince < REWIND_DOUBLE_ESC_MS) {
+        this.escRewindPendingSince = 0
+        this.rewindSession()
+        return
+      }
+      this.escRewindPendingSince = now
     }
     if (key.name === 'ctrl_c') {
       // raw-mode 下 Ctrl+C 是 0x03 数据字节而非 SIGINT。

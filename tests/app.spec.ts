@@ -639,6 +639,75 @@ describe('TuiApp 审查 HIGH 修复回归（177c12e）', () => {
     await app.dispose()
   })
 
+  it('空闲双击 Esc → 打开 rewind overlay（CC 的 Esc+Esc 时间回溯）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('dbl-esc')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    // session.id 同步（bootEventApp 同款）：transcript 过滤 owner.id === session.id
+    ;(agent.session as { id: SessionId }).id = app.sessionId ?? SessionId('dbl-esc')
+    // 会话需有消息（rewindSession 空消息不打开）
+    const bus = sessionEventBus(ctx)
+    const id = app.sessionId
+    if (id === null) throw new Error('sessionId missing')
+    bus(id, {
+      seq: 1, time: 1, type: 'assistant/message',
+      data: { turn: 1, step: 0, message: { role: 'assistant', content: [{ type: 'text', text: 'hi' }] }, usage: { inputTokens: 10, outputTokens: 5 } },
+    })
+    // eslint-disable-next-line no-console
+    // 单次 Esc → 不打开
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 150))
+    let written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).not.toContain('rewind')
+    // 非 Esc 键清除待定双击窗口（避免单次检查污染下面的双击）
+    stdin.emit('data', 'x')
+    await new Promise(resolve => setTimeout(resolve, 50))
+    // 窗口内双击 Esc → 打开（两次间隔 200ms < 1s 窗口；lone ESC 各走 80ms 派发）
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 200))
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 150))
+    written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('⟲ rewind 回退')
+    await app.dispose()
+  })
+
+  it('空闲双击 Esc：窗口外（>1s）第二次不触发 rewind', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('dbl-esc-out')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    ;(agent.session as { id: SessionId }).id = app.sessionId ?? SessionId('dbl-esc-out')
+    const bus = sessionEventBus(ctx)
+    const id = app.sessionId
+    if (id === null) throw new Error('sessionId missing')
+    bus(id, {
+      seq: 1, time: 1, type: 'assistant/message',
+      data: { turn: 1, step: 0, message: { role: 'assistant', content: [{ type: 'text', text: 'hi' }] }, usage: { inputTokens: 10, outputTokens: 5 } },
+    })
+    // 第一次 Esc → 记时间戳
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 150))
+    // 等窗口过期(1s)后再按第二次
+    await new Promise(resolve => setTimeout(resolve, 1100))
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 150))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).not.toContain('⟲ rewind 回退')
+    await app.dispose()
+  })
+
   it('dispose 先 flushAll 再释放 owned handle', async () => {
     const ctx = makeCtx()
     const agent = makeAgent('order-1')

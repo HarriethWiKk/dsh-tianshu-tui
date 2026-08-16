@@ -38,6 +38,7 @@ When there is more than one session, a **session tab bar** appears above the inp
 |---|---|
 | `Ctrl+C` | Interrupt the in-flight turn (immediate) |
 | `Esc` (in flight) | Interrupt the in-flight turn (Claude Code-style single Esc; lone ESC has an 80ms debounce; overlays/menus still close first when open) |
+| `Esc`+`Esc` (idle) | Open the rewind panel (Claude Code's Esc+Esc time travel; 1s double-press window, same as `/rewind`) |
 | `Ctrl+O` | Expand/collapse the most recent reasoning block |
 | `Enter` (empty input) | Toggle expansion of the last in-flight tool card (shows argument JSON) |
 | `Shift+Tab` | Mode cycle: normal → plan → always-approve |
