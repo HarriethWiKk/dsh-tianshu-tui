@@ -2521,6 +2521,12 @@ export class TuiApp {
 
   /** 取消当前运行（Esc/Ctrl+C）：cancel agent、丢弃未发出的流式/推理缓冲并重置流渲染。 */
   handleAbort(): void {
+    // 防御：打断优先于 overlay——释放任何激活的全屏 overlay（palette/search/
+    // rewind/picker），保证主屏（含输入轨）在下一帧必然恢复。按键路径上 overlay
+    // 分支先于 ctrl_c 分支拦截，此防御覆盖未来新增路径在 overlay 激活时调 abort。
+    this.overlay?.deactivate()
+    this.palette?.close()
+    this.picker?.close()
     this.controls?.cancel({ kind: 'user' })
     this.commitToScrollback({ text: '⏹ 已取消', trailingNewline: true })
     this.blockWriter.discard()
