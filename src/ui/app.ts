@@ -411,6 +411,35 @@ function normalizeSubmitImages(images?: string[]): string[] | undefined {
   return valid.length === 0 ? undefined : valid
 }
 
+/** 判断输入是否更像文件路径而非 slash 命令（移植自本体 looksLikeFilePath）：
+ *  /src/main.ts、/tmp/foo bar、~/xxx、Windows 盘符 C:\... 走普通文本流程；
+ *  /exit 等已知命令、/h 等命令前缀仍视为命令（触发解析/提示）。
+ *  单段绝对路径（/etc、/mnt）依赖 isKnownCommand 谓词区分命令与路径。 */
+function looksLikeFilePath(
+  input: string,
+  isKnownCommand?: (name: string) => boolean,
+  isCommandPrefix?: (name: string) => boolean,
+): boolean {
+  if (input.startsWith('~/')) return true
+  // Windows 盘符路径 C:\... 或 C:/...（不是 slash 命令）
+  if (/^[a-zA-Z]:[\\/]/.test(input)) return true
+  if (!input.startsWith('/')) return false
+  const rest = input.slice(1)
+  const slashIdx = rest.indexOf('/')
+  if (slashIdx !== -1) {
+    const spaceIdx = rest.indexOf(' ')
+    return spaceIdx === -1 || slashIdx < spaceIdx
+  }
+  // 单段 /xxx：可能是命令（/exit）也可能是路径（/etc, /mnt）
+  if (isKnownCommand) {
+    const firstToken = rest.split(/\s/)[0] ?? ''
+    if (firstToken === '') return false
+    if (isCommandPrefix?.(firstToken)) return false
+    return !isKnownCommand(firstToken)
+  }
+  return false
+}
+
 /** 检测当前目录是否为 git 仓库（静默，失败返回 false）。 */
 function isGitRepo(): boolean {
   try {
@@ -2316,9 +2345,11 @@ export class TuiApp {
       }
     }
     if (!trimmed) return
-    // 任何 / 前缀输入都进命令通道：注册表命中则执行，未命中回显未知命令
-    // 提示——不把命令文本当普通消息发给 agent。
-    if (trimmed.startsWith('/')) {
+    // 任何 / 前缀输入都进命令通道……但以 / 开头的文件路径（/src/main.ts、
+    // /tmp/foo bar、/etc 等非命令单段）不是命令——走普通文本流程，避免被
+    // 当作未知 slash 命令报失败（参考本体 looksLikeFilePath；命令集取注册表
+    // 现值——/lsp 等动态注册命令不误判为路径）。
+    if (trimmed.startsWith('/') && !looksLikeFilePath(trimmed, n => this.isKnownCommand(n), n => this.isCommandPrefix(n))) {
       void this.runSlash(trimmed)
       return
     }
@@ -2532,6 +2563,16 @@ export class TuiApp {
    */
   shouldDeferSigint(now: number): boolean {
     return now - this.lastCtrlCAt < 800
+  }
+
+  /** slash 注册表当前命令名集合（现取——/lsp 等动态注册命令不误判为路径）。 */
+  private isKnownCommand(name: string): boolean {
+    return this.slash.list().some(c => c.name === name)
+  }
+
+  /** name 是否为某个已注册命令的前缀（/h → help；模糊输入仍视为命令）。 */
+  private isCommandPrefix(name: string): boolean {
+    return this.slash.list().some(c => c.name.startsWith(name))
   }
 
   handleAbort(): void {

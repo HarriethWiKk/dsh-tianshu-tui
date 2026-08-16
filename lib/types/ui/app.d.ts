@@ -610,6 +610,10 @@ export declare class TuiApp {
      * @returns true = SIGINT 应忽略（0x03 刚处理过）。
      */
     shouldDeferSigint(now: number): boolean;
+    /** slash 注册表当前命令名集合（现取——/lsp 等动态注册命令不误判为路径）。 */
+    private isKnownCommand;
+    /** name 是否为某个已注册命令的前缀（/h → help；模糊输入仍视为命令）。 */
+    private isCommandPrefix;
     handleAbort(): void;
     /**
      * Phase 6.4：打开外部编辑器编辑当前输入行。编辑器是外部进程，必须暂时
