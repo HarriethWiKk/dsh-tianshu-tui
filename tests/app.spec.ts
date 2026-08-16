@@ -4817,27 +4817,35 @@ describe('Issue #31 交互式选择器（/model /theme /session 无参打开）'
     return { ctx, stdin, stdout, app, written, type }
   }
 
-  it('/theme 无参 → 选择器打开（当前 ● 高亮）；↑ 选择 + Enter 切换主题', async () => {
+  it('/theme 无参 → 选择器打开（当前 ● 高亮）；↑ 移动实时预览，Enter 落定', async () => {
     setTheme('graphite')
     const { stdin, app, written, type } = await bootPicker()
     await type('/theme')
     expect(written()).toContain('选择主题')
     expect(written()).toContain('graphite（当前）')
-    // graphite 前一档是 cobalt（THEME_PALETTES 键序）；↑ 选中 + Enter 确认
+    // ↑ 移动即实时预览（未 Enter 主题已切换）；graphite 前一档是 cobalt
     stdin.emit('data', '\x1b[A')
+    await new Promise(resolve => setTimeout(resolve, 30))
+    expect(getActiveThemeName()).toBe('cobalt')
+    // Enter 确认：预览落定（仍为 cobalt）
     stdin.emit('data', '\r')
     await new Promise(resolve => setTimeout(resolve, 30))
     expect(getActiveThemeName()).toBe('cobalt')
     await app.dispose()
   })
 
-  it('/theme 打开后 Esc 关闭选择器（不切换）', async () => {
+  it('/theme 打开后 ↓ 移动预览；Esc 关闭还原打开前主题', async () => {
     setTheme('graphite')
     const { stdin, stdout, app, written, type } = await bootPicker()
     await type('/theme')
     expect(written()).toContain('选择主题')
-    stdin.emit('data', '\x1b') // Esc
+    // ↓ 移动 → 实时预览 gemini
+    stdin.emit('data', '\x1b[B')
     await new Promise(resolve => setTimeout(resolve, 30))
+    expect(getActiveThemeName()).toBe('gemini')
+    // Esc 关闭 → 还原 graphite（打开前主题）；lone ESC 走 80ms 超时 dispatch
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 150))
     const before = stdout.write.mock.calls.length
     stdin.emit('data', '\r') // 空输入 Enter：选择器已关闭，无操作
     await new Promise(resolve => setTimeout(resolve, 30))

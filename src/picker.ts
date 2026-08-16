@@ -25,6 +25,12 @@ export interface PickerItem {
 /** 确认回调：选中条目 → 调用方执行动作。 */
 export type PickerCommit = (item: PickerItem) => void
 
+/** 预览回调：选中变化时以新选中条目调用（实时预览，如主题切换）。 */
+export type PickerPreview = (item: PickerItem) => void
+
+/** 取消回调：选择器被关闭（Esc/q，非确认路径）时调用（还原预览等）。 */
+export type PickerCancel = () => void
+
 /** 选择器状态：开合 + 选中下标 + 标题。 */
 export interface PickerState {
   open: boolean
@@ -129,6 +135,8 @@ export class PickerController {
   private state: PickerState = emptyPickerState()
   private items: PickerItem[] = []
   private onCommit: PickerCommit | null = null
+  private onPreview: PickerPreview | null = null
+  private onCancel: PickerCancel | null = null
   private readonly getTheme: () => RivetTheme
 
   constructor(opts: PickerOptions) {
@@ -141,33 +149,49 @@ export class PickerController {
   }
 
   /**
-   * 打开选择器：注入条目与确认回调，选中可指定（缺省 0）。
+   * 打开选择器：注入条目、确认回调与可选预览/取消回调，选中可指定（缺省 0）。
    * @param title - 面板标题。
    * @param items - 条目列表。
    * @param commit - 确认回调（Enter 时以选中条目调用）。
    * @param selectedIndex - 初始选中下标（缺省 0）。
+   * @param hooks - 可选：onPreview（选中变化时调用，实时预览）；
+   *   onCancel（Esc/q 关闭时调用，还原预览）。
    */
-  open(title: string, items: readonly PickerItem[], commit: PickerCommit, selectedIndex?: number): void {
+  open(
+    title: string,
+    items: readonly PickerItem[],
+    commit: PickerCommit,
+    selectedIndex?: number,
+    hooks?: { onPreview?: PickerPreview; onCancel?: PickerCancel },
+  ): void {
     this.items = [...items]
     this.onCommit = commit
+    this.onPreview = hooks?.onPreview ?? null
+    this.onCancel = hooks?.onCancel ?? null
     this.state = applyPickerEvent(this.state, { type: 'open', title })
     if (selectedIndex !== undefined && selectedIndex > 0) {
       this.state = applyPickerEvent(this.state, { type: 'move', delta: selectedIndex, count: this.items.length })
     }
   }
 
-  /** 关闭选择器（保留条目；下次 open 重建）。 */
+  /** 关闭选择器（Esc/q 路径；触发 onCancel 还原预览；保留条目，下次 open 重建）。 */
   close(): void {
-    this.state = applyPickerEvent(this.state, { type: 'close' })
+    const cancel = this.onCancel
+    this.onCancel = null
     this.onCommit = null
+    this.onPreview = null
+    this.state = applyPickerEvent(this.state, { type: 'close' })
+    if (cancel !== null) cancel()
   }
 
   /**
-   * 移动选中项（夹紧在条目范围内）。
+   * 移动选中项（夹紧在条目范围内）；选中变化时触发 onPreview（实时预览）。
    * @param delta - 移动量（负上正下）。
    */
   move(delta: number): void {
     this.state = applyPickerEvent(this.state, { type: 'move', delta, count: this.items.length })
+    const item = this.selected
+    if (item !== undefined && this.onPreview !== null) this.onPreview(item)
   }
 
   /** 当前选中条目（越界返回 undefined）。 */
@@ -182,12 +206,15 @@ export class PickerController {
 
   /**
    * 确认当前选中项：以选中条目调用注入的确认回调并关闭；无选中或未注入
-   * 回调时不动作。
+   * 回调时不动作。确认路径不触发 onCancel（预览已由确认落定，无需还原）。
    */
   commit(): void {
     const item = this.selected
     const cb = this.onCommit
-    this.close()
+    this.onCancel = null
+    this.onCommit = null
+    this.onPreview = null
+    this.state = applyPickerEvent(this.state, { type: 'close' })
     if (item !== undefined && cb !== null) cb(item)
   }
 

@@ -114,7 +114,7 @@ All of dsh-tianshu-tui's interactions: shortcuts, commands, input surfaces, and 
 
 - **Approval card**: pending approvals with inline diff preview (y/N/a/esc); red/green rendering when the tool is diffable, blind-approval hint otherwise; non-current-session requests are delegated to the next listener.
 - **Question panel**: digit selection, Esc to cancel, overlap protection; plan-review feedback mode.
-- **Pickers (issue #31)**: no-arg `/model` `/theme` `/session` open a picker with the current value marked ●, arrow-key selection, Enter to confirm.
+- **Pickers (issue #31)**: no-arg `/model` `/theme` `/session` open a picker with the current value marked ●, arrow-key selection, Enter to confirm. **The theme picker previews live**: ↑/↓ switches the theme immediately, Enter settles, Esc restores the theme from before opening.
 - **Command palette (Ctrl+P)**: fuzzy + subsequence command search, Enter fills `/cmd `.
 - **Keymap panel (Ctrl+.)**: the full shortcut list, always one key away.
 - **History search (Ctrl+F)**: searches the scrollback message snapshot, `n`/`N` to jump.

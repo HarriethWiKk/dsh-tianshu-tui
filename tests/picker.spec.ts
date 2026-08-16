@@ -126,4 +126,37 @@ describe('PickerController', () => {
     const rows = plain(c.render(60, 10))
     expect(rows[0]).toBe('选择主题')
   })
+
+  it('move 触发 onPreview（以新选中条目；实时预览钩子）', () => {
+    const c = new PickerController({ getTheme: fakeTheme })
+    const onPreview = vi.fn()
+    c.open('选择主题', items, () => {}, undefined, { onPreview })
+    c.move(1)
+    expect(onPreview).toHaveBeenCalledWith(items[1])
+    c.move(1)
+    expect(onPreview).toHaveBeenLastCalledWith(items[2])
+    expect(onPreview).toHaveBeenCalledTimes(2)
+  })
+
+  it('close 触发 onCancel（Esc/q 关闭路径；还原预览）', () => {
+    const c = new PickerController({ getTheme: fakeTheme })
+    const onCancel = vi.fn()
+    c.open('选择主题', items, () => {}, undefined, { onCancel })
+    c.close()
+    expect(onCancel).toHaveBeenCalledTimes(1)
+    // 幂等：再次 close 不再触发（回调已清空）
+    c.close()
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('commit 不触发 onCancel（确认路径，预览已落定无需还原）', () => {
+    const c = new PickerController({ getTheme: fakeTheme })
+    const onCommit = vi.fn()
+    const onCancel = vi.fn()
+    c.open('选择主题', items, onCommit, undefined, { onCancel })
+    c.move(1)
+    c.commit()
+    expect(onCommit).toHaveBeenCalledWith(items[1])
+    expect(onCancel).not.toHaveBeenCalled()
+  })
 })

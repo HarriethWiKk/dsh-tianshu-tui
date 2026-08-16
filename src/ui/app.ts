@@ -1683,23 +1683,28 @@ export class TuiApp {
     overlay.activate('picker')
   }
 
-  /** #31：打开主题选择器（THEME_NAMES + 当前主题 ● 高亮）。 */
+  /** #31/#33：打开主题选择器（THEME_NAMES + 当前主题 ● 高亮）。
+   *  实时预览：↑↓ 移动即 setTheme 生效；Enter 落定；Esc/q 还原打开前主题。 */
   private openThemePicker(): void {
     const overlay = this.overlay
     const picker = this.picker
     if (overlay === null || picker === null) return
-    const active = getActiveThemeName()
+    const prev = getActiveThemeName()
     const items: PickerItem[] = THEME_NAMES.map(name => ({
-      label: name === active ? `${name}（当前）` : name,
+      label: name === prev ? `${name}（当前）` : name,
       value: name,
-      current: name === active,
+      current: name === prev,
     }))
-    const selectedIndex = Math.max(0, THEME_NAMES.indexOf(active as ThemeName))
+    const selectedIndex = Math.max(0, THEME_NAMES.indexOf(prev as ThemeName))
     picker.open('选择主题', items, (item) => {
-      if (setTheme(item.value)) {
-        this.commitToScrollback({ text: `主题已切换: ${item.value}`, trailingNewline: true })
-      }
-    }, selectedIndex)
+      // 确认：主题已在预览中生效，此处只落提示。
+      this.commitToScrollback({ text: `主题已切换: ${item.value}`, trailingNewline: true })
+    }, selectedIndex, {
+      // ↑↓ 移动即切换（实时预览，overlay 渲染随主题色即时变化）。
+      onPreview: (item) => { setTheme(item.value) },
+      // Esc/q 关闭还原打开前主题。
+      onCancel: () => { setTheme(prev) },
+    })
     overlay.activate('picker')
   }
 
