@@ -192,3 +192,30 @@ describe('formatGlanceBar', () => {
     expect(text).toContain('◧ 12.5k/200k')
   })
 })
+
+describe('hideSegments（prefs.glance.hideSegments 透传）', () => {
+  const full = { modelName: 'm1', effort: 'high', cacheHitRate: 0.5, contextRatio: 0.3, tokens: { used: 100, max: 200 }, elapsedMs: 61_000, cost: 0.42, density: 'full' as const, turnCount: 7 }
+
+  it('隐藏段不参与拼接（其余段原样）', () => {
+    const segs = glanceBarSegments({ ...full, hideSegments: ['cost', 'cache', 'effort'] })
+    expect(segs.join(' ')).not.toContain('$0.42')
+    expect(segs.join(' ')).not.toContain('缓存')
+    expect(segs.join(' ')).not.toContain('◎high')
+    expect(segs.join(' ')).toContain('m1')
+    expect(segs.join(' ')).toContain('◧ 100/200')
+  })
+
+  it('model 与 stalled 不受隐藏影响（永不可隐藏）', () => {
+    const segs = glanceBarSegments({ ...full, hideSegments: ['model', 'stalled', 'nope'] })
+    expect(segs.join(' ')).toContain('m1')
+    const segs2 = glanceBarSegments({ ...full, stalled: true, hideSegments: ['stalled'] })
+    expect(segs2.join(' ')).toContain('停滞')
+  })
+
+  it('formatGlanceBar 全链：隐藏 cost 后极宽也不出现 $ 段', () => {
+    const [line] = formatGlanceBar({ ...full, width: 120, hideSegments: ['cost'] }, fakeTheme())
+    const text = plain([line!.text])[0]!
+    expect(text).not.toContain('$0.42')
+    expect(text).toContain('#7')
+  })
+})

@@ -5538,7 +5538,7 @@ describe('slash 命令菜单接线（grok slash_dropdown 移植）', () => {
     stdout.write.mockClear() // 只统计 ↑ 后的渲染
     stdin.emit('data', '\x1b[A')
     const written = await writtenOf(stdout)
-    expect(written).toMatch(/❯ \/density/) // 环绕到最后一项（含外部插件命令）
+    expect(written).toMatch(/❯ \/glance/) // 环绕到最后一项（含外部插件命令；P1 后末项为 /glance）
     await app.dispose()
   })
 

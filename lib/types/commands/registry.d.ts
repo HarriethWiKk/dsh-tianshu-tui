@@ -79,7 +79,7 @@ export interface ModelFacet {
  * /subagents、/workflow、/tasks 的命令定义在 createBuiltinCommands（deps 注入
  * TuiApp 的显隐切换）；/status 保持 TuiApp 内注册。
  */
-export declare const BUILTIN_COMMAND_NAMES: readonly ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'restart', 'yolo', 'help', 'cost'];
+export declare const BUILTIN_COMMAND_NAMES: readonly ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'glance', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'restart', 'yolo', 'help', 'cost'];
 /**
  * 最小唯一前缀解析：`/` 前缀 + 命令名 `startsWith` 匹配。
  * 歧义（多命令同前缀）或未知名返回 null——不猜命令。
@@ -186,6 +186,12 @@ export interface BuiltinCommandDeps {
     openModelPicker(): void;
     /** #31：打开主题选择器。 */
     openThemePicker(): void;
+    /** P1：主题生效后的持久化写透（/theme 与 picker 确认共用；未知名 no-op）。 */
+    onThemeApplied(name: string): void;
+    /** P1：/theme auto——切回自动检测并持久化（探测异步）。 */
+    applyThemeAuto(): void;
+    /** P1：/theme export [name]——当前主题导出为自定义主题模板；返回回显消息。 */
+    exportTheme(name?: string): string;
     /** #31：打开会话选择器。 */
     openSessionPicker(): void;
     /** /cost：当前会话累计用量与成本报告行（app 侧汇总；无数据时返回占位行）。 */

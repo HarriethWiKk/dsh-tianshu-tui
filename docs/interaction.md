@@ -76,6 +76,7 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
 | `/preset [name]` | 查看/切换 agent 预设模式 |
 | `/yolo [on\|off]` | 全放行模式 |
 | `/density` | 切换紧凑工具卡渲染 |
+| `/glance [segment]` | 切换 footer metrics 段显隐(如 `/glance cost`;无参查看现状) |
 
 ### 面板
 
@@ -106,7 +107,7 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
 
 | 命令 | 作用 |
 |---|---|
-| `/theme [name]` | 切换主题(无参打开选择器) |
+| `/theme [name]` | 切换主题(无参打开选择器,含 `custom:`);`auto` 随终端明暗;`export [name]` 导出当前主题为自定义模板 |
 | `/steer <text>` | 中轮转向 |
 | `/restart` | 重启当前 dsh 进程(同命令重新启动;插件更新后生效) |
 | `/exit` | 退出 TUI |

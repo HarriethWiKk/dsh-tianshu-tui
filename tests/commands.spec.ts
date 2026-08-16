@@ -78,6 +78,9 @@ function commandByName(name: string) {
     setYoloMode: vi.fn(),
     openModelPicker: vi.fn(),
     openThemePicker: vi.fn(),
+    onThemeApplied: vi.fn(),
+    applyThemeAuto: vi.fn(),
+    exportTheme: vi.fn((): string => 'exported'),
     openSessionPicker: vi.fn(),
     sessionCostReport: vi.fn<() => string[]>(() => []),
   }
@@ -777,7 +780,7 @@ describe('内置命令 — /help', () => {
     await cmd.run(args)
     expect(deps.listCommands).toHaveBeenCalledTimes(1)
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('全部命令'))
-    expect(echo).toHaveBeenCalledWith(expect.stringContaining('/theme <name> — 切换主题'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('/theme <name>|auto|export [name] — 切换主题'))
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('/help [cmd] — 列出全部命令'))
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('Ctrl+.'))
   })
@@ -1411,6 +1414,9 @@ describe('内置命令 — /effort', () => {
       setYoloMode: vi.fn(),
       openModelPicker: vi.fn(),
       openThemePicker: vi.fn(),
+      onThemeApplied: vi.fn(),
+      applyThemeAuto: vi.fn(),
+      exportTheme: vi.fn((): string => 'exported'),
       openSessionPicker: vi.fn(),
       sessionCostReport: vi.fn<() => string[]>(() => []),
     }

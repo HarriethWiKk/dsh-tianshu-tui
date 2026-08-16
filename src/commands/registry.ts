@@ -143,7 +143,7 @@ interface MemoryFacet {
  * /subagents、/workflow、/tasks 的命令定义在 createBuiltinCommands（deps 注入
  * TuiApp 的显隐切换）；/status 保持 TuiApp 内注册。
  */
-export const BUILTIN_COMMAND_NAMES = ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'restart', 'yolo', 'help', 'cost'] as const
+export const BUILTIN_COMMAND_NAMES = ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'glance', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'restart', 'yolo', 'help', 'cost'] as const
 
 /**
  * /model 一键切换别名（TUI 便捷层）：展开为已注册的 deepseek-official
@@ -300,6 +300,12 @@ export interface BuiltinCommandDeps {
   openModelPicker(): void
   /** #31：打开主题选择器。 */
   openThemePicker(): void
+  /** P1：主题生效后的持久化写透（/theme 与 picker 确认共用；未知名 no-op）。 */
+  onThemeApplied(name: string): void
+  /** P1：/theme auto——切回自动检测并持久化（探测异步）。 */
+  applyThemeAuto(): void
+  /** P1：/theme export [name]——当前主题导出为自定义主题模板；返回回显消息。 */
+  exportTheme(name?: string): string
   /** #31：打开会话选择器。 */
   openSessionPicker(): void
   /** /cost：当前会话累计用量与成本报告行（app 侧汇总；无数据时返回占位行）。 */
@@ -316,8 +322,8 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
   return [
     {
       name: 'theme',
-      description: '切换主题（内置或 custom:<name>）',
-      argsHint: '<name>',
+      description: '切换主题（内置或 custom:<name>；auto/export 子命令）',
+      argsHint: '<name>|auto|export [name]',
       run: ({ text, echo }) => {
         const name = text.trim()
         if (name === '') {
@@ -325,8 +331,21 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
           deps.openThemePicker()
           return
         }
-        if (setTheme(name)) echo(`主题已切换: ${name}`)
-        else echo(`未知主题: ${name}。可用: ${THEME_NAMES.join(', ')}`)
+        // P1：auto 持久化自动档（持久化不能是单行道）；export 导出自定义模板。
+        if (name === 'auto') {
+          deps.applyThemeAuto()
+          return
+        }
+        if (name === 'export' || name.startsWith('export ')) {
+          echo(deps.exportTheme(name.slice('export'.length).trim() || undefined))
+          return
+        }
+        if (setTheme(name)) {
+          deps.onThemeApplied(name)
+          echo(`主题已切换: ${name}`)
+        } else {
+          echo(`未知主题: ${name}。可用: ${THEME_NAMES.join(', ')} / custom:<name>`)
+        }
       },
     },
     {

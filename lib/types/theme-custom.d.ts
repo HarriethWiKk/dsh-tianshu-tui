@@ -34,3 +34,12 @@ export declare function parseCustomThemeJson(text: string): CustomThemeInput | n
  * @returns 成功注册的主题裸名（不含 `custom:` 前缀）。
  */
 export declare function loadCustomThemes(baseDir?: string): string[];
+/**
+ * 当前生效主题导出为自定义主题模板（/theme export；P1）。
+ * 全量 dump truecolor ColorSet + overrides，base 取内置同名或按背景朝向回退；
+ * 写盘成功后就地注册（当场 `/theme custom:<name>` 可用），编辑文件后重启生效。
+ * @param nameArg - 目标主题裸名（缺省 `exported-<当前名>`）；非法字符净化为 `-`。
+ * @param baseDir - 根目录（测试注入）；缺省 `~/.dsh-tui`。
+ * @returns 回显消息（成功含路径；失败含原因）。
+ */
+export declare function exportCurrentTheme(nameArg?: string, baseDir?: string): string;

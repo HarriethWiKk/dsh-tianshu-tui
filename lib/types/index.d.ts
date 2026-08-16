@@ -50,6 +50,12 @@ export interface TuiRunnerConfig {
     };
     /** 启动自更新落盘后自动重启生效（缺省 true；false 时仅提示后手动 /restart）。 */
     autoRestartOnUpdate?: boolean;
+    /** 主题名（'auto' | 内置名 | custom:<name>）；优先级：装配 > ~/.dsh-tui/prefs.json > 'auto'。 */
+    theme?: string;
+    /** 本地偏好文件路径；null 显式禁用（不读写 ~/.dsh-tui/prefs.json）。 */
+    prefsPath?: string | null;
+    /** 输入历史文件路径；null 显式禁用。 */
+    inputHistoryPath?: string | null;
 }
 /**
  * Mount the terminal UI runner.

@@ -15,10 +15,18 @@
  * 单个文件解析失败只跳过该文件（stderr 警告），不影响其他主题与启动。
  */
 
-import { readdirSync, readFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, basename } from 'node:path'
-import { registerCustomTheme, type CustomThemeInput, type ColorSet, type ThemeOverrides } from './theme.js'
+import {
+  getActiveThemeBackground,
+  getActiveThemeName,
+  getTheme,
+  registerCustomTheme,
+  type CustomThemeInput,
+  type ColorSet,
+  type ThemeOverrides,
+} from './theme.js'
 import { THEME_PALETTES } from './theme-palettes.js'
 
 /** 默认自定义主题根目录（`~/.dsh-tui`；源 `rivetHome()` 为天枢路径，移植时改为本包路径）。 */
@@ -113,4 +121,52 @@ export function loadCustomThemes(baseDir?: string): string[] {
     }
   }
   return loaded
+}
+
+/**
+ * 当前生效主题导出为自定义主题模板（/theme export；P1）。
+ * 全量 dump truecolor ColorSet + overrides，base 取内置同名或按背景朝向回退；
+ * 写盘成功后就地注册（当场 `/theme custom:<name>` 可用），编辑文件后重启生效。
+ * @param nameArg - 目标主题裸名（缺省 `exported-<当前名>`）；非法字符净化为 `-`。
+ * @param baseDir - 根目录（测试注入）；缺省 `~/.dsh-tui`。
+ * @returns 回显消息（成功含路径；失败含原因）。
+ */
+export function exportCurrentTheme(nameArg?: string, baseDir?: string): string {
+  const active = getActiveThemeName()
+  const name = (nameArg ?? `exported-${active.replace(/^custom:/, '')}`).replace(/[^A-Za-z0-9_-]/g, '-')
+  if (name === '') return '导出失败：主题名净化后为空'
+  const theme = getTheme()
+  const template = {
+    base: Object.hasOwn(THEME_PALETTES, active) ? active : (getActiveThemeBackground() === 'light' ? 'paper' : 'graphite'),
+    description: `exported from ${active} @ ${new Date().toISOString().slice(0, 10)}`,
+    colors: {
+      primary: theme.primary,
+      secondary: theme.secondary,
+      success: theme.success,
+      warning: theme.warning,
+      error: theme.error,
+      dim: theme.dim,
+      pulseQuiet: theme.pulseQuiet,
+      pulseActive: theme.pulseActive,
+      pulseAlert: theme.pulseAlert,
+    },
+    overrides: {
+      userColor: theme.userColor,
+      assistantColor: theme.assistantColor,
+      muted: theme.muted,
+      systemColor: theme.systemColor,
+    },
+  }
+  const dir = customThemesDir(baseDir)
+  const file = join(dir, `${name}.json`)
+  try {
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(file, `${JSON.stringify(template, null, 2)}\n`)
+  } catch (err) {
+    return `导出失败：${err instanceof Error ? err.message : String(err)}`
+  }
+  // 就地注册（不重启可用）；注册失败只影响当场切换，不影响已写盘的模板。
+  const parsed = parseCustomThemeJson(JSON.stringify(template))
+  if (parsed) registerCustomTheme(name, parsed)
+  return `主题模板已导出: ${file}（可用 /theme custom:${name}；编辑文件后重启生效）`
 }

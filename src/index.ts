@@ -16,6 +16,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { KeyName } from './engine/input-handler.ts'
 import { runSelfUpdate } from './self-update.ts'
 import { spawnSelfRestart } from './restart.ts'
+import { loadCustomThemes } from './theme-custom.ts'
 import { TuiApp } from './ui/app.ts'
 
 /** Stable Cordis plugin name the bundle patch inserts. */
@@ -57,6 +58,12 @@ export interface TuiRunnerConfig {
   }
   /** 启动自更新落盘后自动重启生效（缺省 true；false 时仅提示后手动 /restart）。 */
   autoRestartOnUpdate?: boolean
+  /** 主题名（'auto' | 内置名 | custom:<name>）；优先级：装配 > ~/.dsh-tui/prefs.json > 'auto'。 */
+  theme?: string
+  /** 本地偏好文件路径；null 显式禁用（不读写 ~/.dsh-tui/prefs.json）。 */
+  prefsPath?: string | null
+  /** 输入历史文件路径；null 显式禁用。 */
+  inputHistoryPath?: string | null
 }
 
 /**
@@ -65,6 +72,9 @@ export interface TuiRunnerConfig {
  * @param config - stream injection and starting session (defaults to process).
  */
 export function apply(ctx: Context, config: TuiRunnerConfig = {}): void {
+  // 自定义主题装载（~/.dsh-tui/themes/*.json）：必须在 TuiApp 构造（读持久化
+  // 主题偏好、解析 custom:<name>）之前——修历史孤儿导出（此前从未被调用）。
+  loadCustomThemes()
   // 配置边界校验（cordis.yml 值在此进入）：misconfiguration fails loud at load。
   if (config.workflowHistoryLimit !== undefined
     && (!Number.isInteger(config.workflowHistoryLimit) || config.workflowHistoryLimit <= 0)) {
@@ -126,6 +136,9 @@ export function apply(ctx: Context, config: TuiRunnerConfig = {}): void {
       ...(config.vision === undefined ? {} : { vision: config.vision }),
       ...(config.workflowHistoryLimit === undefined ? {} : { workflowHistoryLimit: config.workflowHistoryLimit }),
       ...(config.lsp === undefined ? {} : { lsp: config.lsp }),
+      ...(config.theme === undefined ? {} : { theme: config.theme }),
+      ...(config.prefsPath === undefined ? {} : { prefsPath: config.prefsPath }),
+      ...(config.inputHistoryPath === undefined ? {} : { inputHistoryPath: config.inputHistoryPath }),
     })
     // Windows 控制台（PowerShell/conhost）下 Ctrl+C 可能同时产生 0x03 字节
     // 与 SIGINT 信号：0x03 已走 handleAbort（打断），紧随的 SIGINT 若直接

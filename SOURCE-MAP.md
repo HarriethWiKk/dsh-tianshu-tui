@@ -66,7 +66,8 @@
 | src/format/doctor-report.ts | — | new |
 | src/format/export.ts | — | new（/export 会话导出：事件日志 → Markdown 转录，纯渲染） |
 | src/format/fluency-policy.ts | fluency-policy.ts | modified（目录重排：上游根 → src/format/） |
-| src/format/glance-bar.ts | format/glance-bar.ts | modified |
+| src/format/glance-bar.ts | format/glance-bar.ts | modified（hideSegments 段过滤：prefs.glance.hideSegments 透传，model/stalled 永不可隐藏） |
+| src/format/glance-metrics.ts | — | new（glance metrics 投影：app 缓存字段 → formatGlanceBar 输入；C4 自 ui/app.ts 提取，时间注入可测） |
 | src/format/lsp-diagnostics.ts | — | new（诊断展示纯函数：工具卡徽标 + /lsp 面板段，severity 语义色） |
 | src/format/hidden-lines.ts | format/hidden-lines.ts | ported |
 | src/format/history-search-overlay.ts | — | new |
@@ -99,7 +100,9 @@
 | src/format/welcome.ts | format/welcome.ts | modified |
 | src/format/whale.ts | — | new（欢迎页鲸鱼品牌像素画：半块字符双色渲染，品牌固定色 + 色深/宽度档降级，纯渲染） |
 | src/gutter.ts | gutter.ts | ported |
+| src/git-status.ts | — | new（git 仓库探测三函数：isGitRepo/gitBranch/gitDirtyCount，exec 注入；C4 自 ui/app.ts 提取） |
 | src/index.ts | — | new |
+| src/input-history.ts | — | new（输入历史持久化：~/.dsh-tui/input-history.json，1000 条上限、进程内追加队列 + 重读合并原子写；上游 history.ts 模式，去重语义取本仓更强的全列表去重） |
 | src/lsp/lsp-bridge.ts | — | new（LSP 诊断桥：懒生命周期 + 展示层诊断缓存；扩展名不支持/server 未安装一次标记；per-file 合并与冷却） |
 | src/lsp/manager.ts | lsp/manager.ts | modified（initialize 竞速进程早夭：rpc 无超时，进程死掉时 pending 请求永不 settle → error/close settle 入 catch，防 ensure() 永久挂起） |
 | src/lsp/multi-manager.ts | lsp/multi-manager.ts | modified（spawn 简化：弃上游 spawnHidden/resolve-node-cli 桌面 bundle 适配，用 node:child_process spawn 直连；win32 经 cmd.exe /d /c 派发 .cmd——npx 不经 shell 直接 spawn 抛 EINVAL） |
@@ -116,6 +119,7 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 | src/mention-parser.ts | mention-parser.ts | modified |
 | src/pi/latex-block.ts | pi/latex-block.ts | modified |
 | src/pi/latex-to-unicode.ts | pi/latex-to-unicode.ts | modified |
+| src/prefs.ts | — | new（本地偏好持久化：~/.dsh-tui/prefs.json——theme/density/常驻面板/glance 段；容错解析 + 原子写 + VITEST 密封门） |
 | src/picker.ts | — | new（Issue #31 交互式选择器：纯状态机 + 渲染 + PickerController，/model /theme /session 无参打开） |
 | src/port.ts | — | new |
 | src/preset-surface.ts | — | new（agent 预设展示面纯投影：preset 名 = header 创建值 + agent-preset/selected 切换值 fold（官方 resolveSessionPreset 等价）；wire 工具面 = 最近 request/header 的 tools 集合（foldRequestHeader）；只消费日志事实，不重放 preset 插件私有晋升逻辑） |
@@ -133,7 +137,7 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 | src/stream-window.ts | stream-window.ts | ported |
 | src/summary-state.ts | summary-state.ts | modified |
 | src/term-caps.ts | term-caps.ts | modified |
-| src/theme-custom.ts | theme-custom.ts | modified（自定义主题根路径重指到本包 home） |
+| src/theme-custom.ts | theme-custom.ts | modified（自定义主题根路径重指到本包 home；exportCurrentTheme：当前主题导出为自定义模板 + 就地注册） |
 | src/theme-detect.ts | theme-detect.ts | modified（pause 对称恢复：仅在进入时为暂停态才 `pause()`） |
 | src/theme-palettes.ts | theme-palettes.ts | modified |
 | src/format/top-bar.ts | — | new（C4 概念稿顶部栏：cwd + 分支 + 模型，纯渲染） |
