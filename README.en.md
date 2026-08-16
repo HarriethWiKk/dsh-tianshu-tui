@@ -94,7 +94,21 @@ The companion vision plugin lives in `vision-ask/` if you need image re-interrog
 
 ## Release notes
 
-Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.9`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.9)).
+Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.10`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.10)).
+
+### 0.1.2-rc.10 (2026-08-16)
+
+One-step updates + Windows/PowerShell compatibility + command-input tolerance.
+
+- **Auto-restart after update ([#34](https://github.com/huiliyi37/dsh-tianshu-tui/issues/34))** — once the startup self-update lands, the process restarts automatically (only when the session hasn't started working; otherwise it just prompts and never interrupts). `/restart` restarts the process in place (no more `/exit` + manual relaunch)
+- **Package-manager-aware self-update** — profiles managed by pnpm/npm/yarn each use their own installer; no more hardcoded `pnpm add` (npm/yarn users no longer get a stray `pnpm-lock.yaml`)
+- **`/help` fixed ([#36](https://github.com/huiliyi37/dsh-tianshu-tui/issues/36))** — it used to fail with `cannot get property "tui" without inject`; now it lists every command via the command factory deps
+- **Tab command menu ([#31](https://github.com/huiliyi37/dsh-tianshu-tui/issues/31) follow-up)** — with an empty input, Tab pops the full command menu; Enter runs the selected command directly (`/model` `/theme` `/session` open their pickers) — no need to type the command name (Claude Code style)
+- **Windows/PowerShell compatibility** — Ctrl+C interrupt no longer loses the input box (0x03 byte + SIGINT double-trigger dedup, dual SIGINT registration, exit-time terminal restore)
+- **`/`-prefixed path tolerance** — `/src/main.ts`, `~/xxx`, Windows drive paths (`C:\...`) are no longer mistaken for slash commands and rejected as "unknown command"
+- **Interrupt recovery hardening** — abort now force-releases full-screen overlays (command palette/search etc.), so the input rail always comes back next frame; regression tests added for input-box visibility after interrupt
+
+Users already on `0.1.x-rc.6` pick this up on the next launch. Restart after you see `插件已更新到 …，请重启 dsh 后生效` (or the new version restarts automatically; `/restart` works too).
 
 ### 0.1.2-rc.9 (2026-08-16)
 

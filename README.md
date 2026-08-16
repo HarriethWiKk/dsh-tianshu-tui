@@ -93,7 +93,21 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 
 ## 更新说明
 
-当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.9`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.9)）。
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.10`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.10)）。
+
+### 0.1.2-rc.10（2026-08-16）
+
+更新一步到位 + Windows 平台兼容 + 命令输入容错。
+
+- **更新后自动重启（[#34](https://github.com/huiliyi37/dsh-tianshu-tui/issues/34)）** — 启动自更新落盘后自动重启生效（会话未开始工作时；已工作时只提示不打断）；`/restart` 命令手动重启同一进程（更新后不用再 `/exit` + 手动重跑）
+- **自更新按锁文件选包管理器** — pnpm/npm/yarn 管理的 profile 各自走对应安装器，不再硬编码 pnpm（npm/yarn 用户不再混入 pnpm 锁文件）
+- **`/help` 修复（[#36](https://github.com/huiliyi37/dsh-tianshu-tui/issues/36)）** — 此前一直报 `cannot get property "tui" without inject`，现经命令工厂注入正常列出全部命令
+- **Tab 命令菜单（[#31](https://github.com/huiliyi37/dsh-tianshu-tui/issues/31) 跟进）** — 空输入框按 Tab 弹出全部命令菜单，选命令回车直接执行（`/model` `/theme` `/session` 直接进选择器），省去输入命令名一步（参考 Claude Code）
+- **Windows/PowerShell 兼容** — Ctrl+C 打断不再触发「输入框消失」（0x03 字节与 SIGINT 双触发去重 + SIGINT 双注册 + 退出时终端兜底恢复）
+- **`/` 开头文件路径容错** — `/src/main.ts`、`~/xxx`、Windows 盘符 `C:\...` 等路径不再被误判为 slash 命令报「未知命令」
+- **打断恢复加固** — abort 时强制释放全屏 overlay（命令面板/搜索等），主屏输入框下一帧必然恢复；补「打断后输入框可见」回归测试
+
+已装 `0.1.x-rc.6` 的用户下次启动会自动写入 profile。看到「插件已更新到 …，请重启 dsh 后生效」后重启即可（新版本会自动重启或输入 `/restart`）。
 
 ### 0.1.2-rc.9（2026-08-16）
 
