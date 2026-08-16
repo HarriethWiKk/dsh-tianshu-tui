@@ -82,10 +82,12 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 | 名字 | 是什么 |
 |---|---|
 | `dsh-tianshu-tui`（本插件） | 官方 dsh 的 TUI 插件（本仓库） |
-| `oh-my-tianshu` / `@huiliyi37/dsh-tianshu`（原 tianshu-public） | 独立集成发行，自带 CLI |
+| `oh-my-tianshu` / `@huiliyi37/oh-my-tianshu`（原 tianshu-public） | 独立集成发行，自带 CLI（命令 `oh-my-tianshu`） |
 | `Tianshu-Tui`（上游） | 本插件渲染核心的 Apache-2.0 来源（天枢） |
 
-> 更名计划（第二批）：oh-my-tianshu 的启动命令与 npm 包名将统一改名，届时本说明同步更新。
+> 2026-08-16 已改名：原 `@huiliyi37/dsh-tianshu`（命令 `tianshu`）统一为
+> `@huiliyi37/oh-my-tianshu`（命令 `oh-my-tianshu`），与仓库名一致；旧包已
+> deprecate，请迁移安装。
 
 需要图片再询问能力时，再装配同仓伴生包 `vision-ask/`；需要 LSP 模型工具面（模型可调 `lsp_goto_definition` / `lsp_find_references` / `lsp_diagnostics`）时装配社区插件 [`omdsh-dev/dsh-lsp`](https://github.com/omdsh-dev/dsh-lsp)（`npx -y @deepseek-ai/dsh plugin --profile tui add github:omdsh-dev/dsh-lsp`）——装配后 TUI 展示桥自动消费其 `lsp` 服务（与模型工具面共享同一 LSP server 集，不双份 spawn）。TUI 桥的诊断源探测顺序：社区插件服务（getDiagnostics 形状）→ 官方 `ctx.lsp` seam（deepseek-harness 的 dsh-lsp，经 query(getDiagnostics) 适配）→ 内置桥降级。
 

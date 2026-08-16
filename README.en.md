@@ -83,11 +83,12 @@ by side without conflicts** (sessions / profiles / settings stay separate). To c
 | Name | What it is |
 |---|---|
 | `dsh-tianshu-tui` (this plugin) | The TUI plugin for the official dsh (this repo) |
-| `oh-my-tianshu` / `@huiliyi37/dsh-tianshu` (formerly tianshu-public) | Standalone integrated distribution with its own CLI |
+| `oh-my-tianshu` / `@huiliyi37/oh-my-tianshu` (formerly tianshu-public) | Standalone integrated distribution with its own CLI (`oh-my-tianshu`) |
 | `Tianshu-Tui` (upstream) | Apache-2.0 source of this plugin's render core |
 
-> Renaming plan (phase 2): oh-my-tianshu's launch command and npm package name will be
-> renamed to eliminate semantic confusion; this section will be updated then.
+> Renamed on 2026-08-16: the former `@huiliyi37/dsh-tianshu` (command `tianshu`) is now
+> uniformly `@huiliyi37/oh-my-tianshu` (command `oh-my-tianshu`), matching the repo name;
+> the old package is deprecated — migrate your install.
 
 The companion vision plugin lives in `vision-ask/` if you need image re-interrogation.
 
