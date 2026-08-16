@@ -4,8 +4,10 @@
  * 职责划分：
  * - `resolveSlashCommand`：纯函数最小唯一前缀解析（/ 前缀检测、歧义/未知 → null）。
  * - `SlashCommandRegistry`：实例化命令注册表（register/list/get/unregister/resolve/hint），
- *   经 `ctx.provide('tui.commands', registry)` 暴露为 Cordis 服务——外部插件可
- *   `ctx.get('tui.commands')?.register(...)` 扩展命令。
+ *   由 TuiApp 持有（this.slash）；/help 经 BuiltinCommandDeps.listCommands 注入取用。
+ *   （头注释曾写「经 ctx.provide('tui.commands') 暴露」——该 provide 从未实现，
+ *   外部插件扩展命令的通道是设计意图，未落地；直接访问 ctx.tui 会触发 Cordis
+ *   注入代理 "without inject" 抛错，见 #36。）
  * - `createBuiltinCommands`：内置命令工厂（/theme /session /clear /compact；/steer 由
  *   TuiApp 直接复用既有入口，注册表只保留其名字参与前缀解析与提示）。
  *
@@ -286,6 +288,8 @@ export interface BuiltinCommandDeps {
   requestExit(): void
   /** /restart：以相同命令重启当前 dsh 进程（dispose → spawn 同 argv → 退出）。 */
   requestRestart(): void
+  /** /help：当前注册表的全部命令（TuiApp 是注册表所有者，经 deps 注入而非 ctx 服务）。 */
+  listCommands(): SlashCommand[]
   /** /preset：当前会话的 agent（recompose/composedPreset 的 agentCtx 来源；无会话为 null）。 */
   currentAgent(): Agent | null
   /** /preset：当前会话是否 blank（无消息且无进行中工具调用）——recompose 的调用方契约。 */
@@ -925,15 +929,10 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
       name: 'help',
       description: '列出全部命令与用法（/help <cmd> 查看单条详情）',
       argsHint: '[cmd]',
-      run: ({ text, echo, ctx }) => {
-        // 注册表经 ctx.provide('tui.commands') 暴露（L183）；取不到时 fails loud。
-        const registry = (ctx as unknown as { tui?: { commands?: { list(): SlashCommand[] } } })
-          .tui?.commands
-        if (registry === undefined) {
-          echo('⚠ 命令注册表服务不可用')
-          return
-        }
-        const all = registry.list()
+      run: ({ text, echo }) => {
+        // 注册表经 deps 注入（TuiApp 持有 this.slash 实例）——不访问 ctx 属性：
+        // Cordis 注入代理对未声明属性直接抛 "without inject"（#36 根因）。
+        const all = deps.listCommands()
         const target = text.trim()
         if (target !== '') {
           const command = all.find(c => c.name === target)

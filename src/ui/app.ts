@@ -798,6 +798,9 @@ export class TuiApp {
       exportTranscript: path => this.exportTranscript(path),
       requestExit: () => { this.onExit?.() },
       requestRestart: () => { this.onRestart?.() },
+      // /help：注册表所有者即 TuiApp（this.slash），经 deps 注入——不暴露为 ctx
+      // 服务（Cordis 注入代理对未声明属性抛 without inject，见 #36）。
+      listCommands: () => this.slash.list(),
       setYoloMode: (flag) => { this.setYoloMode(flag) },
       // #31：交互式选择器（/model /theme /session 无参打开）。
       openModelPicker: () => { void this.openModelPicker() },

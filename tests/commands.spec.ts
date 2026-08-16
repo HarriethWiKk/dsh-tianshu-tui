@@ -17,6 +17,7 @@ import {
   SlashCommandRegistry,
   createBuiltinCommands,
   resolveSlashCommand,
+  type SlashCommand,
 } from '../src/commands/registry.js'
 import { getActiveThemeName, setTheme } from '../src/theme.js'
 
@@ -71,6 +72,7 @@ function commandByName(name: string) {
     exportTranscript: vi.fn(async (path?: string) => path ?? '/tmp/dsh-export-s1.md'),
     requestExit: vi.fn(),
     requestRestart: vi.fn(),
+    listCommands: vi.fn<() => SlashCommand[]>(() => []),
     currentAgent: vi.fn<() => Agent | null>(() => null),
     isBlankSession: vi.fn(() => true),
     setYoloMode: vi.fn(),
@@ -766,13 +768,14 @@ describe('内置命令 — /help', () => {
     expect(BUILTIN_COMMAND_NAMES).toContain('help')
   })
 
-  it('/help 无参：经注册表列出全部命令（名 + argsHint + 描述）', async () => {
-    const { cmd } = commandByName('help')
+  it('/help 无参：经 deps.listCommands 列出全部命令（名 + argsHint + 描述）', async () => {
+    const { cmd, deps } = commandByName('help')
     const registry = new SlashCommandRegistry()
-    for (const c of createBuiltinCommands(commandByName('help').deps)) registry.register(c)
-    const ctx = { tui: { commands: registry } } as unknown as Context
-    const { args, echo } = makeArgs({ ctx })
+    for (const c of createBuiltinCommands(deps)) registry.register(c)
+    vi.mocked(deps.listCommands).mockReturnValue(registry.list())
+    const { args, echo } = makeArgs()
     await cmd.run(args)
+    expect(deps.listCommands).toHaveBeenCalledTimes(1)
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('全部命令'))
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('/theme <name> — 切换主题'))
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('/help [cmd] — 列出全部命令'))
@@ -780,23 +783,28 @@ describe('内置命令 — /help', () => {
   })
 
   it('/help <cmd>：单条详情；未知命令回显提示', async () => {
-    const { cmd } = commandByName('help')
+    const { cmd, deps } = commandByName('help')
     const registry = new SlashCommandRegistry()
-    for (const c of createBuiltinCommands(commandByName('help').deps)) registry.register(c)
-    const ctx = { tui: { commands: registry } } as unknown as Context
-    const detail = makeArgs({ text: 'model', ctx })
+    for (const c of createBuiltinCommands(deps)) registry.register(c)
+    vi.mocked(deps.listCommands).mockReturnValue(registry.list())
+    const detail = makeArgs({ text: 'model' })
     await cmd.run(detail.args)
     expect(detail.echo).toHaveBeenCalledWith('/model [provider/model | spark-flash | spark-pro] — 查看或切换模型（默认 + 当前会话热切；spark-flash / spark-pro 映射到官方 flash / pro）')
-    const unknown = makeArgs({ text: 'nope', ctx })
+    const unknown = makeArgs({ text: 'nope' })
     await cmd.run(unknown.args)
     expect(unknown.echo).toHaveBeenCalledWith('未知命令: /nope（/help 查看全部命令）')
   })
 
-  it('注册表缺失：回显警告（fails loud）', async () => {
-    const { cmd } = commandByName('help')
-    const { args, echo } = makeArgs() // makeCtx 无 tui 属性
+  it('#36 回归：不访问 ctx.tui（Cordis 注入代理下属性访问抛 without inject），正常列出命令', async () => {
+    const { cmd, deps } = commandByName('help')
+    const registry = new SlashCommandRegistry()
+    for (const c of createBuiltinCommands(deps)) registry.register(c)
+    vi.mocked(deps.listCommands).mockReturnValue(registry.list())
+    const { args, echo } = makeArgs() // makeCtx 无 tui 属性——模拟无 tui.commands 服务的真实环境
     await cmd.run(args)
-    expect(echo).toHaveBeenCalledWith('⚠ 命令注册表服务不可用')
+    expect(deps.listCommands).toHaveBeenCalled()
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('全部命令'))
+    expect(echo).not.toHaveBeenCalledWith(expect.stringContaining('命令执行失败'))
   })
 })
 
@@ -1397,6 +1405,7 @@ describe('内置命令 — /effort', () => {
       exportTranscript: vi.fn(async (path?: string) => path ?? '/tmp/dsh-export-s1.md'),
       requestExit: vi.fn(),
     requestRestart: vi.fn(),
+    listCommands: vi.fn<() => SlashCommand[]>(() => []),
       currentAgent: vi.fn(() => null),
       isBlankSession: vi.fn(() => true),
       setYoloMode: vi.fn(),
