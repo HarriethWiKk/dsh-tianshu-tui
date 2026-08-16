@@ -11,6 +11,10 @@
 
 **dsh-tianshu-tui** (`@huiliyi37/dsh-tianshu-tui`) is the interactive terminal UI plugin for the official [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). The render core evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) (Apache-2.0; file-by-file provenance in [SOURCE-MAP.md](SOURCE-MAP.md)). The UI is a pure presentation layer: every piece of agent state arrives through the session event stream.
 
+
+> [!WARNING]
+> **Ecosystem boundary**: this plugin belongs to the official [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) ecosystem (`@deepseek-ai/*` scope) — its peerDependencies and imports all point at `@deepseek-ai/*`. **Do not assemble it into an oh-my-tianshu (`@huiliyi37` scope, CLI `@huiliyi37/dsh-tianshu`) tui profile.** oh-my-tianshu ships its own official TUI, `@huiliyi37/dsh-tui`: the two share 109 of 117 TUI source files but live in different ecosystems. Mixing them makes the plugin resolve `@deepseek-ai/*` at runtime through stale symlinks under `~/.dsh/profiles/node_modules` pointing at the globally installed official dsh — a fragile cross-ecosystem coupling.
+
 ## Documentation
 
 | Doc | What it covers |
