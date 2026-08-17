@@ -359,3 +359,4 @@ Apache-2.0。终端渲染引擎从 [天枢 Tianshu-Tui](https://github.com/huili
 - [dsh-TUI](https://github.com/ccch1mneyyy/dsh-TUI) — Claude Code 风格全屏交互终端插件
 - [DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) — 侧边栏完整工作台，支持第三方 Tab、文件/终端/Git/子代理
 - [🐋 DSH Meme Hub](https://github.com/the-beating-light-of-the-nail/dsh-meme-hub) — DeepSeek Harness 社区整活插件精选导航（28 个项目，带截图）
+- https://github.com/SenmuuuuW/dsh-whale-report 把 DSH 的 session、token、cost、tool call、风险与异常，转成可以真正读懂的 Agent 报告。感谢大家支持
