@@ -141,6 +141,10 @@ export declare class SlashCommandRegistry {
  * 内置命令工厂依赖——TuiApp 私有能力注入（会话铸造、滚动区重置、面板显隐切换）。
  */
 export interface BuiltinCommandDeps {
+    /** /theme：保存已确认的主题名；无 settings 服务时省略。 */
+    persistTheme?(name: string): void;
+    /** /theme：主题确认后按新主题重放当前历史消息。 */
+    onThemeChanged?(): void;
     /** /session new：新建会话并挂载（TuiApp.newSession）。 */
     newSession(): Promise<SessionId>;
     /** /fork、/branch（A3）：分叉当前会话（复制历史）并切换（TuiApp.forkSession）。 */

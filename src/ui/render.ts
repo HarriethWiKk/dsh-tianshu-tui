@@ -93,7 +93,9 @@ export function renderMessageRows(
   options: RenderTranscriptOptions = {},
 ): RenderedRow[] {
   if (message.kind === 'user') {
-    return formatUserMessage({ content: message.text, width: columns, timestamp: message.time }, theme)
+    const content = stripSystemReminders(message.text)
+    if (content === '') return []
+    return formatUserMessage({ content, width: columns, timestamp: message.time }, theme)
       .map(ansi => ({ ansi, kind: 'user' as const }))
   }
   const rows: RenderedRow[] = []
@@ -106,6 +108,14 @@ export function renderMessageRows(
   rows.push(...formatMarkdown({ text: message.text, columns }, theme)
     .map(ansi => ({ ansi, kind: 'assistant' as const })))
   return rows
+}
+
+/** System reminders are runtime instructions, not conversation content. */
+function stripSystemReminders(text: string): string {
+  return text
+    .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, '')
+    .replace(/Current runtime context\.[\s\S]*?Approval policy:[\s\S]*?fail(?:s)? closed\.\s*/gi, '')
+    .trim()
 }
 
 /**

@@ -133,6 +133,23 @@ describe('renderMessageRows', () => {
     expect(plain(rows).join('\n')).toContain('你好世界')
   })
 
+  it('user 消息隐藏运行时 system-reminder，只保留真实用户内容', () => {
+    const rows = renderMessageRows(userMessage('<system-reminder>内部规则</system-reminder>请查看项目'), fakeTheme(), 80)
+    const text = plain(rows).join('\n')
+    expect(text).toContain('请查看项目')
+    expect(text).not.toContain('内部规则')
+    expect(text).not.toContain('system-reminder')
+  })
+
+  it('user 消息隐藏未包裹标签的 runtime context', () => {
+    const rows = renderMessageRows(userMessage('你好\nCurrent runtime context. This snapshot supersedes earlier runtime-context snapshots.\nCurrent DSH file policy: workspace-write.\nApproval policy: ask. Operations fail closed.\n'), fakeTheme(), 80)
+    const text = plain(rows).join('\n')
+    expect(text).toContain('你好')
+    expect(text).not.toContain('Current runtime context')
+    expect(text).not.toContain('workspace-write')
+    expect(text).not.toContain('Approval policy')
+  })
+
   it('assistant 消息 → formatMarkdown 行，kind assistant', () => {
     const rows = renderMessageRows(assistantMessage('回答内容'), fakeTheme(), 80)
     expect(rows.every(r => r.kind === 'assistant')).toBe(true)

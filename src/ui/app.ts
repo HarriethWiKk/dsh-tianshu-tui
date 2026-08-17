@@ -307,6 +307,8 @@ export interface TuiAppOptions {
   initialSessionId?: SessionId
   /** 主题名；'auto' 走系统终端配色探测，缺省 'auto'。 */
   theme?: string
+  /** 持久化已确认的主题名；由 runner 接入宿主 settings。 */
+  persistTheme?: (name: string) => void
   /** 输入行为空时 Ctrl+C 的退出回调（raw-mode 下 Ctrl+C 是数据字节非 SIGINT）。 */
   onExit?: () => void
   /** /restart 与更新后自动重启的回调（装配方负责 dispose + spawn 同 argv + 退出）。 */
@@ -582,6 +584,7 @@ export class TuiApp {
   private ownedHandle: AgentHandle | null = null
   private readonly initialSessionId: SessionId | undefined
   private readonly themeName: string
+  private readonly persistTheme: ((name: string) => void) | undefined
   private readonly onExit: (() => void) | undefined
   private readonly onRestart: (() => void) | undefined
   /** 外部编辑器触发键（Phase 6.4）；缺省 ctrl_e（ctrl+o 已恢复为推理展开）。 */
@@ -714,6 +717,7 @@ export class TuiApp {
     this.stdin = options.stdin
     this.initialSessionId = options.initialSessionId
     this.themeName = options.theme ?? 'auto'
+    this.persistTheme = options.persistTheme
     this.onExit = options.onExit
     this.onRestart = options.onRestart
     this.editorKey = options.editorKey ?? 'ctrl_e'
@@ -775,6 +779,8 @@ export class TuiApp {
     // T2.1/T2.2/T2.3：/tasks（含 kill 子命令）、/subagents、/workflow 的命令定义在
     // createBuiltinCommands（registry 维度），TuiApp 只注入显隐切换 deps。
     for (const command of createBuiltinCommands({
+      persistTheme: name => { this.persistTheme?.(name) },
+      onThemeChanged: () => { this.rerenderHistory() },
       newSession: () => this.newSession(),
       forkSession: () => this.forkSession(),
       switchLiveModel: selection => this.switchLiveModel(selection),
@@ -1775,8 +1781,8 @@ export class TuiApp {
     }))
     const selectedIndex = Math.max(0, THEME_NAMES.indexOf(prev as ThemeName))
     picker.open('选择主题', items, (item) => {
-      // 确认：主题已在预览中生效，此处只落提示。
-      this.commitToScrollback({ text: `主题已切换: ${item.value}`, trailingNewline: true })
+      // 确认：主题已在预览中生效；历史重放在 overlay 退出后执行。
+      this.persistTheme?.(item.value)
     }, selectedIndex, {
       // ↑↓ 移动即切换（实时预览，overlay 渲染随主题色即时变化）。
       onPreview: (item) => { setTheme(item.value) },
@@ -2047,21 +2053,7 @@ export class TuiApp {
     // 历史加载：重放会话事件日志（live store 为权威来源，persisted-only 走
     // loadHistory——见 adapter/sessions；此处 live store 已含全部事件）。
     // 工具卡走同一 presenter 桥（presenter 为 args 纯函数、桥软降级，replay 安全）。
-    const rows = renderTranscript(this.transcript.view, this.theme, this.stdout.columns, {
-      compact: this.compactMode,
-      resolveViews: (tool: TranscriptToolCall) => resolveToolViews(this.toolPresenters(), {
-        name: tool.name,
-        argumentsRaw: tool.arguments,
-        ...(tool.result === undefined ? {} : {
-          result: {
-            content: tool.result.data.message.content[0].content,
-            isError: toolResultText(tool.result).isError,
-            ...(tool.result.data.meta === undefined ? {} : { meta: tool.result.data.meta }),
-          },
-        }),
-      }),
-    })
-    this.commitRows(rows)
+    this.commitRows(this.renderHistoryRows())
     this.inputLine.setHistory(this.history)
     // T2.1：委派树预取（listDescendants 是 async——首次 await 入缓存；
     // subagent/start|end 事件触发 re-await + renderLive 刷新）。
@@ -2858,6 +2850,9 @@ export class TuiApp {
       } else if (key.name === 'return') {
         picker.commit()
         this.overlay.deactivate()
+        this.rerenderHistory()
+        this.commitToScrollback({ text: `主题已切换: ${getActiveThemeName()}`, trailingNewline: true })
+        this.flushLiveRender()
       }
       return
     }
@@ -3188,6 +3183,39 @@ export class TuiApp {
     const buf: string[] = []
     for (const row of rows) buf.push(row.ansi)
     this.commitToScrollback({ text: buf.join('\n'), trailingNewline: true })
+  }
+
+  /** 当前主题变化后，清理终端并用最新颜色重放当前会话历史。 */
+  private rerenderHistory(): void {
+    if (this.disposed || (this.overlay !== null && this.overlay.activeId() !== null)) return
+    // Theme changes must not turn a previously collapsed live reasoning block
+    // into a full-text block while the screen is being rebuilt.
+    this.reasoningExpanded = false
+    this.commit.reset()
+    this.live.reset()
+    this.stdout.write(`${ANSI.ERASE_SCREEN}\x1b[3J\x1b[H`)
+    this.commitRows(this.renderHistoryRows())
+    this.flushLiveRender()
+  }
+
+  /** 生成当前会话历史消息的主题化渲染行。 */
+  private renderHistoryRows(): RenderedRow[] {
+    const transcript = this.transcript
+    if (transcript === null) return []
+    return renderTranscript(transcript.view, this.theme, this.stdout.columns, {
+      compact: this.compactMode,
+      resolveViews: (tool: TranscriptToolCall) => resolveToolViews(this.toolPresenters(), {
+        name: tool.name,
+        argumentsRaw: tool.arguments,
+        ...(tool.result === undefined ? {} : {
+          result: {
+            content: tool.result.data.message.content[0].content,
+            isError: toolResultText(tool.result).isError,
+            ...(tool.result.data.meta === undefined ? {} : { meta: tool.result.data.meta }),
+          },
+        }),
+      }),
+    })
   }
 
   /**

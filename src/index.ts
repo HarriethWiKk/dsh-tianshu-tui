@@ -11,6 +11,8 @@
 
 import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
+import z from '@deepseek-ai/schemastery'
+import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import type { ReadStream, WriteStream } from 'node:tty'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { KeyName } from './engine/input-handler.ts'
@@ -20,6 +22,11 @@ import { TuiApp } from './ui/app.ts'
 
 /** Stable Cordis plugin name the bundle patch inserts. */
 export const name = 'tui-runner'
+
+const TUI_SETTINGS_NAMESPACE = settingsNamespace('tui-runner')
+const TUI_SETTINGS_SCHEMA = z.object({
+  theme: z.string().default('auto'),
+})
 
 /** 装配选项：流与起始会话可注入（测试替身），缺省走 process 全局流。 */
 export interface TuiRunnerConfig {
@@ -78,7 +85,7 @@ export function apply(ctx: Context, config: TuiRunnerConfig = {}): void {
   process.on('exit', () => {
     try { if (stdin.isTTY && typeof stdin.setRawMode === 'function') stdin.setRawMode(false) } catch { /* best-effort */ }
   })
-  // 服务隔离：sessions/agents/agentDefaultModel 是注入属性，访问前必须
+  // 服务隔离：sessions/agents/agentDefaultModel/settings 是注入属性，访问前必须
   // 声明依赖（Cordis 4 注入语义，未声明访问抛 "without inject"；web-app 同款
   // 模式）。cmdlineArgs/appExit 是 launcher 在 boot prepare 里 provide 的宿主服务，
   // **不加入必选 inject**：Cordis inject 要求全部服务可用才执行回调，宿主未提供时
@@ -88,7 +95,22 @@ export function apply(ctx: Context, config: TuiRunnerConfig = {}): void {
   // TUI 静默不启动）：一律经 reflect.get 读取，/goal 命令与委派树在服务缺失时
   // 报不可用/面板降级（fails loud），但不阻塞装配。
   // 装配与 attach 在注入作用域内执行；生命周期仍注册在外层插件 ctx（随插件卸载）。
-  ctx.inject(['sessions', 'agents', 'agentDefaultModel'], (runtimeCtx) => {
+  ctx.inject(['sessions', 'agents', 'agentDefaultModel', 'settings'], (runtimeCtx) => {
+    const settings = runtimeCtx.reflect.get('settings', false) as {
+      register<T>(
+        ns: typeof TUI_SETTINGS_NAMESPACE,
+        schema: typeof TUI_SETTINGS_SCHEMA,
+      ): { get(): T; update(patch: object): Promise<void> }
+    } | undefined
+    const themeSettings = settings?.register<{ theme: string }>(TUI_SETTINGS_NAMESPACE, TUI_SETTINGS_SCHEMA)
+    const storedTheme = themeSettings?.get().theme
+    const persistTheme = themeSettings === undefined
+      ? undefined
+      : (theme: string): void => {
+        void themeSettings.update({ theme }).catch((err: unknown) => {
+          console.warn('[tui-runner] failed to persist theme:', err)
+        })
+      }
     // 退出生命周期：stdin SIGINT、Ctrl+C 空输入（onExit）与插件卸载（effect cleanup）
     // 都 await dispose（flushAll + 恢复终端）。用户主动退出（Ctrl+Q / /exit /
     // SIGINT）在 dispose 之后还要让宿主进程退出——否则 InputHandler 已 pause
@@ -120,6 +142,8 @@ export function apply(ctx: Context, config: TuiRunnerConfig = {}): void {
       stdout,
       onExit: () => { void teardown(true) },
       onRestart: () => { void teardown(true, true) },
+      ...(storedTheme === undefined ? {} : { theme: storedTheme }),
+      ...(persistTheme === undefined ? {} : { persistTheme }),
       ...(config.initialSessionId === undefined ? {} : { initialSessionId: config.initialSessionId }),
       ...(config.editorKey === undefined ? {} : { editorKey: config.editorKey }),
       ...(config.vimEnabled === undefined ? {} : { vimEnabled: config.vimEnabled }),
