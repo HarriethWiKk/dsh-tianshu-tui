@@ -32,42 +32,42 @@
 
 ## Install
 
-This package is not a standalone app. You need the official CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh) (`0.1.0-rc.6`). `npm i` of this package alone will not run.
+This package is not a standalone app. You need the official CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh) (`0.1.0-rc.7`). `npm i` of this package alone will not run.
 
 ### 1. Prerequisites
 
 - [Node.js](https://nodejs.org/) `^22.19 || >=24`
 - [`pnpm`](https://pnpm.io/installation) on PATH (`dsh plugin` forwards to it)
 
-**Do not type `dsh` by itself.** An older `dsh` on PATH (for example `~/.local/bin/dsh`, where `dsh --version` is not `0.1.0-rc.6`) will hit a local staging tree and fail with `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`. Always use the `npx` commands below.
+**Do not type `dsh` by itself.** An older `dsh` on PATH (for example `~/.local/bin/dsh`, where `dsh --version` is not `0.1.0-rc.7`) will hit a local staging tree and fail with `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`. Always use the `npx` commands below.
 
 ### 2. Add this plugin to the tui profile
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+npx -y @deepseek-ai/dsh@0.1.0-rc.7 plugin --profile tui add @huiliyi37/dsh-tianshu-tui
 ```
 
 pnpm may warn about missing peers; ignore that. Peers come from the official `dsh` host.
 
 After an npm install, each launch checks npm `latest` and writes a newer version into the profile, then asks you to restart. Set `DSH_TUI_SKIP_UPDATE=1` to skip the check. `github:` / `link:` installs are left alone.
 
-You can also install from Git: `npx -y @deepseek-ai/dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui` (the repository ships `lib/index.js`; no rebuild).
+You can also install from Git: `npx -y @deepseek-ai/dsh@0.1.0-rc.7 plugin --profile tui add github:huiliyi37/dsh-tianshu-tui` (the repository ships `lib/index.js`; no rebuild).
 
 ### 3. Start
 
 ```sh
-npx -y @deepseek-ai/dsh --profile tui
+npx -y @deepseek-ai/dsh@0.1.0-rc.7 --profile tui
 ```
 
 Success looks like a welcome screen branded **dsh-tianshu-tui**. Quit with `Ctrl+Q` or `/exit`.
 
-If the official CLI is installed globally and `dsh --version` is `0.1.0-rc.6`, you can use `dsh` in place of `npx -y @deepseek-ai/dsh`.
+If the official CLI is installed globally and `dsh --version` is `0.1.0-rc.7`, you can use `dsh` in place of `npx -y @deepseek-ai/dsh`.
 
 If `npx` still raises `ERR_FS_EISDIR`, stale install fallbacks under `~/.dsh/profiles/node_modules` are colliding with the official CLI. Use a clean home:
 
 ```sh
-DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
-DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh --profile tui
+DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh@0.1.0-rc.7 plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh@0.1.0-rc.7 --profile tui
 ```
 
 Do not run tsdown for this package from the DeepSeek Harness workspace root: it rewrites imports to unpublished `@deepseek-ai/dsh-root`, and loading fails.
@@ -172,11 +172,11 @@ Users already on `0.1.1-rc.6` pick this up on the next launch. Restart after you
 
 On launch the plugin checks npm `latest`, writes a newer version into the profile, and asks you to restart.
 
-**Upgrading from `0.1.0-rc.6`:** that build has no self-update. Add the plugin once more to pick up the new logic:
+**Upgrading from `0.1.0-rc.7`:** that build has no self-update. Add the plugin once more to pick up the new logic:
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
-npx -y @deepseek-ai/dsh --profile tui
+npx -y @deepseek-ai/dsh@0.1.0-rc.7 plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+npx -y @deepseek-ai/dsh@0.1.0-rc.7 --profile tui
 ```
 
 Later releases write themselves into the profile on launch. Restart after you see `插件已更新到 …，请重启 dsh 后生效`. Set `DSH_TUI_SKIP_UPDATE=1` to skip the check. `github:` / `link:` installs are left alone.
@@ -188,7 +188,7 @@ This release also includes display-layer fixes already on `main`:
 - After `/model`, the footer glance and vision capability follow the real model
 - `Ctrl+S` can restore a session from disk
 
-The first public baseline is recorded in [docs/BASELINE-v0.1.0-rc.6.md](docs/BASELINE-v0.1.0-rc.6.md).
+The first public baseline is recorded in [docs/BASELINE-v0.1.0-rc.7.md](docs/BASELINE-v0.1.0-rc.7.md).
 
 ## Highlights
 
