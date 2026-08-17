@@ -4234,20 +4234,27 @@ describe('TuiApp 结算卡与推理通道', () => {
     expect(expanded).toContain('✻ 思考')
     expect(expanded).toContain('ctrl+o 收起')
 
-    // Theme replay must not retain the transient expanded reasoning view.
+    // 主题重放不得保留瞬时的推理展开态（#40）。帧等待替代固定 60ms 睡眠：
+    // ctrl+o 渲染经 batcher 16ms 定时器帧，负向断言必须在新帧落定后读，
+    // 否则负载下提前读到旧帧即假绿。
+    const frameAfter = async (): Promise<string> => {
+      const before = stdout.write.mock.calls.length
+      await vi.waitFor(() => {
+        expect(stdout.write.mock.calls.length).toBeGreaterThan(before)
+      }, { timeout: 5_000, interval: 15 })
+      return stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    }
     stdout.write.mockClear()
     app.handleSubmit('/theme paper')
-    await new Promise(resolve => setTimeout(resolve, 60))
-    const themed = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    const themed = await frameAfter()
     expect(themed).not.toContain('ctrl+o 收起')
 
-    // Theme replay resets the transient expansion; re-open it, then collapse it.
+    // 重放复位瞬时展开；重开一次，再收起验证往返。
     stdin.emit('data', '\x0f')
-    await new Promise(resolve => setTimeout(resolve, 60))
+    await frameAfter()
     stdout.write.mockClear()
     stdin.emit('data', '\x0f')
-    await new Promise(resolve => setTimeout(resolve, 60))
-    const collapsed = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    const collapsed = await frameAfter()
     expect(collapsed).not.toContain('展开可见的推理正文')
     await app.dispose()
   })
@@ -6088,9 +6095,11 @@ describe('TuiApp 剪贴板图片与复制（opencode 接线移植）', () => {
     await app.attach()
     stdout.write.mockClear()
     stdin.emit('data', '\x1b[200~/nonexistent/does-not-exist.png\x1b[201~')
-    await new Promise(resolve => setTimeout(resolve, 60))
-    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).toContain('图片加载失败')
+    // 条件轮询替代固定 60ms（异步加载失败警告在负载下不定时落定）
+    await vi.waitFor(() => {
+      const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+      expect(written).toContain('图片加载失败')
+    }, { timeout: 5_000, interval: 25 })
     await app.dispose()
   })
 

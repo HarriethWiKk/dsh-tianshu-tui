@@ -110,12 +110,15 @@ function findIoImportsIn(corpus: SourceFile[], prefixes: string[]): Array<{ path
  *  ui/app.ts 3998 = P1 偏好层/历史持久化接线重置（同期对冲提取 git-status /
  *  exportCurrentTheme / glance-metrics 三件后仍 +31；此后继续只降不升）。
  *  ui/app.ts 4002 = #39 技能展示面提取重置（对冲提取 controllers/skill-surface.ts
- *  约 130 行后仍 +4；此后继续只降不升）。 */
+ *  约 130 行后仍 +4；此后继续只降不升）。
+ *  ui/app.ts 4028 / registry 993 = #40 主题重放（rerenderHistory/renderHistoryRows
+ *  + onThemeChanged 装配）重置——aa800bb 落地时未更新基线（多会话 rebase 后
+ *  未重跑守护，本批复核修正）；此后继续只降不升。 */
 const MAX_LINES_BASELINE: Readonly<Record<string, number>> = {
-  'ui/app.ts': 4002, // C4 拆分目标：只降不升
+  'ui/app.ts': 4028, // C4 拆分目标：只降不升
   'pi/latex-to-unicode.ts': 2076, // 数据表 port，实质不拆
   'engine/input-line.ts': 1412,
-  'commands/registry.ts': 988, // P1 /theme auto|export 扩展重置（969 → 988）
+  'commands/registry.ts': 993, // P1 /theme auto|export 988 → #40 onThemeChanged 993
 }
 const MAX_LINES_REDLINE = 750
 

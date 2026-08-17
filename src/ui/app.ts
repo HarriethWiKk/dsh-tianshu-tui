@@ -3221,8 +3221,7 @@ export class TuiApp {
   /** 当前主题变化后，清理终端并用最新颜色重放当前会话历史。 */
   private rerenderHistory(): void {
     if (this.disposed || (this.overlay !== null && this.overlay.activeId() !== null)) return
-    // Theme changes must not turn a previously collapsed live reasoning block
-    // into a full-text block while the screen is being rebuilt.
+    // 主题切换重建屏幕期间，不得把此前已折叠的 live 推理块带回全文展开态。
     this.reasoningExpanded = false
     this.commit.reset()
     this.live.reset()

@@ -33,16 +33,11 @@ export interface TuiAppOptions {
     initialSessionId?: SessionId;
     /** 主题名；'auto' 走系统终端配色探测。优先级：装配 > prefs.json > 'auto'。 */
     theme?: string;
-<<<<<<< HEAD
     /** 偏好文件路径（theme/density/常驻面板/glance 段）；null 显式禁用。
      *  缺省：生产 ~/.dsh-tui/prefs.json，VITEST 下 null（测试密封门）。 */
     prefsPath?: string | null;
     /** 输入历史文件路径；null 显式禁用。缺省同 prefs 的密封门规则。 */
     inputHistoryPath?: string | null;
-=======
-    /** 持久化已确认的主题名；由 runner 接入宿主 settings。 */
-    persistTheme?: (name: string) => void;
->>>>>>> d1c5972 (fix(ui): persist theme and rerender history)
     /** 输入行为空时 Ctrl+C 的退出回调（raw-mode 下 Ctrl+C 是数据字节非 SIGINT）。 */
     onExit?: () => void;
     /** /restart 与更新后自动重启的回调（装配方负责 dispose + spawn 同 argv + 退出）。 */
@@ -167,7 +162,6 @@ export declare class TuiApp {
     private ownedHandle;
     private readonly initialSessionId;
     private readonly themeName;
-    private readonly persistTheme;
     private readonly onExit;
     private readonly onRestart;
     /** 外部编辑器触发键（Phase 6.4）；缺省 ctrl_e（ctrl+o 已恢复为推理展开）。 */
@@ -204,8 +198,8 @@ export declare class TuiApp {
     private configProjection;
     /** T3.3：/skills 面板显隐（/skills 切换）。 */
     private skillsPanelVisible;
-    /** T3.3：skill 快照缓存（ctx.skills.list；空数组 = 无技能或未加载）。 */
-    private skillItems;
+    /** #39：技能展示面控制器（快照缓存 + userInvocable 过滤 + slash 菜单投影 + 手势 MRU）。 */
+    private readonly skillSurface;
     /** LSP：/lsp 面板显隐（/lsp 切换）。 */
     private lspPanelVisible;
     /** LSP：诊断桥（懒创建——首次工具触碰文件或 /lsp 打开时实例化；dispose 销毁）。 */
@@ -553,8 +547,6 @@ export declare class TuiApp {
     private refreshConfigProjection;
     /** 把 DEEPSEEK_API_KEY 的 describe 结果填进 /config 凭据段（与欢迎页同源）。 */
     private fillCredentials;
-    /** T3.3：刷新 skill 快照（ctx.skills.list；服务缺失时空数组）。 */
-    private refreshSkillItems;
     /** 回显一条警告行到 scrollback（可选服务缺失的 fails-loud 提示共用出口）。 */
     private echoWarn;
     /** 当前主题（动态读取，切主题后立即生效）。 */

@@ -86,10 +86,12 @@ export declare function paletteCommitText(entry: PaletteEntry): string;
  * @returns 渲染行数组（含 ANSI）。
  */
 export declare function renderCommandPalette(state: PaletteState, entries: readonly PaletteEntry[], width: number, height: number, theme: RivetTheme): string[];
-/** CommandPalette 构造选项（两个读取函数均动态现取）。 */
+/** CommandPalette 构造选项（读取函数均动态现取）。 */
 export interface CommandPaletteOptions {
     /** 命令列表读取函数（动态，插件扩展后新命令可见）。 */
     getCommands: () => readonly SlashCommand[];
+    /** #39：userInvocable 技能条目读取函数（可选；缺省无技能条目）。 */
+    getSkills?: () => readonly PaletteEntry[];
     /** 主题读取函数（动态，切主题后 overlay 立即生效）。 */
     getTheme: () => RivetTheme;
 }
@@ -97,6 +99,7 @@ export interface CommandPaletteOptions {
 export declare class CommandPalette {
     private state;
     private readonly getCommands;
+    private readonly getSkills;
     private readonly getTheme;
     /** 确认模式：true = execute（Enter 直接执行 `/name`）；false = backfill（回填 `/name `）。 */
     private executeMode;
@@ -128,10 +131,12 @@ export declare class CommandPalette {
     move(delta: number): void;
     /** 当前查询串。 */
     get query(): string;
-    /** 过滤后可见条目（paletteVisible 的别名访问器）。 */
+    /** 过滤后可见条目（命令 + #39 技能条目；命令现取自 getCommands，技能现取自 getSkills）。 */
     get entries(): PaletteEntry[];
+    /** 全部条目：命令（toPaletteEntries）+ 技能（可选数据源，缺省空）。 */
+    private allEntries;
     /**
-     * 过滤后可见条目（命令现取自 getCommands）。
+     * 过滤后可见条目。
      * @returns 过滤后条目。
      */
     paletteVisible(): PaletteEntry[];
