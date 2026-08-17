@@ -227,6 +227,7 @@ import {
 } from '../commands/registry.js'
 import { PickerController, type PickerItem } from '../picker.js'
 import { formatSessionTabs, type SessionTab } from '../format/session-tabs.js'
+import { shortSessionLabel } from '../session-label.js'
 import { accumulateUsage, formatSessionCostReport, type SessionCostBucket } from '../format/session-cost.js'
 import { renderTranscript, parseToolArguments, toolResultText, type RenderedRow } from './render.js'
 import { CommandPalette } from '../command-palette.js'
@@ -409,12 +410,6 @@ function readAppExit(ctx: Context): ((code?: number) => void) | undefined {
     if (!(err instanceof Error) || !err.message.includes('without inject')) throw err
   }
   return ctx.reflect.get('appExit', false) as ((code?: number) => void) | undefined
-}
-
-/** 会话 tab 短标签：去 session- 前缀后截 8 字符（前缀恰好 8 字符，直接 slice(0,8)
- * 会让所有 tab 显示 [session-] 空壳）；无前缀 id 原样截断。 */
-function shortSessionLabel(id: string): string {
-  return id.replace(/^session-/, '').slice(0, 8) || id.slice(0, 8)
 }
 
 /** C3 项 3：写工具名判定（与 fs-snapshot 的 trackEdit 钩子同一集合）。 */
@@ -1521,7 +1516,9 @@ export class TuiApp {
    * live store 没有时走 switchSession → resume。
    */
   private async restoreRecentOtherSession(): Promise<void> {
-    const others = (await listSessions(this.ctx)).filter(s => s.id !== this.activeSessionId)
+    // listSessions 失败静默降级（与 refreshSessionTabs 的 catch 对称）：
+    // 调用点为 void 触发（Ctrl+S），无 catch 会成为 unhandled rejection。
+    const others = (await listSessions(this.ctx).catch(() => [])).filter(s => s.id !== this.activeSessionId)
     const target = others[0]?.id
     if (target !== undefined) await this.switchSession(target)
   }
@@ -2257,9 +2254,9 @@ export class TuiApp {
    */
   private subagentLabel(id: string): string {
     for (const e of this.delegationEntries ?? []) {
-      if (e.kind === 'child' && e.id === id) return e.label ?? id.slice(0, 8)
+      if (e.kind === 'child' && e.id === id) return e.label ?? shortSessionLabel(id)
     }
-    return id.slice(0, 8)
+    return shortSessionLabel(id)
   }
 
   private refreshDelegationTree(sessionId: SessionId): void {
@@ -2270,9 +2267,11 @@ export class TuiApp {
       this.delegationEntries = entries
       this.renderBatcher.schedule()
     }).catch(() => {
-      /* v8 ignore next -- dispose 后 reject 的竞态守卫（同步测试无法构造） */
+      // 非 dispose 原因的失败同样要重绘（置空清面板），否则滞留旧树直到
+      // 120ms ticker 自愈；与 then 分支对称调度。
       if (this.disposed) return
       this.delegationEntries = null
+      this.renderBatcher.schedule()
     })
   }
 
