@@ -33,11 +33,16 @@ export interface TuiAppOptions {
     initialSessionId?: SessionId;
     /** 主题名；'auto' 走系统终端配色探测。优先级：装配 > prefs.json > 'auto'。 */
     theme?: string;
+<<<<<<< HEAD
     /** 偏好文件路径（theme/density/常驻面板/glance 段）；null 显式禁用。
      *  缺省：生产 ~/.dsh-tui/prefs.json，VITEST 下 null（测试密封门）。 */
     prefsPath?: string | null;
     /** 输入历史文件路径；null 显式禁用。缺省同 prefs 的密封门规则。 */
     inputHistoryPath?: string | null;
+=======
+    /** 持久化已确认的主题名；由 runner 接入宿主 settings。 */
+    persistTheme?: (name: string) => void;
+>>>>>>> d1c5972 (fix(ui): persist theme and rerender history)
     /** 输入行为空时 Ctrl+C 的退出回调（raw-mode 下 Ctrl+C 是数据字节非 SIGINT）。 */
     onExit?: () => void;
     /** /restart 与更新后自动重启的回调（装配方负责 dispose + spawn 同 argv + 退出）。 */
@@ -162,6 +167,7 @@ export declare class TuiApp {
     private ownedHandle;
     private readonly initialSessionId;
     private readonly themeName;
+    private readonly persistTheme;
     private readonly onExit;
     private readonly onRestart;
     /** 外部编辑器触发键（Phase 6.4）；缺省 ctrl_e（ctrl+o 已恢复为推理展开）。 */
@@ -695,6 +701,10 @@ export declare class TuiApp {
      * @param rows - RenderedRow 数组。
      */
     private commitRows;
+    /** 当前主题变化后，清理终端并用最新颜色重放当前会话历史。 */
+    private rerenderHistory;
+    /** 生成当前会话历史消息的主题化渲染行。 */
+    private renderHistoryRows;
     /**
      * 流式事件供给：assistant text-delta 推进 blockWriter（节流切块，稳定前缀
      * commit 进 scrollback）；message/turn 边界 flush + finalize 收尾。aborted

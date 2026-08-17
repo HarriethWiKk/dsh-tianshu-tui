@@ -133,6 +133,39 @@ describe('renderMessageRows', () => {
     expect(plain(rows).join('\n')).toContain('你好世界')
   })
 
+  it('user 消息隐藏运行时 system-reminder，只保留真实用户内容', () => {
+    const rows = renderMessageRows(userMessage('<system-reminder>内部规则</system-reminder>请查看项目'), fakeTheme(), 80)
+    const text = plain(rows).join('\n')
+    expect(text).toContain('请查看项目')
+    expect(text).not.toContain('内部规则')
+    expect(text).not.toContain('system-reminder')
+  })
+
+  it('#40 runtime context 快照行（plugin/snapshot source）整行隐藏，不渲染内容', () => {
+    const event = {
+      type: 'user/message',
+      data: {
+        content: [{ type: 'text', text: 'Current runtime context. This snapshot supersedes earlier runtime-context snapshots.\nCurrent DSH file policy: workspace-write.\nApproval policy: ask. Operations fail closed.' }],
+        source: { kind: 'plugin', plugin: '@deepseek-ai/dsh-system-prompt', form: 'snapshot', sections: [] },
+      },
+    } as unknown as SessionEvent
+    const rows = renderMessageRows({ ...userMessage('Current runtime context...'), event }, fakeTheme(), 80)
+    expect(rows).toEqual([])
+  })
+
+  it('#40 非 snapshot 的 plugin 行（如 form=notice）不隐藏，按普通用户行渲染', () => {
+    const event = {
+      type: 'user/message',
+      data: {
+        content: [{ type: 'text', text: '插件通知' }],
+        source: { kind: 'plugin', plugin: 'x', form: 'notice' },
+      },
+    } as unknown as SessionEvent
+    const rows = renderMessageRows({ ...userMessage('插件通知'), event }, fakeTheme(), 80)
+    expect(rows.every(r => r.kind === 'user')).toBe(true)
+    expect(plain(rows).join('\n')).toContain('插件通知')
+  })
+
   it('assistant 消息 → formatMarkdown 行，kind assistant', () => {
     const rows = renderMessageRows(assistantMessage('回答内容'), fakeTheme(), 80)
     expect(rows.every(r => r.kind === 'assistant')).toBe(true)

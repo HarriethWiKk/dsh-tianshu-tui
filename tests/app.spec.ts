@@ -4234,7 +4234,16 @@ describe('TuiApp 结算卡与推理通道', () => {
     expect(expanded).toContain('✻ 思考')
     expect(expanded).toContain('ctrl+o 收起')
 
-    // 再按一次收起：正文从 live 区消失。
+    // Theme replay must not retain the transient expanded reasoning view.
+    stdout.write.mockClear()
+    app.handleSubmit('/theme paper')
+    await new Promise(resolve => setTimeout(resolve, 60))
+    const themed = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(themed).not.toContain('ctrl+o 收起')
+
+    // Theme replay resets the transient expansion; re-open it, then collapse it.
+    stdin.emit('data', '\x0f')
+    await new Promise(resolve => setTimeout(resolve, 60))
     stdout.write.mockClear()
     stdin.emit('data', '\x0f')
     await new Promise(resolve => setTimeout(resolve, 60))

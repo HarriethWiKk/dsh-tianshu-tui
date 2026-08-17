@@ -260,6 +260,8 @@ export class SlashCommandRegistry {
  * 内置命令工厂依赖——TuiApp 私有能力注入（会话铸造、滚动区重置、面板显隐切换）。
  */
 export interface BuiltinCommandDeps {
+  /** /theme：主题确认后按新主题重放当前历史消息（#40；reset 滚动区重提交）。 */
+  onThemeChanged?(): void
   /** /session new：新建会话并挂载（TuiApp.newSession）。 */
   newSession(): Promise<SessionId>
   /** /fork、/branch（A3）：分叉当前会话（复制历史）并切换（TuiApp.forkSession）。 */
@@ -341,7 +343,10 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
           return
         }
         if (setTheme(name)) {
+          // 持久化走 prefs（P1 onThemeApplied）；#40：随后按新主题重放历史。
+          // 重放会 reset 滚动区，故回显在 onThemeChanged 之后。
           deps.onThemeApplied(name)
+          deps.onThemeChanged?.()
           echo(`主题已切换: ${name}`)
         } else {
           echo(`未知主题: ${name}。可用: ${THEME_NAMES.join(', ')} / custom:<name>`)

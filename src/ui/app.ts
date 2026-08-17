@@ -762,6 +762,8 @@ export class TuiApp {
     // T2.1/T2.2/T2.3：/tasks（含 kill 子命令）、/subagents、/workflow 的命令定义在
     // createBuiltinCommands（registry 维度），TuiApp 只注入显隐切换 deps。
     for (const command of createBuiltinCommands({
+      // #40：/theme 生效后按新主题重放当前会话历史（reset 滚动区重提交）。
+      onThemeChanged: () => { this.rerenderHistory() },
       newSession: () => this.newSession(),
       forkSession: () => this.forkSession(),
       switchLiveModel: selection => this.switchLiveModel(selection),
@@ -1853,9 +1855,14 @@ export class TuiApp {
     }))
     const selectedIndex = Math.max(0, allNames.indexOf(prev))
     picker.open('选择主题', items, (item) => {
-      // 确认：主题已在预览中生效，此处持久化 + 落提示。
+      // 确认：主题已在预览中生效；持久化（prefs）落盘。overlay 退出后按新
+      // 主题重放历史——rerenderHistory 会 reset 滚动区（清掉暂存回显），
+      // 故「主题已切换」回显放在重放之后。
       this.applyThemeAndPersist(item.value)
+      this.overlay?.deactivate()
+      this.rerenderHistory()
       this.commitToScrollback({ text: `主题已切换: ${item.value}`, trailingNewline: true })
+      this.flushLiveRender()
     }, selectedIndex, {
       // ↑↓ 移动即切换（实时预览，overlay 渲染随主题色即时变化）。
       onPreview: (item) => { setTheme(item.value) },
@@ -2126,21 +2133,7 @@ export class TuiApp {
     // 历史加载：重放会话事件日志（live store 为权威来源，persisted-only 走
     // loadHistory——见 adapter/sessions；此处 live store 已含全部事件）。
     // 工具卡走同一 presenter 桥（presenter 为 args 纯函数、桥软降级，replay 安全）。
-    const rows = renderTranscript(this.transcript.view, this.theme, this.stdout.columns, {
-      compact: this.compactMode,
-      resolveViews: (tool: TranscriptToolCall) => resolveToolViews(this.toolPresenters(), {
-        name: tool.name,
-        argumentsRaw: tool.arguments,
-        ...(tool.result === undefined ? {} : {
-          result: {
-            content: tool.result.data.message.content[0].content,
-            isError: toolResultText(tool.result).isError,
-            ...(tool.result.data.meta === undefined ? {} : { meta: tool.result.data.meta }),
-          },
-        }),
-      }),
-    })
-    this.commitRows(rows)
+    this.commitRows(this.renderHistoryRows())
     this.inputLine.setHistory(this.history)
     // T2.1：委派树预取（listDescendants 是 async——首次 await 入缓存；
     // subagent/start|end 事件触发 re-await + renderLive 刷新）。
@@ -3223,6 +3216,39 @@ export class TuiApp {
     const buf: string[] = []
     for (const row of rows) buf.push(row.ansi)
     this.commitToScrollback({ text: buf.join('\n'), trailingNewline: true })
+  }
+
+  /** 当前主题变化后，清理终端并用最新颜色重放当前会话历史。 */
+  private rerenderHistory(): void {
+    if (this.disposed || (this.overlay !== null && this.overlay.activeId() !== null)) return
+    // Theme changes must not turn a previously collapsed live reasoning block
+    // into a full-text block while the screen is being rebuilt.
+    this.reasoningExpanded = false
+    this.commit.reset()
+    this.live.reset()
+    this.stdout.write(`${ANSI.ERASE_SCREEN}\x1b[3J\x1b[H`)
+    this.commitRows(this.renderHistoryRows())
+    this.flushLiveRender()
+  }
+
+  /** 生成当前会话历史消息的主题化渲染行。 */
+  private renderHistoryRows(): RenderedRow[] {
+    const transcript = this.transcript
+    if (transcript === null) return []
+    return renderTranscript(transcript.view, this.theme, this.stdout.columns, {
+      compact: this.compactMode,
+      resolveViews: (tool: TranscriptToolCall) => resolveToolViews(this.toolPresenters(), {
+        name: tool.name,
+        argumentsRaw: tool.arguments,
+        ...(tool.result === undefined ? {} : {
+          result: {
+            content: tool.result.data.message.content[0].content,
+            isError: toolResultText(tool.result).isError,
+            ...(tool.result.data.meta === undefined ? {} : { meta: tool.result.data.meta }),
+          },
+        }),
+      }),
+    })
   }
 
   /**

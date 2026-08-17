@@ -58,6 +58,7 @@ function makeArgs(overrides: Partial<Parameters<ReturnType<typeof createBuiltinC
 
 function commandByName(name: string) {
   const deps = {
+    onThemeChanged: vi.fn(),
     newSession: vi.fn(),
     forkSession: vi.fn(),
     switchLiveModel: vi.fn(() => true),
@@ -214,11 +215,13 @@ describe('SlashCommandRegistry — 注册/列举/解析', () => {
 })
 
 describe('内置命令 — /theme', () => {
-  it('有效主题名切换并回显', async () => {
-    const { cmd } = commandByName('theme')
+  it('有效主题名切换并回显（持久化走 P1 prefs onThemeApplied；#40 追加历史重放）', async () => {
+    const { cmd, deps } = commandByName('theme')
     const { args, echo } = makeArgs({ text: 'paper' })
     await cmd.run(args)
     expect(getActiveThemeName()).toBe('paper')
+    expect(deps.onThemeApplied).toHaveBeenCalledWith('paper')
+    expect(deps.onThemeChanged).toHaveBeenCalledTimes(1)
     expect(echo).toHaveBeenCalledWith('主题已切换: paper')
   })
 

@@ -94,9 +94,10 @@ export function apply(ctx: Context, config: TuiRunnerConfig = {}): void {
   // **不加入必选 inject**：Cordis inject 要求全部服务可用才执行回调，宿主未提供时
   // tui-runner 会静默永不激活（无报错、无 TUI，比降级更糟）。读取走 attach 内
   // 的注入属性/reflect 双通道 + 宿主特征感知的短窗口等待（见 TuiApp.attach）。
-  // goals/subagents 同理为可选服务、不进 inject（否则缺 goal/subagent 插件时整个
+  // goals/subagents/settings 同理为可选服务、不进 inject（否则缺对应插件时整个
   // TUI 静默不启动）：一律经 reflect.get 读取，/goal 命令与委派树在服务缺失时
-  // 报不可用/面板降级（fails loud），但不阻塞装配。
+  // 报不可用/面板降级（fails loud），但不阻塞装配。主题持久化由 P1 prefs 层
+  // （~/.dsh-tui/prefs.json）承担，不接入宿主 settings（避免双持久化源）。
   // 装配与 attach 在注入作用域内执行；生命周期仍注册在外层插件 ctx（随插件卸载）。
   ctx.inject(['sessions', 'agents', 'agentDefaultModel'], (runtimeCtx) => {
     // 退出生命周期：stdin SIGINT、Ctrl+C 空输入（onExit）与插件卸载（effect cleanup）
