@@ -21,3 +21,6 @@ docs/superpowers/
 vendor/
 .dsh-dev/
 .pnpm-store/
+
+# zcode 工具本地状态（每台机器各自生成，不入库）
+.zcode/

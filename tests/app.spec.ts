@@ -10,6 +10,7 @@ import type { WriteStream } from 'node:tty'
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { Agent, AgentHandle } from '@deepseek-ai/dsh-agent'
 import { TuiApp, parseSlashCommand } from '../src/ui/app.js'
+import type { SlashHintEntry } from '../src/engine/input-controller.js'
 import { decodeMessages, encodeMessage } from '../src/lsp/rpc.js'
 import { getActiveThemeName, setTheme } from '../src/theme.js'
 import { readImageFromClipboard, readTextFromClipboard } from '../src/engine/clipboard-image.js'
@@ -3507,6 +3508,143 @@ describe('TuiApp /config /skills /density 面板命令', () => {
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     expect(written).toContain('ok')
     await app.dispose()
+  })
+})
+
+describe('TuiApp #39 技能手势：slash 菜单条目 + 提交分流 + MRU', () => {
+  /** userInvocable 技能替身（含仅模型可调的对照项）。 */
+  function withSkills(ctx: Context & MockCtx): { list: ReturnType<typeof vi.fn> } {
+    const list = vi.fn(async () => [
+      {
+        name: 'find-skills', description: '发现技能', provider: 'mock', source: 'custom',
+        invocation: { modelInvocable: true, userInvocable: true },
+      },
+      {
+        name: 'model-only', description: '仅模型可调', provider: 'mock', source: 'custom',
+        invocation: { modelInvocable: true, userInvocable: false },
+      },
+    ])
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'skills') return { list }
+      return undefined
+    })
+    return { list }
+  }
+
+  /** attach 后等 skills.list resolve（refreshSkillItems → refreshSlashEntries）。 */
+  async function mountedApp(): Promise<{ app: TuiApp; agent: Agent & MockAgent; ctx: Context & MockCtx }> {
+    const ctx = makeCtx()
+    withSkills(ctx)
+    const agent = makeAgent('skill-menu')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
+    await app.attach()
+    await new Promise(resolve => setImmediate(resolve))
+    await new Promise(resolve => setImmediate(resolve))
+    return { app, agent, ctx }
+  }
+
+  function inputControllerOf(app: TuiApp): {
+    slashCommands: SlashHintEntry[]
+    slashMenu: { open: boolean; matches: SlashHintEntry[] }
+    slashMru: string[]
+    refreshSlash(value: string): void
+  } {
+    return (app as unknown as { inputController: {
+      slashCommands: SlashHintEntry[]
+      slashMenu: { open: boolean; matches: SlashHintEntry[] }
+      slashMru: string[]
+      refreshSlash(value: string): void
+    } }).inputController
+  }
+
+  it('userInvocable 技能进 slash 菜单（🧭 标记）；仅模型可调技能不出现', async () => {
+    const { app } = await mountedApp()
+    const ic = inputControllerOf(app)
+    const commands = ic.slashCommands
+    expect(commands.some(c => c.name === 'find-skills' && c.description.startsWith('🧭 '))).toBe(true)
+    expect(commands.some(c => c.name === 'model-only')).toBe(false)
+    // 输入 `/find` → 菜单打开且技能条目在匹配里
+    ic.refreshSlash('/find')
+    expect(ic.slashMenu.open).toBe(true)
+    expect(ic.slashMenu.matches.some(m => m.name === 'find-skills')).toBe(true)
+    await app.dispose()
+  })
+
+  it('提交 `/skill-name` 走文本流（followup 触发）不落未知命令；MRU 记录', async () => {
+    const { app, agent } = await mountedApp()
+    app.handleSubmit('/find-skills')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(agent.followup).toHaveBeenCalledTimes(1)
+    const stdout = (app as unknown as { stdout: { write: ReturnType<typeof vi.fn> } }).stdout
+    const out = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(out).not.toContain('未知命令')
+    // MRU：技能手势记录（slash 菜单下次打开技能条目排前）
+    const ic = inputControllerOf(app)
+    expect(ic.slashMru[0]).toBe('find-skills')
+    await app.dispose()
+  })
+
+  it('技能名撞命令前缀 → 命令优先（/task 触发 /tasks 而非技能手势）', async () => {
+    const { app, agent } = await mountedApp()
+    // 真实技能名可能撞命令前缀（如名为 task 的技能）——命令命名空间
+    // 客户端先行解析（host 设计），命令优先，技能手势不触发。
+    app.handleSubmit('/task')
+    await new Promise(resolve => setImmediate(resolve))
+    // 命令优先：不提交给 agent，也不落未知命令
+    expect(agent.followup).not.toHaveBeenCalled()
+    const stdout = (app as unknown as { stdout: { write: ReturnType<typeof vi.fn> } }).stdout
+    const out = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(out).not.toContain('未知命令')
+    await app.dispose()
+  })
+
+  it('skills 服务缺失 → 菜单无技能条目；`/find-skills` 仍作文本提交（host 侧忽略）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('skill-none')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
+    await app.attach()
+    const ic = inputControllerOf(app)
+    expect(ic.slashCommands.some(c => c.name === 'find-skills')).toBe(false)
+    ic.refreshSlash('/find')
+    expect(ic.slashMenu.open).toBe(false)
+    // 未知技能名照常走文本流（host 把未知 /name 当普通文本）
+    app.handleSubmit('/find-skills')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(agent.followup).toHaveBeenCalledTimes(1)
+    await app.dispose()
+  })
+
+  it('attach 订阅 skills/change（目录变更 → 刷新菜单数据源）', async () => {
+    const ctx = makeCtx()
+    const { list } = withSkills(ctx)
+    const agent = makeAgent('skill-change')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
+    await app.attach()
+    await new Promise(resolve => setImmediate(resolve))
+    await new Promise(resolve => setImmediate(resolve))
+    expect(ctx.subscriptions.some(s => s.event === 'skills/change')).toBe(true)
+    const ic = inputControllerOf(app)
+    expect(ic.slashCommands.some(c => c.name === 'find-skills')).toBe(true)
+    // 目录在 attach 后变化（list 返回新技能）→ 刷新路径（事件回调等价调用）
+    // 让新技能进菜单
+    list.mockResolvedValueOnce([
+      {
+        name: 'late-skill', description: '晚到技能', provider: 'mock', source: 'custom',
+        invocation: { modelInvocable: true, userInvocable: true },
+      },
+    ])
+    const appAny = app as unknown as { skillSurface: { refresh(): void } }
+    appAny.skillSurface.refresh()
+    await new Promise(resolve => setImmediate(resolve))
+    expect(ic.slashCommands.some(c => c.name === 'late-skill')).toBe(true)
+    await app.dispose()
+    // 订阅释放由 afterEach 台账平衡断言覆盖
   })
 })
 

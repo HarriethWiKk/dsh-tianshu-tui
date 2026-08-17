@@ -34,7 +34,7 @@ import { writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join, resolve } from 'node:path'
 import type { ReadStream, WriteStream } from 'node:tty'
-import type { Context } from '@deepseek-ai/cordis'
+import type { Context, Events } from '@deepseek-ai/cordis'
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { CallId, TokenUsage } from '@deepseek-ai/dsh-llm'
 import { installModelSelection, type Agent, type AgentHandle, type ModelSelection, type ModelSelectionRef } from '@deepseek-ai/dsh-agent'
@@ -97,7 +97,6 @@ import {
   projectQuestionPanel,
 } from '../question-panel.js'
 import type { ConfigPanelProjection } from '../config-panel.js'
-import type { SkillSummaryInput } from '../skill-panel.js'
 /** Wave 2：renderLive 7 面板纯函数 + 单帧快照类型（app.ts → render/ 单向依赖）。 */
 import {
   renderGlancePanel,
@@ -231,6 +230,7 @@ import { formatSessionTabs, type SessionTab } from '../format/session-tabs.js'
 import { accumulateUsage, formatSessionCostReport, type SessionCostBucket } from '../format/session-cost.js'
 import { renderTranscript, parseToolArguments, toolResultText, type RenderedRow } from './render.js'
 import { CommandPalette } from '../command-palette.js'
+import { SkillSurfaceController } from '../controllers/skill-surface.js'
 import { OverlayController } from '../engine/overlay-controller.js'
 import { MetricsGlanceController } from '../engine/metrics-glance-controller.js'
 import type { FormatGlanceBarInput } from '../format/glance-bar.js'
@@ -251,6 +251,8 @@ import type {} from '@deepseek-ai/dsh-user-approval'
 // handler 参数仍按本地结构子集标注，属主类型逆变兼容）。
 import type {} from '@deepseek-ai/dsh-subagent'
 import type {} from '@deepseek-ai/dsh-workflow'
+// #39：skills/change 订阅类型（dsh-skill module augmentation；同款副作用导入）。
+import type {} from '@deepseek-ai/dsh-skill'
 
 /** Phase 8：审批 answerer 的请求/结果类型由 ApprovalController 持有（单向依赖）。 */
 import {
@@ -590,8 +592,8 @@ export class TuiApp {
   private configProjection: ConfigPanelProjection | null = null
   /** T3.3：/skills 面板显隐（/skills 切换）。 */
   private skillsPanelVisible = false
-  /** T3.3：skill 快照缓存（ctx.skills.list；空数组 = 无技能或未加载）。 */
-  private skillItems: SkillSummaryInput[] = []
+  /** #39：技能展示面控制器（快照缓存 + userInvocable 过滤 + slash 菜单投影 + 手势 MRU）。 */
+  private readonly skillSurface: SkillSurfaceController
   /** LSP：/lsp 面板显隐（/lsp 切换）。 */
   private lspPanelVisible = false
   /** LSP：诊断桥（懒创建——首次工具触碰文件或 /lsp 打开时实例化；dispose 销毁）。 */
@@ -882,7 +884,7 @@ export class TuiApp {
           if (this.ctx.reflect.get('skills', false) === undefined) {
             this.echoWarn('⚠ skills 服务不可用（未装配 skill 插件），技能面板无数据')
           }
-          this.refreshSkillItems()
+          this.skillSurface.refresh()
         }
         this.renderBatcher.schedule()
       },
@@ -935,8 +937,18 @@ export class TuiApp {
         this.renderBatcher.schedule()
       },
     })
+    // #39：技能展示面控制器装配（技能目录加载后经 refresh → refreshEntries 合并）。
+    this.skillSurface = new SkillSurfaceController({
+      getService: (name) => this.ctx.reflect.get(name, false),
+      listCommandHints: () => this.slash.list().map(toSlashHint),
+      setSlashEntries: (entries) => { this.inputController.slashCommands = entries },
+      scheduleRender: () => { this.renderBatcher.schedule() },
+      isDisposed: () => this.disposed,
+      recordSlashUse: (name) => { this.inputController.recordSlashUse(name) },
+      onEvent: (event, cb) => this.ctx.on(event as keyof Events, cb),
+    })
     // 命令提示数据源投影到 InputController（slash hint / Tab 补全目标）。
-    this.inputController.slashCommands = this.slash.list().map(toSlashHint)
+    this.skillSurface.refreshEntries()
     this.ctx.provide('tui.commands', this.slash)
     // Phase 5.3：glance 数据源是惰性闭包（statusLine/liveAgent 随会话挂载），
     // 构造期只固定取数路径，会话切换后自动读到新投影。throttleMs: 0——
@@ -1109,9 +1121,13 @@ export class TuiApp {
     this.approvalDisposer = this.ctx.on('approval/request', (req: PendingApprovalRequest, next: () => Promise<ApprovalOutcome>) => {
       return this.handleApprovalRequest(req, next)
     })
-    // Ctrl+P 命令面板装配：数据源取 slash 注册表实时快照；主题动态读取（切主题后立即生效）。
+    // #39：技能展示面接线（订阅 skills/change + 首刷，首次输入前技能就绪）。
+    this.skillSurface.attach()
+    // Ctrl+P 命令面板装配：数据源 = 命令实时快照 + userInvocable 技能（#39）；
+    // 主题动态读取。
     this.palette = new CommandPalette({
       getCommands: () => this.slash.list(),
+      getSkills: () => this.skillSurface.paletteEntries(),
       getTheme: () => this.theme,
     })
     this.overlay = new OverlayController({
@@ -2325,23 +2341,6 @@ export class TuiApp {
     }
   }
 
-  /** T3.3：刷新 skill 快照（ctx.skills.list；服务缺失时空数组）。 */
-  private refreshSkillItems(): void {
-    const skills = this.ctx.reflect.get('skills', false) as
-      | { list(): Promise<SkillSummaryInput[]> } | undefined
-    if (skills === undefined) { this.skillItems = []; return }
-    void skills.list().then((items) => {
-      /* v8 ignore next -- dispose 后 promise 才 resolve 的场景无法在同步测试中构造 */
-      if (this.disposed) return
-      this.skillItems = items
-      this.renderBatcher.schedule()
-    }).catch(() => {
-      /* v8 ignore next -- 同上：dispose 后 reject 的竞态守卫 */
-      if (this.disposed) return
-      this.skillItems = []
-    })
-  }
-
   /** 回显一条警告行到 scrollback（可选服务缺失的 fails-loud 提示共用出口）。 */
   private echoWarn(text: string): void {
     this.commitToScrollback({ text: color(text, this.theme.warning), trailingNewline: true })
@@ -2419,6 +2418,9 @@ export class TuiApp {
     // Phase 9a：@mention 用户侧摘要展开（cwd 边界/截断/降级见 mention-expand）。
     // 展开后的文本进用户消息与 followup——agent 看到的是摘要而非裸路径。
     const expanded = expandMentions(trimmed, this.sessionCwd())
+    // #39：技能手势 MRU（slash 菜单下次打开技能条目排前）；提交路由不变——
+    // /name 经 looksLikeFilePath 走文本流，host 的 pre-step 手势注入技能体。
+    this.skillSurface.recordGesture(trimmed)
     this.pushHistory(trimmed)
     // 用户气泡：正文 + 📎 附件行 + 识图能力提示；有图且终端支持图形协议时
     // 异步 prepare 后在同一写窗口追加终端图片（见 commitUserPrompt 时序说明）。
@@ -3540,7 +3542,7 @@ export class TuiApp {
       configPanelVisible: this.configPanelVisible,
       configProjection: this.configProjection,
       skillsPanelVisible: this.skillsPanelVisible,
-      skillItems: this.skillItems,
+      skillItems: this.skillSurface.all(),
       // LSP 面板（本地语言服务诊断；bridge 缓存折叠——桥未创建时视为无诊断）
       lspPanelVisible: this.lspPanelVisible,
       lspDiagnostics: this.lspDiagnosticsView(),
@@ -3956,6 +3958,8 @@ export class TuiApp {
     this.interactionDisposer?.()
     this.interactionDisposer = null
     if (this.question.isPending) this.question.cancel()
+    // #39：技能展示面随 dispose 解绑订阅（防止 dispose 后事件回调泄漏）。
+    this.skillSurface.dispose()
     // overlay 打开期间暂存的 scrollback 条目：退出前按同一协议补写主屏
     // （会话日志是权威数据，scrollback 是展示层——丢条目只影响本次显示，
     // 补写成本低且避免"发了消息但屏上不见"的观感）。
