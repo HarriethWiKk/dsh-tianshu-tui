@@ -9,7 +9,7 @@
 
 ![dsh-tianshu-tui](docs/tui-screenshot.jpg)
 
-**dsh-tianshu-tui** (`@huiliyi37/dsh-tianshu-tui`) is the interactive terminal UI plugin for the official [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). The render core evolved in a minimal ANSI style (ported from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui), Apache-2.0; file-by-file provenance in [SOURCE-MAP.md](SOURCE-MAP.md)). The UI is a pure presentation layer: every piece of agent state arrives through the session event stream, keeping rendering lightweight and non-intrusive. On top of it, the plugin adds harness-level engineering niceties such as image & vision bridging, smart code retrieval, and memory with cross-session recall.
+**dsh-tianshu-tui** (`@huiliyi37/dsh-tianshu-tui`) is the interactive terminal UI plugin for the official [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). The render core is a self-built minimal ANSI engine (evolved from the author's own open-source [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui), Apache-2.0; file-by-file provenance in [SOURCE-MAP.md](SOURCE-MAP.md)), keeping rendering lightweight and non-intrusive. The UI is a pure presentation layer: every piece of agent state arrives through the session event stream. On top of it, the plugin adds harness-level engineering niceties such as image & vision bridging, smart code retrieval, and memory with cross-session recall.
 
 
 > [!WARNING]
