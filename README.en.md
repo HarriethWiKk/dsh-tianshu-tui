@@ -351,11 +351,13 @@ Apache-2.0. The terminal render engine evolved from [Tianshu-Tui](https://github
 
 ## Friends
 
-- [dsh-web-ui](https://github.com/zhu1090093659/dsh-web-ui) — Plugin and skin collection for DSH Web UI
-- [dshfind](https://dshfind.com/zh) — Chinese learning and sharing community for DeepSeek Harness
-- [deepseek-harness-ux](https://github.com/ayuanwong/deepseek-harness-ux) — Long agent tasks without transcript clutter: focused progress, auto-folded history
-- [dsh-TUI](https://github.com/ccch1mneyyy/dsh-TUI) — Claude Code-style fullscreen interactive terminal plugin
-- [DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) — Full sidebar workbench with third-party tabs, files, terminal, Git, and subagents
-- [DSH Desktop (deepseek-harness-desktop)](https://github.com/anywhere-labs/deepseek-harness-desktop) — Community desktop client for DeepSeek Harness (Electron; Windows x64 / macOS Apple Silicon installers): download-and-run with zero Node.js/pnpm command-line setup. Ships an auto-managed local Harness host and plugin system (the official harness runs unmodified at a pinned version — the desktop shell itself is a plugin), with tray integration, multi-profile workspaces and self-updates, plus iOS/Android remote control to dispatch tasks and track agent progress. Community project, unaffiliated with DeepSeek (MIT)
-- [dsh-meme-hub](https://github.com/the-beating-light-of-the-nail/dsh-meme-hub) — A tour of playful DSH plugins: 贪玩蓝鲸 / QQ2006 / whale girls / mini-games
-- [dsh-whale-report](https://github.com/SenmuuuuW/dsh-whale-report) — Turns DSH sessions, tokens, cost, tool calls, risks and anomalies into Agent reports you can actually read
+| Project | About |
+|---|---|
+| [dsh-web-ui](https://github.com/zhu1090093659/dsh-web-ui) | Plugin and skin collection for DSH Web UI |
+| [dshfind](https://dshfind.com/zh) | Chinese learning and sharing community for DeepSeek Harness |
+| [deepseek-harness-ux](https://github.com/ayuanwong/deepseek-harness-ux) | Long agent tasks without transcript clutter: focused progress, auto-folded history |
+| [dsh-TUI](https://github.com/ccch1mneyyy/dsh-TUI) | Claude Code-style fullscreen interactive terminal plugin |
+| [DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) | Full sidebar workbench: third-party tabs, files/terminal/Git/subagents |
+| [DSH Desktop](https://github.com/anywhere-labs/deepseek-harness-desktop) | Community desktop client for DeepSeek Harness (Electron; Windows x64 / macOS Apple Silicon installers) — download and run, no Node.js/pnpm setup. Ships a managed local Harness host with its plugin system, plus iOS/Android remote control to dispatch tasks and track agent progress. Community project, unaffiliated with DeepSeek (MIT) |
+| [dsh-meme-hub](https://github.com/the-beating-light-of-the-nail/dsh-meme-hub) | A tour of playful DSH plugins (28 projects, with screenshots) |
+| [dsh-whale-report](https://github.com/SenmuuuuW/dsh-whale-report) | Turns sessions, tokens, cost, tool calls, risks and anomalies into Agent reports you can actually read |

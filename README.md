@@ -353,11 +353,13 @@ Apache-2.0。终端渲染引擎从 [天枢 Tianshu-Tui](https://github.com/huili
 
 ## 友情链接
 
-- [dsh-web-ui](https://github.com/zhu1090093659/dsh-web-ui) — DSH Web UI 插件与皮肤合集
-- [dshfind](https://dshfind.com/zh) — DeepSeek Harness 中文学习与分享社区
-- [deepseek-harness-ux](https://github.com/ayuanwong/deepseek-harness-ux) — 长任务不刷屏：关键进度清晰可见，完成后自动折叠
-- [dsh-TUI](https://github.com/ccch1mneyyy/dsh-TUI) — Claude Code 风格全屏交互终端插件
-- [DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) — 侧边栏完整工作台，支持第三方 Tab、文件/终端/Git/子代理
-- [DSH Desktop（deepseek-harness-desktop）](https://github.com/anywhere-labs/deepseek-harness-desktop) — DeepSeek Harness 社区桌面端（Electron，提供 Windows x64 / macOS Apple Silicon 安装包）：下载安装即用，无需配置 Node.js/pnpm 命令行环境；内置自动管理的本地 Harness 宿主服务与插件系统（官方 harness 以固定版本原样运行，桌面壳本身也是插件），支持系统托盘、多工作区与版本自更新，并可用 iOS/Android 手机远程下发任务、跟踪 agent 进度。社区项目，与 DeepSeek 官方无隶属（MIT）
-- [🐋 DSH Meme Hub](https://github.com/the-beating-light-of-the-nail/dsh-meme-hub) — DeepSeek Harness 社区整活插件精选导航（28 个项目，带截图）
-- https://github.com/SenmuuuuW/dsh-whale-report 把 DSH 的 session、token、cost、tool call、风险与异常，转成可以真正读懂的 Agent 报告。感谢大家支持
+| 项目 | 简介 |
+|---|---|
+| [dsh-web-ui](https://github.com/zhu1090093659/dsh-web-ui) | DSH Web UI 插件与皮肤合集 |
+| [dshfind](https://dshfind.com/zh) | DeepSeek Harness 中文学习与分享社区 |
+| [deepseek-harness-ux](https://github.com/ayuanwong/deepseek-harness-ux) | 长任务不刷屏：关键进度清晰可见，完成后自动折叠 |
+| [dsh-TUI](https://github.com/ccch1mneyyy/dsh-TUI) | Claude Code 风格全屏交互终端插件 |
+| [DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) | 侧边栏完整工作台：第三方 Tab、文件/终端/Git/子代理 |
+| [DSH Desktop](https://github.com/anywhere-labs/deepseek-harness-desktop) | DeepSeek Harness 社区桌面端（Electron，Windows x64 / macOS Apple Silicon 安装包），下载即用、免配置命令行环境。内置本地 Harness 宿主与插件系统，支持 iOS/Android 远程下发任务、跟踪 agent 进度。社区项目，与 DeepSeek 官方无隶属（MIT） |
+| [DSH Meme Hub](https://github.com/the-beating-light-of-the-nail/dsh-meme-hub) | 社区整活插件精选导航（28 个项目，带截图） |
+| [dsh-whale-report](https://github.com/SenmuuuuW/dsh-whale-report) | 把 session、token、cost、tool call 与风险异常转成可读的 Agent 报告 |
