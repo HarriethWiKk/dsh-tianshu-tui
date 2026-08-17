@@ -411,6 +411,12 @@ function readAppExit(ctx: Context): ((code?: number) => void) | undefined {
   return ctx.reflect.get('appExit', false) as ((code?: number) => void) | undefined
 }
 
+/** 会话 tab 短标签：去 session- 前缀后截 8 字符（前缀恰好 8 字符，直接 slice(0,8)
+ * 会让所有 tab 显示 [session-] 空壳）；无前缀 id 原样截断。 */
+function shortSessionLabel(id: string): string {
+  return id.replace(/^session-/, '').slice(0, 8) || id.slice(0, 8)
+}
+
 /** C3 项 3：写工具名判定（与 fs-snapshot 的 trackEdit 钩子同一集合）。 */
 function isWriteToolCall(name: string): boolean {
   return name === 'write' || name === 'edit' || name === 'str_replace_editor'
@@ -1557,7 +1563,7 @@ export class TuiApp {
     // 会话 tab 栏初始快照(attach 后;后续 newSession/switchSession 刷新)。
     this.sessionTabs = summaries.map(row => ({
       id: row.id,
-      label: row.id.slice(0, 8),
+      label: shortSessionLabel(row.id),
       current: row.id === active,
     }))
 
@@ -2025,7 +2031,7 @@ export class TuiApp {
     const active = this.activeSessionId
     this.sessionTabs = rows.map(row => ({
       id: row.id,
-      label: row.id.slice(0, 8),
+      label: shortSessionLabel(row.id),
       current: row.id === active,
     }))
     this.renderBatcher.schedule()
