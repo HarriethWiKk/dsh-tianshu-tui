@@ -360,6 +360,5 @@ Apache-2.0。终端渲染引擎从 [天枢 Tianshu-Tui](https://github.com/huili
 | [deepseek-harness-ux](https://github.com/ayuanwong/deepseek-harness-ux) | 长任务不刷屏：关键进度清晰可见，完成后自动折叠 |
 | [dsh-TUI](https://github.com/ccch1mneyyy/dsh-TUI) | Claude Code 风格全屏交互终端插件 |
 | [DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) | 侧边栏完整工作台：第三方 Tab、文件/终端/Git/子代理 |
-| [DSH Desktop](https://github.com/anywhere-labs/deepseek-harness-desktop) | DeepSeek Harness 社区桌面端（Electron，Windows x64 / macOS Apple Silicon 安装包），下载即用、免配置命令行环境。内置本地 Harness 宿主与插件系统，支持 iOS/Android 远程下发任务、跟踪 agent 进度。社区项目，与 DeepSeek 官方无隶属（MIT） |
-| [DSH Meme Hub](https://github.com/the-beating-light-of-the-nail/dsh-meme-hub) | 社区整活插件精选导航（28 个项目，带截图） |
+| [DSH Desktop](https://github.com/anywhere-labs/deepseek-harness-desktop) | DeepSeek Harness 社区桌面端（Electron，Windows x64 / macOS Apple Silicon 安装包），下载即用、免配置命令行环境。内置本地 Harness 宿主与插件系统，支持 iOS/Android 远程下发任务、跟踪 agent 进度。 |
 | [dsh-whale-report](https://github.com/SenmuuuuW/dsh-whale-report) | 把 session、token、cost、tool call 与风险异常转成可读的 Agent 报告 |
