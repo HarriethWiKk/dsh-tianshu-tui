@@ -134,12 +134,66 @@ export function planSelfUpdate(input: {
   return { action: 'update', latest: input.latest }
 }
 
-export async function fetchNpmLatest(packageName: string = TUI_PACKAGE, timeoutMs = 3_000): Promise<string | null> {
-  const url = `https://registry.npmjs.org/${packageName.replace('/', '%2f')}/latest`
-  const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) })
+/** registry 基址链：官方源 → 国内镜像（npmmirror，完整 npm REST 镜像）。
+ *  #43：registry.npmjs.org 直连不通的网络下，单源 3s 超时让启动检查恒失败。 */
+export const UPDATE_REGISTRY_FALLBACKS = ['https://registry.npmjs.org', 'https://registry.npmmirror.com'] as const
+
+/** 自定义 registry 链（逗号分隔多个；优先生效）——私有源/代理场景。 */
+export const UPDATE_REGISTRY_ENV = 'DSH_TUI_UPDATE_REGISTRY'
+
+/** 解析 registry 尝试链：DSH_TUI_UPDATE_REGISTRY 覆盖 > 官方 + npmmirror。 */
+export function npmRegistryCandidates(env: NodeJS.ProcessEnv = process.env): string[] {
+  const custom = env[UPDATE_REGISTRY_ENV]
+  if (custom !== undefined && custom.trim() !== '') {
+    const list = custom.split(',').map(s => s.trim()).filter(s => s !== '')
+    if (list.length > 0) return list
+  }
+  return [...UPDATE_REGISTRY_FALLBACKS]
+}
+
+/** fetchNpmLatest 的注入面（测试密封）。 */
+export interface FetchLatestOptions {
+  /** registry 基址链；缺省 npmRegistryCandidates()。 */
+  registries?: string[]
+  /** fetch 实现；缺省全局 fetch。 */
+  fetchImpl?: typeof fetch
+}
+
+async function fetchLatestFromRegistry(
+  baseUrl: string,
+  packageName: string,
+  timeoutMs: number,
+  fetchImpl: typeof fetch,
+): Promise<string | null> {
+  const url = `${baseUrl.replace(/\/$/, '')}/${packageName.replace('/', '%2f')}/latest`
+  const res = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) })
   if (!res.ok) return null
   const body = await res.json() as { version?: unknown }
   return typeof body.version === 'string' ? body.version : null
+}
+
+/**
+ * 逐源查 latest：任一源拿到版本即返回——官方源超时/不可达时回退镜像。
+ * 单源失败（超时/网络错/非 200）不中断链；全部源都网络错则抛最后一个错误
+ * （保持启动「自更新失败」warning 语义，#43 之前行为）。全部源 200 但无
+ * version → null（no-latest 静默跳过）。
+ */
+export async function fetchNpmLatest(packageName: string = TUI_PACKAGE, timeoutMs = 3_000, opts: FetchLatestOptions = {}): Promise<string | null> {
+  const registries = opts.registries ?? npmRegistryCandidates()
+  const fetchImpl = opts.fetchImpl ?? fetch
+  let lastError: unknown
+  let sawError = false
+  for (const baseUrl of registries) {
+    try {
+      const version = await fetchLatestFromRegistry(baseUrl, packageName, timeoutMs, fetchImpl)
+      if (version !== null) return version
+    } catch (err) {
+      sawError = true
+      lastError = err
+    }
+  }
+  if (sawError) throw lastError
+  return null
 }
 
 // ── 更新检查磁盘缓存（免每启联网）─────────────────────────────

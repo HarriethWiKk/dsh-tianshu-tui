@@ -62,7 +62,27 @@ export declare function planSelfUpdate(input: {
     installSpec: string | undefined;
     latest: string | null;
 }): UpdatePlan;
-export declare function fetchNpmLatest(packageName?: string, timeoutMs?: number): Promise<string | null>;
+/** registry 基址链：官方源 → 国内镜像（npmmirror，完整 npm REST 镜像）。
+ *  #43：registry.npmjs.org 直连不通的网络下，单源 3s 超时让启动检查恒失败。 */
+export declare const UPDATE_REGISTRY_FALLBACKS: readonly ['https://registry.npmjs.org', 'https://registry.npmmirror.com'];
+/** 自定义 registry 链（逗号分隔多个；优先生效）——私有源/代理场景。 */
+export declare const UPDATE_REGISTRY_ENV = "DSH_TUI_UPDATE_REGISTRY";
+/** 解析 registry 尝试链：DSH_TUI_UPDATE_REGISTRY 覆盖 > 官方 + npmmirror。 */
+export declare function npmRegistryCandidates(env?: NodeJS.ProcessEnv): string[];
+/** fetchNpmLatest 的注入面（测试密封）。 */
+export interface FetchLatestOptions {
+    /** registry 基址链；缺省 npmRegistryCandidates()。 */
+    registries?: string[];
+    /** fetch 实现；缺省全局 fetch。 */
+    fetchImpl?: typeof fetch;
+}
+/**
+ * 逐源查 latest：任一源拿到版本即返回——官方源超时/不可达时回退镜像。
+ * 单源失败（超时/网络错/非 200）不中断链；全部源都网络错则抛最后一个错误
+ * （保持启动「自更新失败」warning 语义，#43 之前行为）。全部源 200 但无
+ * version → null（no-latest 静默跳过）。
+ */
+export declare function fetchNpmLatest(packageName?: string, timeoutMs?: number, opts?: FetchLatestOptions): Promise<string | null>;
 /** 缓存文件形状。 */
 export interface UpdateCache {
     /** 写入时刻（Date.now()，毫秒）。 */

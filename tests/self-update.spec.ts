@@ -10,9 +10,11 @@ import {
   TUI_PACKAGE,
   UPDATE_CACHE_TTL_MS,
   fetchLatestWithCache,
+  fetchNpmLatest,
   findProfileDir,
   isCacheFresh,
   isNpmVersionSpec,
+  npmRegistryCandidates,
   planSelfUpdate,
   readUpdateCache,
   runSelfUpdate,
@@ -245,5 +247,49 @@ describe('更新检查磁盘缓存（免每启联网）', () => {
     })
     expect(result).toEqual({ kind: 'updated', version: '0.1.2-rc.11' })
     expect(install).toHaveBeenCalledWith('0.1.2-rc.11', '/tmp/profile')
+  })
+})
+
+describe('registry 镜像回退链（#43：官方源直连超时）', () => {
+  it('npmRegistryCandidates：缺省官方 + npmmirror；env 覆盖支持逗号多源', () => {
+    expect(npmRegistryCandidates({})).toEqual(['https://registry.npmjs.org', 'https://registry.npmmirror.com'])
+    expect(npmRegistryCandidates({ DSH_TUI_UPDATE_REGISTRY: 'https://r.local' })).toEqual(['https://r.local'])
+    expect(npmRegistryCandidates({ DSH_TUI_UPDATE_REGISTRY: 'https://a , https://b' })).toEqual(['https://a', 'https://b'])
+    expect(npmRegistryCandidates({ DSH_TUI_UPDATE_REGISTRY: '  ' })).toEqual(['https://registry.npmjs.org', 'https://registry.npmmirror.com'])
+  })
+
+  it('首源超时 → 回退镜像源拿到版本', async () => {
+    const urls: string[] = []
+    const fetchImpl = (async (url: string | URL | Request) => {
+      urls.push(String(url))
+      if (String(url).startsWith('https://registry.npmjs.org')) {
+        throw new DOMException('The operation was aborted due to timeout', 'TimeoutError')
+      }
+      return new Response(JSON.stringify({ version: '0.1.2-rc.11' }), { status: 200 })
+    }) as unknown as typeof fetch
+    const v = await fetchNpmLatest(TUI_PACKAGE, 50, { fetchImpl })
+    expect(v).toBe('0.1.2-rc.11')
+    expect(urls.some(u => u.includes('registry.npmmirror.com'))).toBe(true)
+  })
+
+  it('全部源网络错 → 抛最后错误（保持启动 warning 语义）', async () => {
+    const fetchImpl = (async () => {
+      throw new DOMException('The operation was aborted due to timeout', 'TimeoutError')
+    }) as unknown as typeof fetch
+    await expect(fetchNpmLatest(TUI_PACKAGE, 50, { fetchImpl })).rejects.toThrow('aborted')
+  })
+
+  it('首源 200 无 version → 继续下一源；全部无 version → null（no-latest 静默）', async () => {
+    let calls = 0
+    const fetchImpl = (async () => {
+      calls++
+      return calls === 1
+        ? new Response(JSON.stringify({}), { status: 200 })
+        : new Response(JSON.stringify({ version: '1.2.3' }), { status: 200 })
+    }) as unknown as typeof fetch
+    expect(await fetchNpmLatest(TUI_PACKAGE, 50, { fetchImpl })).toBe('1.2.3')
+
+    const empty = (async () => new Response(JSON.stringify({}), { status: 200 })) as unknown as typeof fetch
+    expect(await fetchNpmLatest(TUI_PACKAGE, 50, { fetchImpl: empty })).toBeNull()
   })
 })

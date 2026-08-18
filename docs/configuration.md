@@ -30,6 +30,7 @@ dsh-tianshu-tui 的配置分三层:**装配时配置**(TuiRunnerConfig,插件注
 |---|---|
 | `DEEPSEEK_API_KEY` | API key(欢迎页/状态行按 credentials 分层判断) |
 | `DSH_TUI_SKIP_UPDATE` | `1` 时跳过启动时的 npm 更新检查 |
+| `DSH_TUI_UPDATE_REGISTRY` | 自更新检查的 registry 链(逗号分隔多个,优先于缺省链;缺省 `registry.npmjs.org` → `registry.npmmirror.com` 镜像回退,官方源直连超时时自动落镜像) |
 | `EDITOR` / `VISUAL` | `Ctrl+E` 外部编辑器的命令(Windows 上支持 `.cmd`/`.bat`) |
 | `HTTP_PROXY` / `HTTPS_PROXY` | 网络代理(自更新等联网操作) |
 
