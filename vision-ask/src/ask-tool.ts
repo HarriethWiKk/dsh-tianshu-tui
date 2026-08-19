@@ -18,7 +18,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
-import { BlockAssembler, createUserMessage, HarnessError, LlmError } from '@deepseek-ai/dsh-llm'
+import { BlockAssembler, HarnessError, LlmError } from '@deepseek-ai/dsh-llm'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import type { ImageRegistry, RegisteredImage } from './registry.ts'

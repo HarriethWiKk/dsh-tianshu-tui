@@ -20,6 +20,9 @@ dsh-tianshu-tui 的配置分三层:**装配时配置**(TuiRunnerConfig,插件注
 | `lsp.enabled` | `true` | LSP 诊断拉取开关(本地语言服务桥) |
 | `lsp.timeoutMs` | `2000` | 单次诊断拉取超时 |
 | `autoRestartOnUpdate` | `true` | 启动自更新落盘后自动重启生效;`false` 时仅提示,手动 `/restart` |
+| `theme` | prefs.json | 主题名(`'auto'`/内置名/`custom:<name>`);优先级:装配 > prefs.json > `'auto'` |
+| `prefsPath` | `~/.dsh-tui/prefs.json` | 本地偏好文件路径;`null` 显式禁用(不读写) |
+| `inputHistoryPath` | `~/.dsh-tui/input-history.json` | 输入历史文件路径;`null` 显式禁用 |
 
 ## 环境变量
 
@@ -27,6 +30,7 @@ dsh-tianshu-tui 的配置分三层:**装配时配置**(TuiRunnerConfig,插件注
 |---|---|
 | `DEEPSEEK_API_KEY` | API key(欢迎页/状态行按 credentials 分层判断) |
 | `DSH_TUI_SKIP_UPDATE` | `1` 时跳过启动时的 npm 更新检查 |
+| `DSH_TUI_UPDATE_REGISTRY` | 自更新检查的 registry 链(逗号分隔多个,优先于缺省链;缺省 `registry.npmjs.org` → `registry.npmmirror.com` 镜像回退,官方源直连超时时自动落镜像) |
 | `EDITOR` / `VISUAL` | `Ctrl+E` 外部编辑器的命令(Windows 上支持 `.cmd`/`.bat`) |
 | `HTTP_PROXY` / `HTTPS_PROXY` | 网络代理(自更新等联网操作) |
 
@@ -35,6 +39,16 @@ dsh-tianshu-tui 的配置分三层:**装配时配置**(TuiRunnerConfig,插件注
 > 无锁文件默认 pnpm)。无需手动配置;仍可用 `DSH_TUI_SKIP_UPDATE=1` 关闭。
 
 ## 运行时配置
+
+### 本地偏好与历史(`~/.dsh-tui/`)
+
+TUI 的个性化选择自动持久化,重启保留:
+
+- **`prefs.json`** — `/theme` 选择(含 `custom:` 与 `auto` 档)、`/density` 紧凑
+  渲染、`/subagents` `/workflow` 常驻监控面板显隐、`/glance` 隐藏的 metrics 段。
+  损坏/缺失静默回到缺省;删文件即恢复出厂。
+- **`input-history.json`** — 输入框历史(上限 1000 条,Ctrl+P/N 翻阅)。
+  内容为用户输入原文——介意隐私时删除该文件即可清空。
 
 ### `/config` 面板
 

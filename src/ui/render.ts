@@ -26,6 +26,7 @@ import { formatToolCard } from '../format/tool-card.js'
 import { formatToolViewCard } from '../format/tool-view-card.js'
 import { formatReasoningBlock } from '../format/reasoning.js'
 import { parseToolArguments } from '../format/tool-meta.js'
+import { color } from '../engine/ansi.js'
 
 export { parseToolArguments }
 
@@ -77,6 +78,43 @@ export function toolResultText(result: SessionEvent<'tool/result'>): { content: 
 }
 
 /**
+ * #39：注入型 user 行的摘要 chip 渲染。
+ * - `skill-invocation`（用户显式技能调用，host 经 agent/pre-step 注入）→ `🧭 使用技能: <name>`
+ * - `skill-catalog`（技能目录更新注入）→ `🧭 技能目录已更新（N 项）`
+ * - 其余（含 source 缺失/未知形状）→ null（按普通用户行渲染）。
+ * 防御读取：TranscriptMessage.event 可能是任意 SessionEvent（resume 回放/
+ * 测试替身），形状不符一律回落普通渲染，不抛错。
+ * @param message - 转录行（event 为权威事实）。
+ * @param theme - 当前主题（chip 用 muted 色弱化）。
+ * @returns chip 行；非注入型/形状未知返回 null。
+ */
+function renderInjectedChip(message: TranscriptMessage, theme: RivetTheme): RenderedRow | null {
+  // 全 unknown 防御读取：TranscriptMessage.event 可能是任意 SessionEvent
+  // （resume 回放/测试替身），形状不符一律回落普通渲染，不抛错。
+  const event = message.event as {
+    type?: unknown
+    data?: { source?: { kind?: unknown; name?: unknown; entries?: unknown } }
+  }
+  if (event.type !== 'user/message') return null
+  // MessageSource 是 merge-extensible 封闭 union——kind 走 unknown 防御读取，
+  // 不依赖 dsh-skill 的 module augmentation 是否被本编译单元加载。
+  const source = event.data?.source
+  if (source === undefined) return null
+  const kind = source.kind
+  if (kind === 'skill-invocation') {
+    const name = source.name
+    const label = typeof name === 'string' && name !== '' ? `🧭 使用技能: ${name}` : '🧭 使用技能'
+    return { ansi: color(label, theme.muted), kind: 'system' }
+  }
+  if (kind === 'skill-catalog') {
+    const count = Array.isArray(source.entries) ? source.entries.length : null
+    const label = count === null ? '🧭 技能目录已更新' : `🧭 技能目录已更新（${count} 项）`
+    return { ansi: color(label, theme.muted), kind: 'system' }
+  }
+  return null
+}
+
+/**
  * 渲染一条完成的 user/assistant 消息为终端行。
  * assistant 消息先渲染思考块（reasoning 折叠，暗色斜体），再渲染 markdown
  * 正文——与 live 路径「思考落底在正文前」的提交顺序一致。
@@ -93,6 +131,14 @@ export function renderMessageRows(
   options: RenderTranscriptOptions = {},
 ): RenderedRow[] {
   if (message.kind === 'user') {
+    // #39：注入型 user 行（host 用户技能调用/技能目录）折叠为一行摘要 chip，
+    // 不把 skill 正文或 available_skills 全文当用户气泡渲染。
+    const inject = renderInjectedChip(message, theme)
+    if (inject !== null) return [inject]
+    // #40：runtime context 快照（harness agent-loop 以 kind='plugin'+form='snapshot'
+    // 注入的「Current runtime context…」）是系统状态非对话内容，整行隐藏。
+    if (isRuntimeContextRow(message)) return []
+    // #40：遗留 <system-reminder> 标签文本（历史回放中的旧注入）不渲染。
     const content = stripSystemReminders(message.text)
     if (content === '') return []
     return formatUserMessage({ content, width: columns, timestamp: message.time }, theme)
@@ -110,11 +156,31 @@ export function renderMessageRows(
   return rows
 }
 
-/** System reminders are runtime instructions, not conversation content. */
+/**
+ * #40：runtime context 快照行判定——harness agent-loop 把动态上下文以
+ * `user/message` + source `{ kind: 'plugin', plugin: '@deepseek-ai/dsh-system-prompt',
+ * form: 'snapshot', sections }` 注入会话日志（deepseek-harness
+ * packages/core/agent-loop/src/runtime-context.ts）。按 source 判定而非
+ * 内容正则：措辞变化/非英文环境都稳定。全 unknown 防御读取，形状不符
+ * 一律 false（回落普通渲染，不抛错）。
+ * @param message - 转录行（event 为权威事实）。
+ * @returns 是否 runtime context 快照行。
+ */
+function isRuntimeContextRow(message: TranscriptMessage): boolean {
+  const event = message.event as {
+    type?: unknown
+    data?: { source?: { kind?: unknown; form?: unknown } }
+  }
+  if (event.type !== 'user/message') return false
+  const source = event.data?.source
+  return source?.kind === 'plugin' && source.form === 'snapshot'
+}
+
+/** #40：遗留 <system-reminder> 标签文本（历史回放中的旧注入）从显示中剥离。
+ *  只处理结构化标签（闭合对存在才剥离），不动普通用户文本。 */
 function stripSystemReminders(text: string): string {
   return text
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, '')
-    .replace(/Current runtime context\.[\s\S]*?Approval policy:[\s\S]*?fail(?:s)? closed\.\s*/gi, '')
     .trim()
 }
 

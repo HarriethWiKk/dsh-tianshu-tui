@@ -143,7 +143,7 @@ interface MemoryFacet {
  * /subagents、/workflow、/tasks 的命令定义在 createBuiltinCommands（deps 注入
  * TuiApp 的显隐切换）；/status 保持 TuiApp 内注册。
  */
-export const BUILTIN_COMMAND_NAMES = ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'restart', 'yolo', 'help', 'cost'] as const
+export const BUILTIN_COMMAND_NAMES = ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'glance', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'restart', 'yolo', 'help', 'cost'] as const
 
 /**
  * /model 一键切换别名（TUI 便捷层）：展开为已注册的 deepseek-official
@@ -260,9 +260,7 @@ export class SlashCommandRegistry {
  * 内置命令工厂依赖——TuiApp 私有能力注入（会话铸造、滚动区重置、面板显隐切换）。
  */
 export interface BuiltinCommandDeps {
-  /** /theme：保存已确认的主题名；无 settings 服务时省略。 */
-  persistTheme?(name: string): void
-  /** /theme：主题确认后按新主题重放当前历史消息。 */
+  /** /theme：主题确认后按新主题重放当前历史消息（#40；reset 滚动区重提交）。 */
   onThemeChanged?(): void
   /** /session new：新建会话并挂载（TuiApp.newSession）。 */
   newSession(): Promise<SessionId>
@@ -304,6 +302,12 @@ export interface BuiltinCommandDeps {
   openModelPicker(): void
   /** #31：打开主题选择器。 */
   openThemePicker(): void
+  /** P1：主题生效后的持久化写透（/theme 与 picker 确认共用；未知名 no-op）。 */
+  onThemeApplied(name: string): void
+  /** P1：/theme auto——切回自动检测并持久化（探测异步）。 */
+  applyThemeAuto(): void
+  /** P1：/theme export [name]——当前主题导出为自定义主题模板；返回回显消息。 */
+  exportTheme(name?: string): string
   /** #31：打开会话选择器。 */
   openSessionPicker(): void
   /** /cost：当前会话累计用量与成本报告行（app 侧汇总；无数据时返回占位行）。 */
@@ -320,8 +324,8 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
   return [
     {
       name: 'theme',
-      description: '切换主题（内置或 custom:<name>）',
-      argsHint: '<name>',
+      description: '切换主题（内置或 custom:<name>；auto/export 子命令）',
+      argsHint: '<name>|auto|export [name]',
       run: ({ text, echo }) => {
         const name = text.trim()
         if (name === '') {
@@ -329,12 +333,24 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
           deps.openThemePicker()
           return
         }
+        // P1：auto 持久化自动档（持久化不能是单行道）；export 导出自定义模板。
+        if (name === 'auto') {
+          deps.applyThemeAuto()
+          return
+        }
+        if (name === 'export' || name.startsWith('export ')) {
+          echo(deps.exportTheme(name.slice('export'.length).trim() || undefined))
+          return
+        }
         if (setTheme(name)) {
-          deps.persistTheme?.(name)
+          // 持久化走 prefs（P1 onThemeApplied）；#40：随后按新主题重放历史。
+          // 重放会 reset 滚动区，故回显在 onThemeChanged 之后。
+          deps.onThemeApplied(name)
           deps.onThemeChanged?.()
           echo(`主题已切换: ${name}`)
+        } else {
+          echo(`未知主题: ${name}。可用: ${THEME_NAMES.join(', ')} / custom:<name>`)
         }
-        else echo(`未知主题: ${name}。可用: ${THEME_NAMES.join(', ')}`)
       },
     },
     {

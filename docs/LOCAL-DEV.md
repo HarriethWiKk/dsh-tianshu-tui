@@ -5,7 +5,8 @@
 ## 一、每天怎么用
 
 ```sh
-./scripts/dev.sh        # 一条命令启动 TUI（全离线，含 API key）
+./scripts/dev.sh        # 一条命令启动 TUI（全离线，含 API key；macOS/Linux）
+node scripts/dev.mjs    # 同等逻辑的跨平台入口（Windows 主入口；vendor 缺失时自动从 npx 缓存重建）
 ```
 
 启动成功标志：欢迎页出现 `dsh-tianshu-tui` 品牌，状态行 `API Key ✓ · Git ✓`。`Ctrl+Q` 或 `/exit` 退出。
@@ -18,7 +19,7 @@
 dsh-tui/                        本仓库
 ├── scripts/dev.sh              启动脚本（入库）
 ├── vendor/dsh-runtime/        官方 CLI 依赖树，342M（gitignore，不进仓库）
-│   └── node_modules/@deepseek-ai/dsh/lib/bin.js   宿主 CLI 入口（0.1.0-rc.6）
+│   └── node_modules/@deepseek-ai/dsh/lib/bin.js   宿主 CLI 入口（0.1.0-rc.7）
 ├── .dsh-dev/                  本地开发 profile 家目录（gitignore），DSH_HOME 指向这里
 │   └── profiles/tui/          装配结果：bundles = [@deepseek-ai/dsh-base, @huiliyi37/dsh-tianshu-tui]
 │       └── node_modules/      本插件以 link: 指向本仓库根（build 后即时生效）
@@ -35,7 +36,7 @@ dsh-tui/                        本仓库
 
 ```sh
 node vendor/dsh-runtime/node_modules/@deepseek-ai/dsh/lib/bin.js \
-  plugin --profile tui add "@deepseek-ai/dsh-base@0.1.0-rc.6" "link:$ROOT"
+  plugin --profile tui add "@deepseek-ai/dsh-base@0.1.0-rc.7" "link:$ROOT"
 ```
 
 - 机制：`dsh plugin add` = 在 profile 目录跑 `pnpm <args>` + reconcile `dsh.profile.bundles`；profile 模块解析 fallback 到 CLI 安装锚点，所以运行时所有 `@deepseek-ai/*` 从 vendor 树解析。
@@ -44,6 +45,9 @@ node vendor/dsh-runtime/node_modules/@deepseek-ai/dsh/lib/bin.js \
   mkdir -p vendor && cp -R ~/.npm/_npx/*/node_modules vendor/dsh-runtime/node_modules
   ```
   （`npx -y @deepseek-ai/dsh` 跑过一次后缓存即存在；注意目标必须是 `node_modules` 层级）
+- 跨平台替代：`node scripts/dev.mjs` 在 vendor 缺失时自动定位 npx 缓存并拷贝
+  （POSIX `~/.npm/_npx`、Windows `%LocalAppData%\npm-cache\_npx`），无需手工 cp；
+  上述 cp 命令仅适用于 POSIX 手工路径。
 
 ## 四、当前环境信息快照（2026-08-16）
 
@@ -51,8 +55,8 @@ node vendor/dsh-runtime/node_modules/@deepseek-ai/dsh/lib/bin.js \
 |---|---|
 | 本仓库路径 | `/Users/banxia/app/deepseek-tui/dsh-tui` |
 | 包名/版本 | `@huiliyi37/dsh-tianshu-tui` 0.1.2-rc.7（npm 已发布） |
-| 宿主 CLI | `@deepseek-ai/dsh` 0.1.0-rc.6（npm 未上架，源码在 npx 缓存，已 vendor） |
-| 官方生态 base | `@deepseek-ai/dsh-base` 0.1.0-rc.6（npm `next` 标签） |
+| 宿主 CLI | `@deepseek-ai/dsh` 0.1.0-rc.7（npm 未上架，源码在 npx 缓存，已 vendor） |
+| 官方生态 base | `@deepseek-ai/dsh-base` 0.1.0-rc.7（npm `next` 标签） |
 | Node / pnpm | v24.1.0 / pnpm v10.32.1（PATH 有） |
 | API key 配置位 | `~/.dsh/.env` 的 `DEEPSEEK_API_KEY`（dev.sh 自动加载） |
 | git remote | `github` → huiliyi37/dsh-tianshu-tui；`omdsh` → omdsh-dev fork；`origin` 本地 bundle 勿推 |
@@ -61,7 +65,7 @@ node vendor/dsh-runtime/node_modules/@deepseek-ai/dsh/lib/bin.js \
 
 | 项目 | 包名/版本 | 宿主 | 启动 | 与本仓库关系 |
 |---|---|---|---|---|
-| **本仓库** | `@huiliyi37/dsh-tianshu-tui` 0.1.2-rc.7 | 官方 CLI `@deepseek-ai/dsh`（npm 生态 rc.6） | `./scripts/dev.sh` | — |
+| **本仓库** | `@huiliyi37/dsh-tianshu-tui` 0.1.2-rc.7 | 官方 CLI `@deepseek-ai/dsh`（npm `next` 标签 rc.7） | `./scripts/dev.sh` | — |
 | oh-my-tianshu | `@huiliyi37/dsh-tui` 0.2.1（内嵌于 tianshu-public） | tianshu-public 源码 CLI（`@huiliyi37/*` 0.2.x 平行生态） | `~/.local/bin/omts` | 同源分叉，独立演进 |
 | 旧快照 | `@deepseek-ai/dsh-root` 0.0.1（staging-20260809T152743Z） | 自身源码树 1.5G | 原 PATH 入口 `~/.local/bin/dsh` **已删** | 私人快照，入口已清 |
 

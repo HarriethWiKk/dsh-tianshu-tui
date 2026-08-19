@@ -1,0 +1,99 @@
+/**
+ * prefs — 本地偏好持久化层纯函数契约。
+ *
+ * 容错优先：损坏/缺失/形状不对逐项丢弃；原子写往返；VITEST 密封门。
+ */
+import { describe, expect, it } from 'vitest'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import {
+  GLANCE_HIDEABLE_SEGMENTS,
+  parsePrefs,
+  prefsEnabled,
+  readPrefs,
+  writePrefs,
+} from '../src/prefs.js'
+
+function tmpPrefs(): string {
+  return join(mkdtempSync(join(tmpdir(), 'dsh-prefs-')), 'prefs.json')
+}
+
+describe('parsePrefs 容错', () => {
+  it('合法形状全字段解析', () => {
+    const p = parsePrefs(JSON.stringify({
+      theme: 'custom:mine',
+      compactMode: true,
+      panels: { subagents: true, workflow: false },
+      glance: { hideSegments: ['cost', 'cache'] },
+    }))
+    expect(p).toEqual({
+      theme: 'custom:mine',
+      compactMode: true,
+      panels: { subagents: true, workflow: false },
+      glance: { hideSegments: ['cost', 'cache'] },
+    })
+  })
+
+  it('非法 JSON / 非对象 / 空串主题 → 空偏好', () => {
+    expect(parsePrefs('{broken')).toEqual({})
+    expect(parsePrefs('"string"')).toEqual({})
+    expect(parsePrefs('null')).toEqual({})
+    expect(parsePrefs(JSON.stringify({ theme: '' }))).toEqual({})
+  })
+
+  it('形状不对与未知 key 逐项丢弃（前向兼容）', () => {
+    const p = parsePrefs(JSON.stringify({
+      theme: 42,                       // 非字符串 → 丢
+      compactMode: 'yes',              // 非布尔 → 丢
+      panels: { config: true, subagents: 'x' }, // config 非白名单 / subagents 非布尔 → 丢
+      glance: { hideSegments: ['model', 'nope', 'cost'] }, // model 非可隐藏 / nope 未知 → 只留 cost
+      futureField: { anything: true },  // 未知 key → 丢
+    }))
+    expect(p).toEqual({ glance: { hideSegments: ['cost'] } })
+  })
+
+  it('可隐藏段白名单与常驻面板白名单导出稳定', () => {
+    expect(GLANCE_HIDEABLE_SEGMENTS).not.toContain('model')
+    expect(GLANCE_HIDEABLE_SEGMENTS).not.toContain('stalled')
+  })
+})
+
+describe('read/write 往返', () => {
+  it('写后读回一致（原子写 tmp+rename）', () => {
+    const p = tmpPrefs()
+    const prefs = { theme: 'paper', compactMode: true, panels: { workflow: true } }
+    writePrefs(p, prefs)
+    expect(readPrefs(p)).toEqual(prefs)
+    // 原子写：不留 tmp 残骸（rename 而非复制）——文件内容即最终态
+    expect(readFileSync(p, 'utf-8').endsWith('\n')).toBe(true)
+  })
+
+  it('read 缺失/损坏 → 空偏好', () => {
+    const dir = join(tmpPrefs(), '..')
+    expect(readPrefs(join(dir, 'missing.json'))).toEqual({})
+    const corrupt = tmpPrefs()
+    writeFileSync(corrupt, 'not json at all')
+    expect(readPrefs(corrupt)).toEqual({})
+  })
+
+  it('write 到不存在目录自动创建；写失败静默不抛', () => {
+    const p = join(mkdtempSync(join(tmpdir(), 'dsh-prefs-')), 'nested', 'deep', 'prefs.json')
+    expect(() => writePrefs(p, { compactMode: true })).not.toThrow()
+    expect(readPrefs(p)).toEqual({ compactMode: true })
+    // 路径是一个已存在的目录 → writeFileSync 抛 EISDIR → 静默
+    expect(() => writePrefs(join(p, '..'), { theme: 'x' })).not.toThrow()
+  })
+})
+
+describe('prefsEnabled 密封门', () => {
+  it('显式 path 优先（含 null = 显式禁用）', () => {
+    expect(prefsEnabled('/tmp/x/prefs.json')).toBe('/tmp/x/prefs.json')
+    expect(prefsEnabled(null)).toBeNull()
+  })
+
+  it('VITEST 下未显式指定 → null（不碰真实 home）', () => {
+    expect(process.env.VITEST).toBeTruthy() // vitest 运行时注入
+    expect(prefsEnabled(undefined)).toBeNull()
+  })
+})

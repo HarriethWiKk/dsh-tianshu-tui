@@ -141,13 +141,29 @@ describe('renderMessageRows', () => {
     expect(text).not.toContain('system-reminder')
   })
 
-  it('user 消息隐藏未包裹标签的 runtime context', () => {
-    const rows = renderMessageRows(userMessage('你好\nCurrent runtime context. This snapshot supersedes earlier runtime-context snapshots.\nCurrent DSH file policy: workspace-write.\nApproval policy: ask. Operations fail closed.\n'), fakeTheme(), 80)
-    const text = plain(rows).join('\n')
-    expect(text).toContain('你好')
-    expect(text).not.toContain('Current runtime context')
-    expect(text).not.toContain('workspace-write')
-    expect(text).not.toContain('Approval policy')
+  it('#40 runtime context 快照行（plugin/snapshot source）整行隐藏，不渲染内容', () => {
+    const event = {
+      type: 'user/message',
+      data: {
+        content: [{ type: 'text', text: 'Current runtime context. This snapshot supersedes earlier runtime-context snapshots.\nCurrent DSH file policy: workspace-write.\nApproval policy: ask. Operations fail closed.' }],
+        source: { kind: 'plugin', plugin: '@deepseek-ai/dsh-system-prompt', form: 'snapshot', sections: [] },
+      },
+    } as unknown as SessionEvent
+    const rows = renderMessageRows({ ...userMessage('Current runtime context...'), event }, fakeTheme(), 80)
+    expect(rows).toEqual([])
+  })
+
+  it('#40 非 snapshot 的 plugin 行（如 form=notice）不隐藏，按普通用户行渲染', () => {
+    const event = {
+      type: 'user/message',
+      data: {
+        content: [{ type: 'text', text: '插件通知' }],
+        source: { kind: 'plugin', plugin: 'x', form: 'notice' },
+      },
+    } as unknown as SessionEvent
+    const rows = renderMessageRows({ ...userMessage('插件通知'), event }, fakeTheme(), 80)
+    expect(rows.every(r => r.kind === 'user')).toBe(true)
+    expect(plain(rows).join('\n')).toContain('插件通知')
   })
 
   it('assistant 消息 → formatMarkdown 行，kind assistant', () => {
@@ -172,6 +188,56 @@ describe('renderMessageRows', () => {
     const text = plain(rows).join('\n')
     expect(text).toContain('✻ 思考')
     expect(text).not.toContain('内心戏')
+  })
+
+  it('#39 skill-invocation 注入行 → 摘要 chip（🧭 使用技能: name），不渲染正文', () => {
+    const event = {
+      type: 'user/message',
+      data: {
+        content: [{ type: 'text', text: '<skill_content>...' }],
+        source: { kind: 'skill-invocation', name: 'find-skills', form: 'instructions' },
+      },
+    } as unknown as SessionEvent
+    const rows = renderMessageRows({ ...userMessage('<skill_content>...'), event }, fakeTheme(), 80)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.kind).toBe('system')
+    expect(plain(rows).join('\n')).toContain('🧭 使用技能: find-skills')
+    expect(plain(rows).join('\n')).not.toContain('skill_content')
+  })
+
+  it('#39 skill-catalog 注入行 → 一行 dim 提示（含条数）', () => {
+    const event = {
+      type: 'user/message',
+      data: {
+        content: [{ type: 'text', text: '<system-reminder>...' }],
+        source: { kind: 'skill-catalog', form: 'catalog', entries: [{ name: 'a', description: 'x' }, { name: 'b', description: 'y' }] },
+      },
+    } as unknown as SessionEvent
+    const rows = renderMessageRows({ ...userMessage('<system-reminder>...'), event }, fakeTheme(), 80)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.kind).toBe('system')
+    expect(plain(rows).join('\n')).toContain('🧭 技能目录已更新（2 项）')
+    expect(plain(rows).join('\n')).not.toContain('system-reminder')
+  })
+
+  it('#39 source.kind=user（普通用户消息）→ 仍按用户气泡渲染', () => {
+    const event = {
+      type: 'user/message',
+      data: {
+        content: [{ type: 'text', text: '普通提问' }],
+        source: { kind: 'user' },
+      },
+    } as unknown as SessionEvent
+    const rows = renderMessageRows({ ...userMessage('普通提问'), event }, fakeTheme(), 80)
+    expect(rows.every(r => r.kind === 'user')).toBe(true)
+    expect(plain(rows).join('\n')).toContain('普通提问')
+  })
+
+  it('#39 注入行 source 形状未知（无 data/source）→ 回落普通渲染不抛错', () => {
+    const malformed = { type: 'user/message' } as unknown as SessionEvent
+    const rows = renderMessageRows({ ...userMessage('你好'), event: malformed }, fakeTheme(), 80)
+    expect(rows.every(r => r.kind === 'user')).toBe(true)
+    expect(plain(rows).join('\n')).toContain('你好')
   })
 })
 

@@ -79,7 +79,7 @@ export interface ModelFacet {
  * /subagents、/workflow、/tasks 的命令定义在 createBuiltinCommands（deps 注入
  * TuiApp 的显隐切换）；/status 保持 TuiApp 内注册。
  */
-export declare const BUILTIN_COMMAND_NAMES: readonly ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'restart', 'yolo', 'help', 'cost'];
+export declare const BUILTIN_COMMAND_NAMES: readonly ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'glance', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'restart', 'yolo', 'help', 'cost'];
 /**
  * 最小唯一前缀解析：`/` 前缀 + 命令名 `startsWith` 匹配。
  * 歧义（多命令同前缀）或未知名返回 null——不猜命令。
@@ -141,9 +141,7 @@ export declare class SlashCommandRegistry {
  * 内置命令工厂依赖——TuiApp 私有能力注入（会话铸造、滚动区重置、面板显隐切换）。
  */
 export interface BuiltinCommandDeps {
-    /** /theme：保存已确认的主题名；无 settings 服务时省略。 */
-    persistTheme?(name: string): void;
-    /** /theme：主题确认后按新主题重放当前历史消息。 */
+    /** /theme：主题确认后按新主题重放当前历史消息（#40；reset 滚动区重提交）。 */
     onThemeChanged?(): void;
     /** /session new：新建会话并挂载（TuiApp.newSession）。 */
     newSession(): Promise<SessionId>;
@@ -190,6 +188,12 @@ export interface BuiltinCommandDeps {
     openModelPicker(): void;
     /** #31：打开主题选择器。 */
     openThemePicker(): void;
+    /** P1：主题生效后的持久化写透（/theme 与 picker 确认共用；未知名 no-op）。 */
+    onThemeApplied(name: string): void;
+    /** P1：/theme auto——切回自动检测并持久化（探测异步）。 */
+    applyThemeAuto(): void;
+    /** P1：/theme export [name]——当前主题导出为自定义主题模板；返回回显消息。 */
+    exportTheme(name?: string): string;
     /** #31：打开会话选择器。 */
     openSessionPicker(): void;
     /** /cost：当前会话累计用量与成本报告行（app 侧汇总；无数据时返回占位行）。 */

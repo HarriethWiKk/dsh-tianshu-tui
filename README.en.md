@@ -7,9 +7,13 @@
 
 [中文](README.md) | English
 
-![dsh-tianshu-tui](docs/tui-screenshot.jpg)
+![dsh-tianshu-tui](docs/promo.png)
 
-**dsh-tianshu-tui** (`@huiliyi37/dsh-tianshu-tui`) is the interactive terminal UI plugin for the official [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). The render core evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) (Apache-2.0; file-by-file provenance in [SOURCE-MAP.md](SOURCE-MAP.md)). The UI is a pure presentation layer: every piece of agent state arrives through the session event stream.
+**dsh-tianshu-tui** (`@huiliyi37/dsh-tianshu-tui`) is the interactive terminal UI plugin for the official [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). The render core is a self-built minimal ANSI engine (evolved from the author's own open-source [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui), Apache-2.0; file-by-file provenance in [SOURCE-MAP.md](SOURCE-MAP.md)), keeping rendering lightweight and non-intrusive. The UI is a pure presentation layer: every piece of agent state arrives through the session event stream. On top of it, the plugin adds harness-level engineering niceties such as image & vision bridging, smart code retrieval, and memory with cross-session recall.
+
+
+> [!WARNING]
+> **Ecosystem boundary**: this plugin belongs to the official [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) ecosystem (`@deepseek-ai/*` scope) — its peerDependencies and imports all point at `@deepseek-ai/*`. **Do not assemble it into an oh-my-tianshu (`@huiliyi37` scope, CLI `@huiliyi37/dsh-tianshu`) tui profile.** oh-my-tianshu ships its own official TUI, `@huiliyi37/dsh-tui`: the two share 109 of 117 TUI source files but live in different ecosystems. Mixing them makes the plugin resolve `@deepseek-ai/*` at runtime through stale symlinks under `~/.dsh/profiles/node_modules` pointing at the globally installed official dsh — a fragile cross-ecosystem coupling.
 
 ## Documentation
 
@@ -28,42 +32,42 @@
 
 ## Install
 
-This package is not a standalone app. You need the official CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh) (`0.1.0-rc.6`). `npm i` of this package alone will not run.
+This package is not a standalone app. You need the official CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh) (`0.1.0-rc.7`). `npm i` of this package alone will not run.
 
 ### 1. Prerequisites
 
 - [Node.js](https://nodejs.org/) `^22.19 || >=24`
 - [`pnpm`](https://pnpm.io/installation) on PATH (`dsh plugin` forwards to it)
 
-**Do not type `dsh` by itself.** An older `dsh` on PATH (for example `~/.local/bin/dsh`, where `dsh --version` is not `0.1.0-rc.6`) will hit a local staging tree and fail with `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`. Always use the `npx` commands below.
+**Do not type `dsh` by itself.** An older `dsh` on PATH (for example `~/.local/bin/dsh`, where `dsh --version` is not `0.1.0-rc.7`) will hit a local staging tree and fail with `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`. Always use the `npx` commands below.
 
 ### 2. Add this plugin to the tui profile
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+npx -y @deepseek-ai/dsh@0.1.0-rc.7 plugin --profile tui add @huiliyi37/dsh-tianshu-tui
 ```
 
 pnpm may warn about missing peers; ignore that. Peers come from the official `dsh` host.
 
 After an npm install, each launch checks npm `latest` and writes a newer version into the profile, then asks you to restart. Set `DSH_TUI_SKIP_UPDATE=1` to skip the check. `github:` / `link:` installs are left alone.
 
-You can also install from Git: `npx -y @deepseek-ai/dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui` (the repository ships `lib/index.js`; no rebuild).
+You can also install from Git: `npx -y @deepseek-ai/dsh@0.1.0-rc.7 plugin --profile tui add github:huiliyi37/dsh-tianshu-tui` (the repository ships `lib/index.js`; no rebuild).
 
 ### 3. Start
 
 ```sh
-npx -y @deepseek-ai/dsh --profile tui
+npx -y @deepseek-ai/dsh@0.1.0-rc.7 --profile tui
 ```
 
 Success looks like a welcome screen branded **dsh-tianshu-tui**. Quit with `Ctrl+Q` or `/exit`.
 
-If the official CLI is installed globally and `dsh --version` is `0.1.0-rc.6`, you can use `dsh` in place of `npx -y @deepseek-ai/dsh`.
+If the official CLI is installed globally and `dsh --version` is `0.1.0-rc.7`, you can use `dsh` in place of `npx -y @deepseek-ai/dsh`.
 
 If `npx` still raises `ERR_FS_EISDIR`, stale install fallbacks under `~/.dsh/profiles/node_modules` are colliding with the official CLI. Use a clean home:
 
 ```sh
-DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
-DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh --profile tui
+DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh@0.1.0-rc.7 plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh@0.1.0-rc.7 --profile tui
 ```
 
 Do not run tsdown for this package from the DeepSeek Harness workspace root: it rewrites imports to unpublished `@deepseek-ai/dsh-root`, and loading fails.
@@ -168,11 +172,11 @@ Users already on `0.1.1-rc.6` pick this up on the next launch. Restart after you
 
 On launch the plugin checks npm `latest`, writes a newer version into the profile, and asks you to restart.
 
-**Upgrading from `0.1.0-rc.6`:** that build has no self-update. Add the plugin once more to pick up the new logic:
+**Upgrading from `0.1.0-rc.7`:** that build has no self-update. Add the plugin once more to pick up the new logic:
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
-npx -y @deepseek-ai/dsh --profile tui
+npx -y @deepseek-ai/dsh@0.1.0-rc.7 plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+npx -y @deepseek-ai/dsh@0.1.0-rc.7 --profile tui
 ```
 
 Later releases write themselves into the profile on launch. Restart after you see `插件已更新到 …，请重启 dsh 后生效`. Set `DSH_TUI_SKIP_UPDATE=1` to skip the check. `github:` / `link:` installs are left alone.
@@ -184,7 +188,7 @@ This release also includes display-layer fixes already on `main`:
 - After `/model`, the footer glance and vision capability follow the real model
 - `Ctrl+S` can restore a session from disk
 
-The first public baseline is recorded in [docs/BASELINE-v0.1.0-rc.6.md](docs/BASELINE-v0.1.0-rc.6.md).
+The first public baseline is recorded in [docs/BASELINE-v0.1.0-rc.7.md](docs/BASELINE-v0.1.0-rc.7.md).
 
 ## Highlights
 
@@ -347,9 +351,13 @@ Apache-2.0. The terminal render engine evolved from [Tianshu-Tui](https://github
 
 ## Friends
 
-- [dsh-web-ui](https://github.com/zhu1090093659/dsh-web-ui) — Plugin and skin collection for DSH Web UI
-- [dshfind](https://dshfind.com/zh) — Chinese learning and sharing community for DeepSeek Harness
-- [deepseek-harness-ux](https://github.com/ayuanwong/deepseek-harness-ux) — Long agent tasks without transcript clutter: focused progress, auto-folded history
-- [dsh-TUI](https://github.com/ccch1mneyyy/dsh-TUI) — Claude Code-style fullscreen interactive terminal plugin
-- [DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) — Full sidebar workbench with third-party tabs, files, terminal, Git, and subagents
-- [dsh-meme-hub](https://github.com/the-beating-light-of-the-nail/dsh-meme-hub) — A tour of playful DSH plugins: 贪玩蓝鲸 / QQ2006 / whale girls / mini-games
+| Project | About |
+|---|---|
+| [dsh-web-ui](https://github.com/zhu1090093659/dsh-web-ui) | Plugin and skin collection for DSH Web UI |
+| [dshfind](https://dshfind.com/zh) | Chinese learning and sharing community for DeepSeek Harness |
+| [deepseek-harness-ux](https://github.com/ayuanwong/deepseek-harness-ux) | Long agent tasks without transcript clutter: focused progress, auto-folded history |
+| [dsh-TUI](https://github.com/ccch1mneyyy/dsh-TUI) | Claude Code-style fullscreen interactive terminal plugin |
+| [DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) | Full sidebar workbench: third-party tabs, files/terminal/Git/subagents |
+| [DSH Desktop](https://github.com/anywhere-labs/deepseek-harness-desktop) | Community desktop client for DeepSeek Harness (Electron; Windows x64 / macOS Apple Silicon installers) — download and run, no Node.js/pnpm setup. Ships a managed local Harness host with its plugin system, plus iOS/Android remote control to dispatch tasks and track agent progress. Community project, unaffiliated with DeepSeek (MIT) |
+| [dsh-meme-hub](https://github.com/the-beating-light-of-the-nail/dsh-meme-hub) | A tour of playful DSH plugins (28 projects, with screenshots) |
+| [dsh-whale-report](https://github.com/SenmuuuuW/dsh-whale-report) | Turns sessions, tokens, cost, tool calls, risks and anomalies into Agent reports you can actually read |

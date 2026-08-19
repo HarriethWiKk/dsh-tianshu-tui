@@ -58,7 +58,6 @@ function makeArgs(overrides: Partial<Parameters<ReturnType<typeof createBuiltinC
 
 function commandByName(name: string) {
   const deps = {
-    persistTheme: vi.fn(),
     onThemeChanged: vi.fn(),
     newSession: vi.fn(),
     forkSession: vi.fn(),
@@ -80,6 +79,9 @@ function commandByName(name: string) {
     setYoloMode: vi.fn(),
     openModelPicker: vi.fn(),
     openThemePicker: vi.fn(),
+    onThemeApplied: vi.fn(),
+    applyThemeAuto: vi.fn(),
+    exportTheme: vi.fn((): string => 'exported'),
     openSessionPicker: vi.fn(),
     sessionCostReport: vi.fn<() => string[]>(() => []),
   }
@@ -213,12 +215,12 @@ describe('SlashCommandRegistry — 注册/列举/解析', () => {
 })
 
 describe('内置命令 — /theme', () => {
-  it('有效主题名切换并回显', async () => {
+  it('有效主题名切换并回显（持久化走 P1 prefs onThemeApplied；#40 追加历史重放）', async () => {
     const { cmd, deps } = commandByName('theme')
     const { args, echo } = makeArgs({ text: 'paper' })
     await cmd.run(args)
     expect(getActiveThemeName()).toBe('paper')
-    expect(deps.persistTheme).toHaveBeenCalledWith('paper')
+    expect(deps.onThemeApplied).toHaveBeenCalledWith('paper')
     expect(deps.onThemeChanged).toHaveBeenCalledTimes(1)
     expect(echo).toHaveBeenCalledWith('主题已切换: paper')
   })
@@ -781,7 +783,7 @@ describe('内置命令 — /help', () => {
     await cmd.run(args)
     expect(deps.listCommands).toHaveBeenCalledTimes(1)
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('全部命令'))
-    expect(echo).toHaveBeenCalledWith(expect.stringContaining('/theme <name> — 切换主题'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('/theme <name>|auto|export [name] — 切换主题'))
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('/help [cmd] — 列出全部命令'))
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('Ctrl+.'))
   })
@@ -1415,6 +1417,9 @@ describe('内置命令 — /effort', () => {
       setYoloMode: vi.fn(),
       openModelPicker: vi.fn(),
       openThemePicker: vi.fn(),
+      onThemeApplied: vi.fn(),
+      applyThemeAuto: vi.fn(),
+      exportTheme: vi.fn((): string => 'exported'),
       openSessionPicker: vi.fn(),
       sessionCostReport: vi.fn<() => string[]>(() => []),
     }

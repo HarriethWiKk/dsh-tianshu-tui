@@ -37,19 +37,20 @@
 | src/controllers/btw-controller.ts | — | new |
 | src/controllers/question-controller.ts | — | new |
 | src/controllers/session-manager.ts | — | new |
+| src/controllers/skill-surface.ts | — | new（#39 技能展示面：快照缓存 + userInvocable 过滤 + slash 菜单投影 + 手势 MRU + skills/change 订阅，从 ui/app.ts 提取） |
 | src/delegation-panel.ts | — | new |
-| src/engine/ansi.ts | engine/ansi.ts | modified |
-| src/engine/clipboard-image.ts | engine/clipboard-image.ts | modified（移除未声明的 @mariozechner/clipboard native 路径，保留 shell 链 + 注入点） |
+| src/engine/ansi.ts | engine/ansi.ts | modified（新增 DECSCUSR 光标形状常量：稳态竖条 + 默认恢复，overlay 输入光标用） |
+| src/engine/clipboard-image.ts | engine/clipboard-image.ts | modified（移除未声明的 @mariozechner/clipboard native 路径，保留 shell 链 + 注入点；readText 注入测试密封化） |
 | src/engine/commit-engine.ts | engine/commit-engine.ts | modified |
 | src/engine/image-attach.ts | engine/image-attach.ts | modified（三级自适应压缩：1568px 保透明 PNG / JPEG 0.82 → JPEG 0.55 → 1024px+0.55，语义对齐上游 desktop 子树 image-compress.ts 的 compressImageSafe；probeImageSize 头部解析为 dsh 新增） |
-| src/engine/image-tool.ts | engine/image-tool.ts | modified（新增 resizeJpegCandidates——长边缩放 + JPEG 质量候选链，win32 脚本含 EncoderParameter 质量参数；语义对齐上游 desktop 子树 image-compress.ts） |
+| src/engine/image-tool.ts | engine/image-tool.ts | modified（新增 resizeJpegCandidates——长边缩放 + JPEG 质量候选链，win32 脚本含 EncoderParameter 质量参数；语义对齐上游 desktop 子树 image-compress.ts；resize 链 sips 显式 -s format png） |
 | src/engine/input-controller.ts | engine/input-controller.ts | modified（类型内联；`tabComplete` Tab 补全状态机驱动） |
 | src/engine/input-handler.ts | engine/input-handler.ts | modified |
-| src/engine/input-line.ts | engine/input-line.ts | modified |
+| src/engine/input-line.ts | engine/input-line.ts | modified（多行 ↑↓ 导航 grapheme 列保持——CJK/emoji 跨行不拆簇，上游 dfe8b6f41 同步） |
 | src/engine/live-engine.ts | engine/live-engine.ts | modified |
 | src/engine/metrics-glance-controller.ts | engine/metrics-glance-controller.ts | modified |
 | src/engine/overlay-controller.ts | engine/overlay-controller.ts | modified |
-| src/engine/overlay-engine.ts | engine/overlay-engine.ts | modified |
+| src/engine/overlay-engine.ts | engine/overlay-engine.ts | modified（caret 钩子：输入类 overlay 硬件光标 + DECSCUSR 稳态竖条，caret 写不受空 diff 短路；退出恢复光标形状） |
 | src/engine/perf-monitor.ts | engine/perf-monitor.ts | modified |
 | src/engine/resize-handler.ts | engine/resize-handler.ts | ported |
 | src/engine/stream-renderer.ts | engine/stream-renderer.ts | modified |
@@ -66,7 +67,8 @@
 | src/format/doctor-report.ts | — | new |
 | src/format/export.ts | — | new（/export 会话导出：事件日志 → Markdown 转录，纯渲染） |
 | src/format/fluency-policy.ts | fluency-policy.ts | modified（目录重排：上游根 → src/format/） |
-| src/format/glance-bar.ts | format/glance-bar.ts | modified |
+| src/format/glance-bar.ts | format/glance-bar.ts | modified（hideSegments 段过滤：prefs.glance.hideSegments 透传，model/stalled 永不可隐藏） |
+| src/format/glance-metrics.ts | — | new（glance metrics 投影：app 缓存字段 → formatGlanceBar 输入；C4 自 ui/app.ts 提取，时间注入可测） |
 | src/format/lsp-diagnostics.ts | — | new（诊断展示纯函数：工具卡徽标 + /lsp 面板段，severity 语义色） |
 | src/format/hidden-lines.ts | format/hidden-lines.ts | ported |
 | src/format/history-search-overlay.ts | — | new |
@@ -99,10 +101,12 @@
 | src/format/welcome.ts | format/welcome.ts | modified |
 | src/format/whale.ts | — | new（欢迎页鲸鱼品牌像素画：半块字符双色渲染，品牌固定色 + 色深/宽度档降级，纯渲染） |
 | src/gutter.ts | gutter.ts | ported |
+| src/git-status.ts | — | new（git 仓库探测三函数：isGitRepo/gitBranch/gitDirtyCount，exec 注入；C4 自 ui/app.ts 提取） |
 | src/index.ts | — | new |
+| src/input-history.ts | — | new（输入历史持久化：~/.dsh-tui/input-history.json，1000 条上限、进程内追加队列 + 重读合并原子写；上游 history.ts 模式，去重语义取本仓更强的全列表去重） |
 | src/lsp/lsp-bridge.ts | — | new（LSP 诊断桥：懒生命周期 + 展示层诊断缓存；扩展名不支持/server 未安装一次标记；per-file 合并与冷却） |
-| src/lsp/manager.ts | lsp/manager.ts | ported（单 LSP server：initialize/didOpen/changeFile/getFileDiagnostics，pull 优先 + publishDiagnostics 缓存） |
-| src/lsp/multi-manager.ts | lsp/multi-manager.ts | modified（spawn 简化：弃上游 spawnHidden/resolve-node-cli 桌面 bundle 适配，用 node:child_process spawn 直连） |
+| src/lsp/manager.ts | lsp/manager.ts | modified（initialize 竞速进程早夭：rpc 无超时，进程死掉时 pending 请求永不 settle → error/close settle 入 catch，防 ensure() 永久挂起） |
+| src/lsp/multi-manager.ts | lsp/multi-manager.ts | modified（spawn 简化：弃上游 spawnHidden/resolve-node-cli 桌面 bundle 适配，用 node:child_process spawn 直连；win32 经 cmd.exe /d /c 派发 .cmd——npx 不经 shell 直接 spawn 抛 EINVAL） |
 | src/lsp/rpc.ts | lsp/rpc.ts | ported（JSON-RPC over stdio：Content-Length 帧编解码 + 请求/通知分发） |
 | src/lsp/server-registry.ts | lsp/server-registry.ts | ported（语言 → server 映射：typescript 经 npx / pyright / gopls / rust-analyzer / clangd / jdtls + which 探测） |
 
@@ -116,6 +120,7 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 | src/mention-parser.ts | mention-parser.ts | modified |
 | src/pi/latex-block.ts | pi/latex-block.ts | modified |
 | src/pi/latex-to-unicode.ts | pi/latex-to-unicode.ts | modified |
+| src/prefs.ts | — | new（本地偏好持久化：~/.dsh-tui/prefs.json——theme/density/常驻面板/glance 段；容错解析 + 原子写 + VITEST 密封门） |
 | src/picker.ts | — | new（Issue #31 交互式选择器：纯状态机 + 渲染 + PickerController，/model /theme /session 无参打开） |
 | src/port.ts | — | new |
 | src/preset-surface.ts | — | new（agent 预设展示面纯投影：preset 名 = header 创建值 + agent-preset/selected 切换值 fold（官方 resolveSessionPreset 等价）；wire 工具面 = 最近 request/header 的 tools 集合（foldRequestHeader）；只消费日志事实，不重放 preset 插件私有晋升逻辑） |
@@ -125,7 +130,8 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 | src/restore-session.ts | restore-session.ts | modified |
 | src/ring-buffer.ts | ring-buffer.ts | modified |
 | src/scrollback-transcript.ts | scrollback-transcript.ts | modified |
-| src/self-update.ts | — | new（启动自更新：对照 npm latest 写 profile，dsh 原创） |
+| src/self-update.ts | — | new（启动自更新：对照 npm latest 写 profile，dsh 原创；1h 磁盘缓存免每启联网——~/.dsh-tui/update-cache.json 原子写；registry 镜像回退链 npmjs→npmmirror + DSH_TUI_UPDATE_REGISTRY 覆盖，#43） |
+| src/session-label.ts | — | new（会话 id 显示短标签：剥离 `session-` 前缀后截 8 位，消除空壳 label；PR #37 的同类截断点统一） |
 | src/restart.ts | — | new（#34：同命令行重启原语——argv 重放 + stdio inherit + POSIX detached；/restart 命令与更新后自动重启共用） |
 | src/skill-panel.ts | — | new |
 | src/status-panel.ts | — | new |
@@ -133,7 +139,7 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 | src/stream-window.ts | stream-window.ts | ported |
 | src/summary-state.ts | summary-state.ts | modified |
 | src/term-caps.ts | term-caps.ts | modified |
-| src/theme-custom.ts | theme-custom.ts | modified（自定义主题根路径重指到本包 home） |
+| src/theme-custom.ts | theme-custom.ts | modified（自定义主题根路径重指到本包 home；exportCurrentTheme：当前主题导出为自定义模板 + 就地注册） |
 | src/theme-detect.ts | theme-detect.ts | modified（pause 对称恢复：仅在进入时为暂停态才 `pause()`） |
 | src/theme-palettes.ts | theme-palettes.ts | modified |
 | src/format/top-bar.ts | — | new（C4 概念稿顶部栏：cwd + 分支 + 模型，纯渲染） |

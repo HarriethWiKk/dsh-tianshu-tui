@@ -24,7 +24,11 @@ export interface FormatGlanceBarInput {
     cost?: number;
     stalled?: boolean;
     ascii?: boolean;
+    /** 隐藏段（prefs.glance.hideSegments 透传；隐藏段不参与拼接与溢出丢弃）。 */
+    hideSegments?: readonly string[];
 }
+/** 可隐藏段 key（与 prefs.glance.hideSegments 对齐；model/stalled 永不可隐藏）。 */
+export declare const GLANCE_HIDEABLE_KEYS: readonly ['effort', 'cache', 'context', 'tokens', 'elapsed', 'cost'];
 /** 上下文占用警告阈值（≥ 此比例前缀 ⚠ 提示近满；与 Claude Code context 高水位对齐）。 */
 export declare const CONTEXT_WARN_RATIO = 0.95;
 /**

@@ -42,6 +42,15 @@ export declare const ANSI: {
     readonly HIDE_CURSOR: '\u001B[?25l';
     /** 显示光标 */
     readonly SHOW_CURSOR: '\u001B[?25h';
+    /**
+     * DECSCUSR：光标形状设为稳态竖条（不闪）。
+     * 终端原生光标闪烁会叠加在应用自管的 DECTCEM 翻转上，导致闪烁频率不稳、
+     * 静止光标也在闪——输入类 overlay 激活期间统一切到稳态竖条，
+     * 闪烁节奏完全由应用控制。竖条画在字符格左缘，天然落在格子边界上。
+     */
+    readonly CURSOR_STEADY_BAR: '\u001B[6 q';
+    /** DECSCUSR：光标形状恢复终端默认（退出 overlay 时写）。 */
+    readonly CURSOR_SHAPE_DEFAULT: '\u001B[0 q';
     /** 重置所有 SGR 属性 */
     readonly RESET: '\u001B[0m';
     /** 粗体 */

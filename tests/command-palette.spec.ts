@@ -317,4 +317,36 @@ describe('CommandPalette 控制器', () => {
     palette.move(-99)
     expect(palette.commit()?.entry.name).toBe('clear')
   })
+
+  it('#39 getSkills：技能条目并入面板（过滤/提交/render 全链路可见）', () => {
+    const skills = [
+      { name: 'find-skills', description: '🧭 发现技能' },
+      { name: 'plan-helper', description: '🧭 计划助手' },
+    ]
+    const palette = new CommandPalette({
+      getCommands: () => SAMPLE,
+      getSkills: () => skills,
+      getTheme: () => THEME,
+    })
+    palette.open(true) // execute 模式（Tab 命令菜单路径）
+    // 过滤：技能名参与匹配
+    palette.type('find')
+    expect(palette.commit()?.entry.name).toBe('find-skills')
+    expect(palette.commit()?.text).toBe('/find-skills')
+    // 空查询全量：命令 + 技能
+    palette.close()
+    palette.open()
+    const names = palette.entries.map(e => e.name)
+    expect(names).toContain('theme')
+    expect(names).toContain('find-skills')
+    // 渲染行包含技能条目
+    const lines = plain(palette.render(80, 24)).join('\n')
+    expect(lines).toContain('/find-skills')
+  })
+
+  it('#39 缺省无 getSkills → 仅命令条目（原行为）', () => {
+    const palette = new CommandPalette({ getCommands: () => SAMPLE, getTheme: () => THEME })
+    palette.open()
+    expect(palette.entries.map(e => e.name)).toEqual(['theme', 'clear', 'compact', 'steer'])
+  })
 })

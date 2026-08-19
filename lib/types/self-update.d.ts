@@ -8,6 +8,11 @@
 export declare const TUI_PACKAGE = "@huiliyi37/dsh-tianshu-tui";
 /** 显式关闭启动自更新（测试 / 不想联网）。 */
 export declare const SKIP_UPDATE_ENV = "DSH_TUI_SKIP_UPDATE";
+/** 更新检查磁盘缓存 TTL：1h——每次启动都打 registry 没必要，24h 又会让
+ *  装好新版本的用户一整天看不到更新提示（上游 updater 同款权衡）。 */
+export declare const UPDATE_CACHE_TTL_MS: number;
+/** 缓存落在本包 home（与自定义主题根 ~/.dsh-tui 同处，不污染 profile 目录）。 */
+export declare function defaultUpdateCachePath(): string;
 export type SkipReason = 'env' | 'ci' | 'not-npm' | 'same' | 'no-profile' | 'no-latest';
 export type UpdatePlan = {
     action: 'skip';
@@ -33,6 +38,10 @@ export interface RunSelfUpdateOptions {
     startDir?: string;
     fetchLatest?: () => Promise<string | null>;
     install?: (latest: string, profileDir: string) => Promise<void>;
+    /** 更新检查缓存路径（缺省 ~/.dsh-tui/update-cache.json）；仅真实网络路径使用。 */
+    cachePath?: string;
+    /** 时钟注入（缓存新鲜度判定）。 */
+    now?: () => number;
 }
 /** registry / dist-tag / 范围：视为 npm 安装。git 与本地路径不是。 */
 export declare function isNpmVersionSpec(spec: string): boolean;
@@ -53,7 +62,50 @@ export declare function planSelfUpdate(input: {
     installSpec: string | undefined;
     latest: string | null;
 }): UpdatePlan;
-export declare function fetchNpmLatest(packageName?: string, timeoutMs?: number): Promise<string | null>;
+/** registry 基址链：官方源 → 国内镜像（npmmirror，完整 npm REST 镜像）。
+ *  #43：registry.npmjs.org 直连不通的网络下，单源 3s 超时让启动检查恒失败。 */
+export declare const UPDATE_REGISTRY_FALLBACKS: readonly ['https://registry.npmjs.org', 'https://registry.npmmirror.com'];
+/** 自定义 registry 链（逗号分隔多个；优先生效）——私有源/代理场景。 */
+export declare const UPDATE_REGISTRY_ENV = "DSH_TUI_UPDATE_REGISTRY";
+/** 解析 registry 尝试链：DSH_TUI_UPDATE_REGISTRY 覆盖 > 官方 + npmmirror。 */
+export declare function npmRegistryCandidates(env?: NodeJS.ProcessEnv): string[];
+/** fetchNpmLatest 的注入面（测试密封）。 */
+export interface FetchLatestOptions {
+    /** registry 基址链；缺省 npmRegistryCandidates()。 */
+    registries?: string[];
+    /** fetch 实现；缺省全局 fetch。 */
+    fetchImpl?: typeof fetch;
+}
+/**
+ * 逐源查 latest：任一源拿到版本即返回——官方源超时/不可达时回退镜像。
+ * 单源失败（超时/网络错/非 200）不中断链；全部源都网络错则抛最后一个错误
+ * （保持启动「自更新失败」warning 语义，#43 之前行为）。全部源 200 但无
+ * version → null（no-latest 静默跳过）。
+ */
+export declare function fetchNpmLatest(packageName?: string, timeoutMs?: number, opts?: FetchLatestOptions): Promise<string | null>;
+/** 缓存文件形状。 */
+export interface UpdateCache {
+    /** 写入时刻（Date.now()，毫秒）。 */
+    timestamp: number;
+    /** 当时查得的 npm latest。 */
+    latest: string;
+}
+/** 读缓存；缺失/损坏/形状不对 → null（容错：缓存坏不挡更新检查）。 */
+export declare function readUpdateCache(path: string): UpdateCache | null;
+/** 原子写缓存（tmp + rename）；失败静默（缓存只是优化，不是正确性依赖）。 */
+export declare function writeUpdateCache(path: string, latest: string, now: number): void;
+/** 缓存是否仍新鲜（age < TTL；时钟回拨到写入前视为新鲜）。 */
+export declare function isCacheFresh(cache: UpdateCache, now: number, ttlMs?: number): boolean;
+/**
+ * 带缓存的 latest 获取：新鲜缓存直接用（零联网）；否则打 registry 并回写。
+ * 网络失败 → null（不回退旧值：旧值会让离线场景触发注定失败的安装尝试）。
+ */
+export declare function fetchLatestWithCache(input: {
+    cachePath: string;
+    now: number;
+    /** 网络获取函数（测试注入）；缺省真实 fetchNpmLatest。 */
+    fetchNet?: () => Promise<string | null>;
+}): Promise<string | null>;
 export type PackageManager = 'pnpm' | 'npm' | 'yarn';
 /**
  * 按 profile 锁文件探测包管理器（安装历史的确定性证据）：

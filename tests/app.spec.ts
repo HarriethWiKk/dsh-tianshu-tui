@@ -10,6 +10,7 @@ import type { WriteStream } from 'node:tty'
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { Agent, AgentHandle } from '@deepseek-ai/dsh-agent'
 import { TuiApp, parseSlashCommand } from '../src/ui/app.js'
+import type { SlashHintEntry } from '../src/engine/input-controller.js'
 import { decodeMessages, encodeMessage } from '../src/lsp/rpc.js'
 import { getActiveThemeName, setTheme } from '../src/theme.js'
 import { readImageFromClipboard, readTextFromClipboard } from '../src/engine/clipboard-image.js'
@@ -1790,9 +1791,16 @@ describe('TuiApp Phase 9d 流利度装配', () => {
           },
         },
       })
-      // 推进 200s：ticker（120ms）触发多轮渲染，tool action 档（180s）已过，
-      // 最后一次 renderLive 读到 stale 提示必须上屏
-      vi.advanceTimersByTime(200_000)
+      // stale 判定 = renderLive 时的 Date.now() - lastEventAt（fluency-hook
+      // 快照），与经过多少轮 ticker 无关——时间跳跃而非逐帧推进：
+      // setSystemTime 直接跨过 tool action 档（180s），再推进 1s 触发少量
+      // ticker/batcher 渲染即可。此前 advanceTimersByTime(200_000) 要同步跑
+      // ~1700 次全量 renderLive，真实 CPU 耗时随全量并发负载膨胀直至撞穿
+      // 20s 测试预算（跨四批复现的 flaky 根因；8 路压力下单测 13.2s）。
+      // async 版在每轮定时器间排空微任务，async flush 的 stdout.write 落定
+      // 顺序确定。
+      vi.setSystemTime(Date.now() + 200_000)
+      await vi.advanceTimersByTimeAsync(1_000)
     } finally {
       vi.useRealTimers()
     }
@@ -3503,6 +3511,143 @@ describe('TuiApp /config /skills /density 面板命令', () => {
   })
 })
 
+describe('TuiApp #39 技能手势：slash 菜单条目 + 提交分流 + MRU', () => {
+  /** userInvocable 技能替身（含仅模型可调的对照项）。 */
+  function withSkills(ctx: Context & MockCtx): { list: ReturnType<typeof vi.fn> } {
+    const list = vi.fn(async () => [
+      {
+        name: 'find-skills', description: '发现技能', provider: 'mock', source: 'custom',
+        invocation: { modelInvocable: true, userInvocable: true },
+      },
+      {
+        name: 'model-only', description: '仅模型可调', provider: 'mock', source: 'custom',
+        invocation: { modelInvocable: true, userInvocable: false },
+      },
+    ])
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'skills') return { list }
+      return undefined
+    })
+    return { list }
+  }
+
+  /** attach 后等 skills.list resolve（refreshSkillItems → refreshSlashEntries）。 */
+  async function mountedApp(): Promise<{ app: TuiApp; agent: Agent & MockAgent; ctx: Context & MockCtx }> {
+    const ctx = makeCtx()
+    withSkills(ctx)
+    const agent = makeAgent('skill-menu')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
+    await app.attach()
+    await new Promise(resolve => setImmediate(resolve))
+    await new Promise(resolve => setImmediate(resolve))
+    return { app, agent, ctx }
+  }
+
+  function inputControllerOf(app: TuiApp): {
+    slashCommands: SlashHintEntry[]
+    slashMenu: { open: boolean; matches: SlashHintEntry[] }
+    slashMru: string[]
+    refreshSlash(value: string): void
+  } {
+    return (app as unknown as { inputController: {
+      slashCommands: SlashHintEntry[]
+      slashMenu: { open: boolean; matches: SlashHintEntry[] }
+      slashMru: string[]
+      refreshSlash(value: string): void
+    } }).inputController
+  }
+
+  it('userInvocable 技能进 slash 菜单（🧭 标记）；仅模型可调技能不出现', async () => {
+    const { app } = await mountedApp()
+    const ic = inputControllerOf(app)
+    const commands = ic.slashCommands
+    expect(commands.some(c => c.name === 'find-skills' && c.description.startsWith('🧭 '))).toBe(true)
+    expect(commands.some(c => c.name === 'model-only')).toBe(false)
+    // 输入 `/find` → 菜单打开且技能条目在匹配里
+    ic.refreshSlash('/find')
+    expect(ic.slashMenu.open).toBe(true)
+    expect(ic.slashMenu.matches.some(m => m.name === 'find-skills')).toBe(true)
+    await app.dispose()
+  })
+
+  it('提交 `/skill-name` 走文本流（followup 触发）不落未知命令；MRU 记录', async () => {
+    const { app, agent } = await mountedApp()
+    app.handleSubmit('/find-skills')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(agent.followup).toHaveBeenCalledTimes(1)
+    const stdout = (app as unknown as { stdout: { write: ReturnType<typeof vi.fn> } }).stdout
+    const out = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(out).not.toContain('未知命令')
+    // MRU：技能手势记录（slash 菜单下次打开技能条目排前）
+    const ic = inputControllerOf(app)
+    expect(ic.slashMru[0]).toBe('find-skills')
+    await app.dispose()
+  })
+
+  it('技能名撞命令前缀 → 命令优先（/task 触发 /tasks 而非技能手势）', async () => {
+    const { app, agent } = await mountedApp()
+    // 真实技能名可能撞命令前缀（如名为 task 的技能）——命令命名空间
+    // 客户端先行解析（host 设计），命令优先，技能手势不触发。
+    app.handleSubmit('/task')
+    await new Promise(resolve => setImmediate(resolve))
+    // 命令优先：不提交给 agent，也不落未知命令
+    expect(agent.followup).not.toHaveBeenCalled()
+    const stdout = (app as unknown as { stdout: { write: ReturnType<typeof vi.fn> } }).stdout
+    const out = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(out).not.toContain('未知命令')
+    await app.dispose()
+  })
+
+  it('skills 服务缺失 → 菜单无技能条目；`/find-skills` 仍作文本提交（host 侧忽略）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('skill-none')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
+    await app.attach()
+    const ic = inputControllerOf(app)
+    expect(ic.slashCommands.some(c => c.name === 'find-skills')).toBe(false)
+    ic.refreshSlash('/find')
+    expect(ic.slashMenu.open).toBe(false)
+    // 未知技能名照常走文本流（host 把未知 /name 当普通文本）
+    app.handleSubmit('/find-skills')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(agent.followup).toHaveBeenCalledTimes(1)
+    await app.dispose()
+  })
+
+  it('attach 订阅 skills/change（目录变更 → 刷新菜单数据源）', async () => {
+    const ctx = makeCtx()
+    const { list } = withSkills(ctx)
+    const agent = makeAgent('skill-change')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
+    await app.attach()
+    await new Promise(resolve => setImmediate(resolve))
+    await new Promise(resolve => setImmediate(resolve))
+    expect(ctx.subscriptions.some(s => s.event === 'skills/change')).toBe(true)
+    const ic = inputControllerOf(app)
+    expect(ic.slashCommands.some(c => c.name === 'find-skills')).toBe(true)
+    // 目录在 attach 后变化（list 返回新技能）→ 刷新路径（事件回调等价调用）
+    // 让新技能进菜单
+    list.mockResolvedValueOnce([
+      {
+        name: 'late-skill', description: '晚到技能', provider: 'mock', source: 'custom',
+        invocation: { modelInvocable: true, userInvocable: true },
+      },
+    ])
+    const appAny = app as unknown as { skillSurface: { refresh(): void } }
+    appAny.skillSurface.refresh()
+    await new Promise(resolve => setImmediate(resolve))
+    expect(ic.slashCommands.some(c => c.name === 'late-skill')).toBe(true)
+    await app.dispose()
+    // 订阅释放由 afterEach 台账平衡断言覆盖
+  })
+})
+
 describe('TuiApp 生命周期边界', () => {
   it('dispose 后再 attach 抛错（已处置保护）', async () => {
     const ctx = makeCtx()
@@ -4089,20 +4234,27 @@ describe('TuiApp 结算卡与推理通道', () => {
     expect(expanded).toContain('✻ 思考')
     expect(expanded).toContain('ctrl+o 收起')
 
-    // Theme replay must not retain the transient expanded reasoning view.
+    // 主题重放不得保留瞬时的推理展开态（#40）。帧等待替代固定 60ms 睡眠：
+    // ctrl+o 渲染经 batcher 16ms 定时器帧，负向断言必须在新帧落定后读，
+    // 否则负载下提前读到旧帧即假绿。
+    const frameAfter = async (): Promise<string> => {
+      const before = stdout.write.mock.calls.length
+      await vi.waitFor(() => {
+        expect(stdout.write.mock.calls.length).toBeGreaterThan(before)
+      }, { timeout: 5_000, interval: 15 })
+      return stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    }
     stdout.write.mockClear()
     app.handleSubmit('/theme paper')
-    await new Promise(resolve => setTimeout(resolve, 60))
-    const themed = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    const themed = await frameAfter()
     expect(themed).not.toContain('ctrl+o 收起')
 
-    // Theme replay resets the transient expansion; re-open it, then collapse it.
+    // 重放复位瞬时展开；重开一次，再收起验证往返。
     stdin.emit('data', '\x0f')
-    await new Promise(resolve => setTimeout(resolve, 60))
+    await frameAfter()
     stdout.write.mockClear()
     stdin.emit('data', '\x0f')
-    await new Promise(resolve => setTimeout(resolve, 60))
-    const collapsed = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    const collapsed = await frameAfter()
     expect(collapsed).not.toContain('展开可见的推理正文')
     await app.dispose()
   })
@@ -5313,7 +5465,7 @@ describe('C4 概念稿 菜单快捷键与三行底部区（提交后审查补测
     // tab 栏渲染：短 id + 当前 ●（s1 当前）
     await new Promise(resolve => setTimeout(resolve, 50))
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).toContain('session-tab-one'.slice(0, 8) + '●')
+    expect(written).toContain('session-tab-one'.replace(/^session-/, '').slice(0, 8) + '●')
     // Ctrl+X → 下一个（s2）
     stdin.emit('data', '\x18')
     await new Promise(resolve => setTimeout(resolve, 50))
@@ -5326,6 +5478,36 @@ describe('C4 概念稿 菜单快捷键与三行底部区（提交后审查补测
     stdin.emit('data', '\x1b9')
     await new Promise(resolve => setTimeout(resolve, 50))
     expect(app.sessionId).toBe(s3)
+    await app.dispose()
+  })
+
+  it('会话 tab 栏：真实 id 形态（session- 前缀）标签去前缀显示，不出现 [session-] 空壳', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('tab-real')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const s1 = SessionId('session-aaaabbbbcccc-rest')
+    const s2 = SessionId('session-ddddeeeeffff-rest')
+    const headerOf = (id: SessionId, createdAt: number) => ({
+      id, createdAt, version: 0, cwd: undefined, parentSession: undefined,
+    })
+    ctx.sessions.list.mockReturnValue([
+      { id: s1, header: headerOf(s1, Date.now() - 1_000), events: [] },
+      { id: s2, header: headerOf(s2, Date.now() - 2_000), events: [] },
+    ])
+    ctx.agents.get.mockReturnValue(agent)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    await new Promise(resolve => setTimeout(resolve, 50))
+    // 数据层断言：label 是去 session- 前缀后的短 id（formatSessionTabs 渲染
+    // [label●] 时不再出现 [session-] 空壳）。
+    // sessionTabs 是 TuiApp 私有成员：测试经类型断言读取（vitest 运行时可见）。
+    const tabs = (app as unknown as { sessionTabs: { label: string }[] }).sessionTabs
+    expect(tabs.map(t => t.label)).toEqual(['aaaabbbb', 'ddddeeee'])
+    expect(tabs.some(t => t.label.includes('session-'))).toBe(false)
     await app.dispose()
   })
 
@@ -5547,7 +5729,7 @@ describe('slash 命令菜单接线（grok slash_dropdown 移植）', () => {
     stdout.write.mockClear() // 只统计 ↑ 后的渲染
     stdin.emit('data', '\x1b[A')
     const written = await writtenOf(stdout)
-    expect(written).toMatch(/❯ \/density/) // 环绕到最后一项（含外部插件命令）
+    expect(written).toMatch(/❯ \/glance/) // 环绕到最后一项（含外部插件命令；P1 后末项为 /glance）
     await app.dispose()
   })
 
@@ -5907,9 +6089,13 @@ describe('TuiApp 剪贴板图片与复制（opencode 接线移植）', () => {
     stdout.write.mockClear()
     // 右键粘贴图片：终端把图片字节作为文本 paste 进来（乱码）
     stdin.emit('data', '\x1b[200~���PNG\x1b[201~')
-    await new Promise(resolve => setTimeout(resolve, 40))
+    // 条件轮询替代固定 40ms：附图渲染异步落定，全量并发负载下固定等待
+    // 曾欠额（与本文件流利度 flaky 同类根因）
+    await vi.waitFor(() => {
+      const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+      expect(written).toContain('📎 1 image')
+    }, { timeout: 5_000, interval: 25 })
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).toContain('📎 1 image')
     expect(written).not.toContain('���PNG') // 乱码被吞
     await app.dispose()
   })
@@ -5923,9 +6109,11 @@ describe('TuiApp 剪贴板图片与复制（opencode 接线移植）', () => {
       await app.attach()
       stdout.write.mockClear()
       stdin.emit('data', `\x1b[200~${pngPath}\x1b[201~`)
-      await new Promise(resolve => setTimeout(resolve, 60))
-      const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-      expect(written).toContain('📎 1 image')
+      // 条件轮询替代固定 60ms（同上：异步加载 + 渲染在全量并发下不定时落定）
+      await vi.waitFor(() => {
+        const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+        expect(written).toContain('📎 1 image')
+      }, { timeout: 5_000, interval: 25 })
       await app.dispose()
     } finally {
       rmSync(dir, { recursive: true, force: true })
@@ -5937,9 +6125,11 @@ describe('TuiApp 剪贴板图片与复制（opencode 接线移植）', () => {
     await app.attach()
     stdout.write.mockClear()
     stdin.emit('data', '\x1b[200~/nonexistent/does-not-exist.png\x1b[201~')
-    await new Promise(resolve => setTimeout(resolve, 60))
-    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).toContain('图片加载失败')
+    // 条件轮询替代固定 60ms（异步加载失败警告在负载下不定时落定）
+    await vi.waitFor(() => {
+      const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+      expect(written).toContain('图片加载失败')
+    }, { timeout: 5_000, interval: 25 })
     await app.dispose()
   })
 

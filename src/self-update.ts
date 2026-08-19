@@ -6,7 +6,8 @@
  */
 
 import { spawn } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 /** 与 package.json name 对齐；profile 依赖键、npm 包名都用它。 */
@@ -14,6 +15,15 @@ export const TUI_PACKAGE = '@huiliyi37/dsh-tianshu-tui'
 
 /** 显式关闭启动自更新（测试 / 不想联网）。 */
 export const SKIP_UPDATE_ENV = 'DSH_TUI_SKIP_UPDATE'
+
+/** 更新检查磁盘缓存 TTL：1h——每次启动都打 registry 没必要，24h 又会让
+ *  装好新版本的用户一整天看不到更新提示（上游 updater 同款权衡）。 */
+export const UPDATE_CACHE_TTL_MS = 60 * 60 * 1_000
+
+/** 缓存落在本包 home（与自定义主题根 ~/.dsh-tui 同处，不污染 profile 目录）。 */
+export function defaultUpdateCachePath(): string {
+  return join(homedir(), '.dsh-tui', 'update-cache.json')
+}
 
 export type SkipReason = 'env' | 'ci' | 'not-npm' | 'same' | 'no-profile' | 'no-latest'
 
@@ -34,6 +44,10 @@ export interface RunSelfUpdateOptions {
   startDir?: string
   fetchLatest?: () => Promise<string | null>
   install?: (latest: string, profileDir: string) => Promise<void>
+  /** 更新检查缓存路径（缺省 ~/.dsh-tui/update-cache.json）；仅真实网络路径使用。 */
+  cachePath?: string
+  /** 时钟注入（缓存新鲜度判定）。 */
+  now?: () => number
 }
 
 /** registry / dist-tag / 范围：视为 npm 安装。git 与本地路径不是。 */
@@ -120,12 +134,123 @@ export function planSelfUpdate(input: {
   return { action: 'update', latest: input.latest }
 }
 
-export async function fetchNpmLatest(packageName: string = TUI_PACKAGE, timeoutMs = 3_000): Promise<string | null> {
-  const url = `https://registry.npmjs.org/${packageName.replace('/', '%2f')}/latest`
-  const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) })
+/** registry 基址链：官方源 → 国内镜像（npmmirror，完整 npm REST 镜像）。
+ *  #43：registry.npmjs.org 直连不通的网络下，单源 3s 超时让启动检查恒失败。 */
+export const UPDATE_REGISTRY_FALLBACKS = ['https://registry.npmjs.org', 'https://registry.npmmirror.com'] as const
+
+/** 自定义 registry 链（逗号分隔多个；优先生效）——私有源/代理场景。 */
+export const UPDATE_REGISTRY_ENV = 'DSH_TUI_UPDATE_REGISTRY'
+
+/** 解析 registry 尝试链：DSH_TUI_UPDATE_REGISTRY 覆盖 > 官方 + npmmirror。 */
+export function npmRegistryCandidates(env: NodeJS.ProcessEnv = process.env): string[] {
+  const custom = env[UPDATE_REGISTRY_ENV]
+  if (custom !== undefined && custom.trim() !== '') {
+    const list = custom.split(',').map(s => s.trim()).filter(s => s !== '')
+    if (list.length > 0) return list
+  }
+  return [...UPDATE_REGISTRY_FALLBACKS]
+}
+
+/** fetchNpmLatest 的注入面（测试密封）。 */
+export interface FetchLatestOptions {
+  /** registry 基址链；缺省 npmRegistryCandidates()。 */
+  registries?: string[]
+  /** fetch 实现；缺省全局 fetch。 */
+  fetchImpl?: typeof fetch
+}
+
+async function fetchLatestFromRegistry(
+  baseUrl: string,
+  packageName: string,
+  timeoutMs: number,
+  fetchImpl: typeof fetch,
+): Promise<string | null> {
+  const url = `${baseUrl.replace(/\/$/, '')}/${packageName.replace('/', '%2f')}/latest`
+  const res = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) })
   if (!res.ok) return null
   const body = await res.json() as { version?: unknown }
   return typeof body.version === 'string' ? body.version : null
+}
+
+/**
+ * 逐源查 latest：任一源拿到版本即返回——官方源超时/不可达时回退镜像。
+ * 单源失败（超时/网络错/非 200）不中断链；全部源都网络错则抛最后一个错误
+ * （保持启动「自更新失败」warning 语义，#43 之前行为）。全部源 200 但无
+ * version → null（no-latest 静默跳过）。
+ */
+export async function fetchNpmLatest(packageName: string = TUI_PACKAGE, timeoutMs = 3_000, opts: FetchLatestOptions = {}): Promise<string | null> {
+  const registries = opts.registries ?? npmRegistryCandidates()
+  const fetchImpl = opts.fetchImpl ?? fetch
+  let lastError: unknown
+  let sawError = false
+  for (const baseUrl of registries) {
+    try {
+      const version = await fetchLatestFromRegistry(baseUrl, packageName, timeoutMs, fetchImpl)
+      if (version !== null) return version
+    } catch (err) {
+      sawError = true
+      lastError = err
+    }
+  }
+  if (sawError) throw lastError
+  return null
+}
+
+// ── 更新检查磁盘缓存（免每启联网）─────────────────────────────
+
+/** 缓存文件形状。 */
+export interface UpdateCache {
+  /** 写入时刻（Date.now()，毫秒）。 */
+  timestamp: number
+  /** 当时查得的 npm latest。 */
+  latest: string
+}
+
+/** 读缓存；缺失/损坏/形状不对 → null（容错：缓存坏不挡更新检查）。 */
+export function readUpdateCache(path: string): UpdateCache | null {
+  try {
+    const raw = JSON.parse(readFileSync(path, 'utf-8')) as Partial<UpdateCache>
+    if (typeof raw.timestamp === 'number' && typeof raw.latest === 'string') {
+      return { timestamp: raw.timestamp, latest: raw.latest }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/** 原子写缓存（tmp + rename）；失败静默（缓存只是优化，不是正确性依赖）。 */
+export function writeUpdateCache(path: string, latest: string, now: number): void {
+  try {
+    mkdirSync(dirname(path), { recursive: true })
+    const tmp = `${path}.${process.pid}.tmp`
+    writeFileSync(tmp, `${JSON.stringify({ timestamp: now, latest } satisfies UpdateCache)}\n`)
+    renameSync(tmp, path)
+  } catch {
+    // best-effort：磁盘不可写（只读 home/权限）时保持每启联网的原行为
+  }
+}
+
+/** 缓存是否仍新鲜（age < TTL；时钟回拨到写入前视为新鲜）。 */
+export function isCacheFresh(cache: UpdateCache, now: number, ttlMs = UPDATE_CACHE_TTL_MS): boolean {
+  return now - cache.timestamp < ttlMs
+}
+
+/**
+ * 带缓存的 latest 获取：新鲜缓存直接用（零联网）；否则打 registry 并回写。
+ * 网络失败 → null（不回退旧值：旧值会让离线场景触发注定失败的安装尝试）。
+ */
+export async function fetchLatestWithCache(input: {
+  cachePath: string
+  now: number
+  /** 网络获取函数（测试注入）；缺省真实 fetchNpmLatest。 */
+  fetchNet?: () => Promise<string | null>
+}): Promise<string | null> {
+  const cached = readUpdateCache(input.cachePath)
+  if (cached !== null && isCacheFresh(cached, input.now)) return cached.latest
+  const fetched = await (input.fetchNet ?? fetchNpmLatest)()
+  if (fetched !== null && fetched !== '') writeUpdateCache(input.cachePath, fetched, input.now)
+  return fetched
 }
 
 export type PackageManager = 'pnpm' | 'npm' | 'yarn'
@@ -205,7 +330,13 @@ export async function runSelfUpdate(opts: RunSelfUpdateOptions = {}): Promise<Up
   const currentVersion = opts.currentVersion ?? readOwnVersion(startDir) ?? ''
   const installSpec = opts.installSpec ?? (profileDir === undefined ? undefined : readInstallSpec(profileDir))
   try {
-    const latest = opts.fetchLatest === undefined ? await fetchNpmLatest() : await opts.fetchLatest()
+    // 注入缝优先（测试密封化）；真实路径走 1h 磁盘缓存免每启联网
+    const latest = opts.fetchLatest !== undefined
+      ? await opts.fetchLatest()
+      : await fetchLatestWithCache({
+          cachePath: opts.cachePath ?? defaultUpdateCachePath(),
+          now: opts.now?.() ?? Date.now(),
+        })
     const plan = planSelfUpdate({ env, currentVersion, profileDir, installSpec, latest })
     if (plan.action === 'skip') return { kind: 'noop' }
     if (profileDir === undefined) return { kind: 'noop' }

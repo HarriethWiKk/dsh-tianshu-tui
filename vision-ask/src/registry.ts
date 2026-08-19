@@ -167,10 +167,10 @@ export class ImageRegistry {
  * 避免不稳定字节）。移植自 opencode-tui vision-service.ts 的 visionCacheKey。
  * @param question - 用户/模型对图片提出的具体问题（可省略）
  * @param configuredPrompt - 显式配置的描述 prompt（可省略）
- * @param accompanyingText - 随图文本（prompt 未配置时参与模式判定，可省略）
+ * @param accompanyingText - 随图文本（保留参数，当前缓存键未参与判定；可省略）
  * @returns 稳定缓存键
  */
-export function visionCacheKey(question?: string, configuredPrompt?: string, accompanyingText?: string): string {
+export function visionCacheKey(question?: string, configuredPrompt?: string, _accompanyingText?: string): string {
   const q = question?.trim()
   if (q) return `q:${q.replace(/\s+/g, ' ').toLowerCase()}`
   // 无问题时按描述模式归类：显式 prompt 视为 general（不可归类为 UI 精确模式）。

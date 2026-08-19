@@ -23,6 +23,16 @@ export type OverlayId = string;
 export interface OverlayRenderer {
     /** 渲染 overlay 内容。返回 ANSI 格式化后的行数组。 */
     render(width: number, height: number): string[];
+    /**
+     * 本帧硬件光标的落点（1-based 行/列）；null = 隐藏硬件光标。
+     * 输入类 overlay 用它呈现"格子边界"光标——终端原生光标不占字符格、
+     * 不挤压文本，位置由渲染方按显示宽度折算。未提供此方法的 overlay
+     * 维持光标隐藏（进 alt screen 时已 HIDE）。
+     */
+    caret?(width: number, height: number): {
+        row: number;
+        col: number;
+    } | null;
     /** overlay 激活时的回调 */
     onActivate?(): void;
     /** overlay 失活时的回调 */

@@ -19,10 +19,12 @@ export interface MultiLspOptions {
 }
 type LspSpawnFn = (cmd: string, args: string[], opts: Record<string, unknown>) => ChildProcess;
 /**
- * Default spawn for LSP servers: plain child_process.spawn. The TUI runs in a
- * normal Node process whose PATH carries npx (the CLI is launched via
- * `npx dsh`), so `npx -y typescript-language-server --stdio` resolves directly;
- * other servers are launched by their bare command names.
+ * Default spawn for LSP servers: plain child_process.spawn (non-win32).
+ * Windows 上 npx 与 npm 全局装的 langserver 都是 .cmd，不经 shell 直接
+ * spawn 抛 EINVAL（CVE-2024-27980 后行为）——win32 经 ComSpec（cmd.exe）
+ * /d /c 以 argv 数组显式派发，同 self-update 的包管理器派发；shell 保持
+ * false，避开 DEP0190 弃用警告渲染进 TUI。command/args 均来自仓内
+ * server-registry 固定表，无用户输入，无注入面。
  */
 export declare function defaultLspSpawn(def: LspServerDef, cwd: string, spawnFn?: LspSpawnFn): ChildProcess;
 export declare function createMultiLspManager(cwd: string, opts?: MultiLspOptions): LspManager;

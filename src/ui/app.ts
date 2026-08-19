@@ -19,12 +19,22 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { execFileSync } from 'node:child_process'
+import { gitBranch, gitDirtyCount, isGitRepo } from '../git-status.js'
+import {
+  GLANCE_HIDEABLE_SEGMENTS,
+  prefsEnabled,
+  readPrefs,
+  writePrefs,
+  type GlanceHideableSegment,
+  type TuiPrefs,
+} from '../prefs.js'
+import { appendInputHistory, inputHistoryEnabled, loadInputHistory, MAX_INPUT_HISTORY } from '../input-history.js'
+import { exportCurrentTheme } from '../theme-custom.js'
 import { writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join, resolve } from 'node:path'
 import type { ReadStream, WriteStream } from 'node:tty'
-import type { Context } from '@deepseek-ai/cordis'
+import type { Context, Events } from '@deepseek-ai/cordis'
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { CallId, TokenUsage } from '@deepseek-ai/dsh-llm'
 import { installModelSelection, type Agent, type AgentHandle, type ModelSelection, type ModelSelectionRef } from '@deepseek-ai/dsh-agent'
@@ -56,7 +66,7 @@ import { controlsFromHandle, controlsFromRegistry, type AgentControls } from '..
 import { listSessions, flushAll, getSession, type SessionSummary } from '../adapter/sessions.js'
 import { updateNoticeText, autoRestartNoticeText, readOwnVersion } from '../self-update.js'
 import { supportsOsc52 } from '../term-caps.js'
-import { getTheme, getActiveThemeName, setTheme, THEME_NAMES, type RivetTheme, type ThemeName } from '../theme.js'
+import { getTheme, getActiveThemeName, listCustomThemes, setTheme, THEME_NAMES, type RivetTheme } from '../theme.js'
 import { displayWidth, ambiguousWideEnabled } from '../width.js'
 import { detectTerminalBackground, autoThemeFor } from '../theme-detect.js'
 import { formatUserMessage } from '../format/user-message.js'
@@ -64,7 +74,6 @@ import { formatSteerMessage } from '../format/steer-message.js'
 import { formatToolCardLive, toolCardTitle } from '../format/tool-card.js'
 import { formatToolViewCard } from '../format/tool-view-card.js'
 import { formatReasoningBlock, formatReasoningLive, reasoningTailBudget } from '../format/reasoning.js'
-import { estimateCost } from '../format/pricing.js'
 import { renderKeymapPanel } from '../format/keymap-panel.js'
 import { renderSessionExport } from '../format/export.js'
 import type { TaskItem } from '../format/task-panel.js'
@@ -88,7 +97,6 @@ import {
   projectQuestionPanel,
 } from '../question-panel.js'
 import type { ConfigPanelProjection } from '../config-panel.js'
-import type { SkillSummaryInput } from '../skill-panel.js'
 /** Wave 2：renderLive 7 面板纯函数 + 单帧快照类型（app.ts → render/ 单向依赖）。 */
 import {
   renderGlancePanel,
@@ -219,9 +227,11 @@ import {
 } from '../commands/registry.js'
 import { PickerController, type PickerItem } from '../picker.js'
 import { formatSessionTabs, type SessionTab } from '../format/session-tabs.js'
+import { shortSessionLabel } from '../session-label.js'
 import { accumulateUsage, formatSessionCostReport, type SessionCostBucket } from '../format/session-cost.js'
 import { renderTranscript, parseToolArguments, toolResultText, type RenderedRow } from './render.js'
 import { CommandPalette } from '../command-palette.js'
+import { SkillSurfaceController } from '../controllers/skill-surface.js'
 import { OverlayController } from '../engine/overlay-controller.js'
 import { MetricsGlanceController } from '../engine/metrics-glance-controller.js'
 import type { FormatGlanceBarInput } from '../format/glance-bar.js'
@@ -242,6 +252,8 @@ import type {} from '@deepseek-ai/dsh-user-approval'
 // handler 参数仍按本地结构子集标注，属主类型逆变兼容）。
 import type {} from '@deepseek-ai/dsh-subagent'
 import type {} from '@deepseek-ai/dsh-workflow'
+// #39：skills/change 订阅类型（dsh-skill module augmentation；同款副作用导入）。
+import type {} from '@deepseek-ai/dsh-skill'
 
 /** Phase 8：审批 answerer 的请求/结果类型由 ApprovalController 持有（单向依赖）。 */
 import {
@@ -262,6 +274,7 @@ import { formatInputFrame } from '../format/input-frame.js'
 import { formatSlashMenu, SLASH_MENU_MAX_ROWS } from '../format/slash-menu.js'
 import { formatSubagentRunning, formatSubagentDone } from '../format/subagent-line.js'
 import { glanceBarSegments } from '../format/glance-bar.js'
+import { buildGlanceMetrics } from '../format/glance-metrics.js'
 import { MemoryBrowserOverlay } from '../format/memory-overlay.js'
 
 /**
@@ -305,10 +318,13 @@ export interface TuiAppOptions {
   stdin: ReadStream
   /** 启动时切入的会话 id；缺省优先恢复最近会话（live store 为空才新建）。 */
   initialSessionId?: SessionId
-  /** 主题名；'auto' 走系统终端配色探测，缺省 'auto'。 */
+  /** 主题名；'auto' 走系统终端配色探测。优先级：装配 > prefs.json > 'auto'。 */
   theme?: string
-  /** 持久化已确认的主题名；由 runner 接入宿主 settings。 */
-  persistTheme?: (name: string) => void
+  /** 偏好文件路径（theme/density/常驻面板/glance 段）；null 显式禁用。
+   *  缺省：生产 ~/.dsh-tui/prefs.json，VITEST 下 null（测试密封门）。 */
+  prefsPath?: string | null
+  /** 输入历史文件路径；null 显式禁用。缺省同 prefs 的密封门规则。 */
+  inputHistoryPath?: string | null
   /** 输入行为空时 Ctrl+C 的退出回调（raw-mode 下 Ctrl+C 是数据字节非 SIGINT）。 */
   onExit?: () => void
   /** /restart 与更新后自动重启的回调（装配方负责 dispose + spawn 同 argv + 退出）。 */
@@ -442,49 +458,6 @@ function looksLikeFilePath(
   return false
 }
 
-/** 检测当前目录是否为 git 仓库（静默，失败返回 false）。 */
-function isGitRepo(): boolean {
-  try {
-    execFileSync('git', ['rev-parse', '--is-inside-work-tree'], { stdio: 'pipe', encoding: 'utf-8' })
-    return true
-  } catch {
-    return false
-  }
-}
-
-/**
- * 读取当前 git 分支（C4 概念稿 A top bar；attach 时一次，静默）。
- * detached HEAD 或非仓库返回 undefined（不渲染分支段）。
- */
-function gitBranch(): string | undefined {
-  try {
-    const out = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
-      stdio: ['ignore', 'pipe', 'ignore'],
-      encoding: 'utf-8',
-    }).trim()
-    return out === '' || out === 'HEAD' ? undefined : out
-  } catch {
-    return undefined
-  }
-}
-
-/**
- * git 未提交改动文件数（`git status --short` 非空行计数；footer ●N 数据源）。
- * 非仓库/命令失败返回 0（静默降级，同 gitBranch）。
- * @returns 未提交文件数；0 = 干净或不可检测。
- */
-function gitDirtyCount(): number {
-  try {
-    const out = execFileSync('git', ['status', '--short'], {
-      stdio: ['ignore', 'pipe', 'ignore'],
-      encoding: 'utf-8',
-    })
-    return out.split('\n').filter(l => l.trim() !== '').length
-  } catch {
-    return 0
-  }
-}
-
 /**
  * 解析 slash 命令（最小唯一前缀匹配，委托 registry 解析核心）。
  * 兼容导出（steer.spec.ts 消费）；TuiApp 内部走实例注册表（含扩展命令）。
@@ -584,7 +557,6 @@ export class TuiApp {
   private ownedHandle: AgentHandle | null = null
   private readonly initialSessionId: SessionId | undefined
   private readonly themeName: string
-  private readonly persistTheme: ((name: string) => void) | undefined
   private readonly onExit: (() => void) | undefined
   private readonly onRestart: (() => void) | undefined
   /** 外部编辑器触发键（Phase 6.4）；缺省 ctrl_e（ctrl+o 已恢复为推理展开）。 */
@@ -621,8 +593,8 @@ export class TuiApp {
   private configProjection: ConfigPanelProjection | null = null
   /** T3.3：/skills 面板显隐（/skills 切换）。 */
   private skillsPanelVisible = false
-  /** T3.3：skill 快照缓存（ctx.skills.list；空数组 = 无技能或未加载）。 */
-  private skillItems: SkillSummaryInput[] = []
+  /** #39：技能展示面控制器（快照缓存 + userInvocable 过滤 + slash 菜单投影 + 手势 MRU）。 */
+  private readonly skillSurface: SkillSurfaceController
   /** LSP：/lsp 面板显隐（/lsp 切换）。 */
   private lspPanelVisible = false
   /** LSP：诊断桥（懒创建——首次工具触碰文件或 /lsp 打开时实例化；dispose 销毁）。 */
@@ -676,6 +648,10 @@ export class TuiApp {
   private readonly pendingCallTitles = new Map<CallId, string>()
   private activeSessionId: SessionId | null = null
   private history: string[] = []
+  /** P1：本地偏好（~/.dsh-tui/prefs.json；prefsPath null = 禁用——VITEST 密封门）。 */
+  private prefsPath: string | null = null
+  private prefs: TuiPrefs = {}
+  private inputHistoryPath: string | null = null
   private tick = 0
   private ticker: ReturnType<typeof setInterval> | null = null
   private disposed = false
@@ -716,8 +692,16 @@ export class TuiApp {
     this.stdout = options.stdout
     this.stdin = options.stdin
     this.initialSessionId = options.initialSessionId
-    this.themeName = options.theme ?? 'auto'
-    this.persistTheme = options.persistTheme
+    // P1 偏好恢复：装配 theme > prefs.theme > 'auto'；density/常驻面板/输入历史同源。
+    // VITEST 下 prefsEnabled/inputHistoryEnabled 默认 null（不碰真实 home，测试密封）。
+    this.prefsPath = prefsEnabled(options.prefsPath)
+    this.inputHistoryPath = inputHistoryEnabled(options.inputHistoryPath)
+    this.prefs = this.prefsPath === null ? {} : readPrefs(this.prefsPath)
+    if (this.inputHistoryPath !== null) this.history = loadInputHistory(this.inputHistoryPath)
+    this.themeName = options.theme ?? this.prefs.theme ?? 'auto'
+    if (this.prefs.compactMode === true) this.compactMode = true
+    if (this.prefs.panels?.subagents === true) this.subagentsPanelVisible = true
+    if (this.prefs.panels?.workflow === true) this.workflowPanelVisible = true
     this.onExit = options.onExit
     this.onRestart = options.onRestart
     this.editorKey = options.editorKey ?? 'ctrl_e'
@@ -779,7 +763,7 @@ export class TuiApp {
     // T2.1/T2.2/T2.3：/tasks（含 kill 子命令）、/subagents、/workflow 的命令定义在
     // createBuiltinCommands（registry 维度），TuiApp 只注入显隐切换 deps。
     for (const command of createBuiltinCommands({
-      persistTheme: name => { this.persistTheme?.(name) },
+      // #40：/theme 生效后按新主题重放当前会话历史（reset 滚动区重提交）。
       onThemeChanged: () => { this.rerenderHistory() },
       newSession: () => this.newSession(),
       forkSession: () => this.forkSession(),
@@ -817,6 +801,9 @@ export class TuiApp {
         if (this.subagentsPanelVisible && this.ctx.reflect.get('subagents', false) === undefined) {
           this.echoWarn('⚠ subagents 服务不可用（未装配 subagent 插件），委派树面板无数据')
         }
+        // P1：常驻监控面板显隐写透（下次启动恢复）
+        this.prefs.panels = { ...this.prefs.panels, subagents: this.subagentsPanelVisible }
+        this.persistPrefs()
         this.renderBatcher.schedule()
       },
       toggleWorkflowPanel: () => {
@@ -824,6 +811,8 @@ export class TuiApp {
         if (this.workflowPanelVisible && this.ctx.reflect.get('workflowEngine', false) === undefined) {
           this.echoWarn('⚠ workflow 引擎不可用（未装配 workflow 插件），面板无运行数据')
         }
+        this.prefs.panels = { ...this.prefs.panels, workflow: this.workflowPanelVisible }
+        this.persistPrefs()
         this.renderBatcher.schedule()
       },
       rewindSession: () => this.rewindSession(),
@@ -840,6 +829,10 @@ export class TuiApp {
       // #31：交互式选择器（/model /theme /session 无参打开）。
       openModelPicker: () => { void this.openModelPicker() },
       openThemePicker: () => { this.openThemePicker() },
+      // P1：主题持久化写透 + auto/export 子命令（app 私有实现，registry 只路由）。
+      onThemeApplied: (name) => { this.applyThemeAndPersist(name) },
+      applyThemeAuto: () => { void this.applyThemeAuto() },
+      exportTheme: (name) => this.exportTheme(name),
       openSessionPicker: () => { void this.openSessionPicker() },
       // /cost：当前会话累计用量与成本报告（Map 保持首次出现序）。
       sessionCostReport: () => formatSessionCostReport([...this.sessionCosts.values()]),
@@ -894,7 +887,7 @@ export class TuiApp {
           if (this.ctx.reflect.get('skills', false) === undefined) {
             this.echoWarn('⚠ skills 服务不可用（未装配 skill 插件），技能面板无数据')
           }
-          this.refreshSkillItems()
+          this.skillSurface.refresh()
         }
         this.renderBatcher.schedule()
       },
@@ -916,11 +909,49 @@ export class TuiApp {
       description: '切换紧凑渲染模式（工具卡仅标题行）',
       run: () => {
         this.compactMode = !this.compactMode
+        // P1：写透偏好（下次启动恢复）
+        this.prefs.compactMode = this.compactMode
+        this.persistPrefs()
         this.renderBatcher.schedule()
       },
     })
+    this.slash.register({
+      name: 'glance',
+      description: '切换 footer metrics 段显隐（如 /glance cost）',
+      argsHint: '[segment]',
+      run: ({ text, echo }) => {
+        const seg = text.trim()
+        const hidden = new Set(this.prefs.glance?.hideSegments ?? [])
+        if (seg === '') {
+          const hiddenText = hidden.size === 0 ? '无' : [...hidden].join(', ')
+          echo(`metrics 段：隐藏 ${hiddenText}；可切换：${GLANCE_HIDEABLE_SEGMENTS.join(', ')}`)
+          return
+        }
+        if (!(GLANCE_HIDEABLE_SEGMENTS as readonly string[]).includes(seg)) {
+          echo(`未知段: ${seg}。可切换: ${GLANCE_HIDEABLE_SEGMENTS.join(', ')}`)
+          return
+        }
+        const key = seg as GlanceHideableSegment
+        if (hidden.has(key)) hidden.delete(key)
+        else hidden.add(key)
+        this.prefs.glance = { hideSegments: [...hidden] }
+        this.persistPrefs()
+        echo(`${key} 段已${hidden.has(key) ? '隐藏' : '恢复'}`)
+        this.renderBatcher.schedule()
+      },
+    })
+    // #39：技能展示面控制器装配（技能目录加载后经 refresh → refreshEntries 合并）。
+    this.skillSurface = new SkillSurfaceController({
+      getService: (name) => this.ctx.reflect.get(name, false),
+      listCommandHints: () => this.slash.list().map(toSlashHint),
+      setSlashEntries: (entries) => { this.inputController.slashCommands = entries },
+      scheduleRender: () => { this.renderBatcher.schedule() },
+      isDisposed: () => this.disposed,
+      recordSlashUse: (name) => { this.inputController.recordSlashUse(name) },
+      onEvent: (event, cb) => this.ctx.on(event as keyof Events, cb),
+    })
     // 命令提示数据源投影到 InputController（slash hint / Tab 补全目标）。
-    this.inputController.slashCommands = this.slash.list().map(toSlashHint)
+    this.skillSurface.refreshEntries()
     this.ctx.provide('tui.commands', this.slash)
     // Phase 5.3：glance 数据源是惰性闭包（statusLine/liveAgent 随会话挂载），
     // 构造期只固定取数路径，会话切换后自动读到新投影。throttleMs: 0——
@@ -1060,8 +1091,12 @@ export class TuiApp {
       const background = await detectTerminalBackground()
       /* v8 ignore next -- autoThemeFor 恒返回有效主题名，setTheme 恒 true，graphite 兜底不可达 */
       if (!setTheme(autoThemeFor(background))) setTheme('graphite')
-    } else {
-      setTheme(this.themeName)
+    } else if (!setTheme(this.themeName)) {
+      // 持久化的主题已不可解析（自定义主题文件被删等）——回落 auto 检测并清掉失效偏好。
+      const background = await detectTerminalBackground()
+      if (!setTheme(autoThemeFor(background))) setTheme('graphite')
+      this.prefs.theme = 'auto'
+      this.persistPrefs()
     }
 
     const target = initialSessionId ?? this.initialSessionId ?? this.ctx.sessions.list()[0]?.id
@@ -1089,9 +1124,13 @@ export class TuiApp {
     this.approvalDisposer = this.ctx.on('approval/request', (req: PendingApprovalRequest, next: () => Promise<ApprovalOutcome>) => {
       return this.handleApprovalRequest(req, next)
     })
-    // Ctrl+P 命令面板装配：数据源取 slash 注册表实时快照；主题动态读取（切主题后立即生效）。
+    // #39：技能展示面接线（订阅 skills/change + 首刷，首次输入前技能就绪）。
+    this.skillSurface.attach()
+    // Ctrl+P 命令面板装配：数据源 = 命令实时快照 + userInvocable 技能（#39）；
+    // 主题动态读取。
     this.palette = new CommandPalette({
       getCommands: () => this.slash.list(),
+      getSkills: () => this.skillSurface.paletteEntries(),
       getTheme: () => this.theme,
     })
     this.overlay = new OverlayController({
@@ -1477,7 +1516,9 @@ export class TuiApp {
    * live store 没有时走 switchSession → resume。
    */
   private async restoreRecentOtherSession(): Promise<void> {
-    const others = (await listSessions(this.ctx)).filter(s => s.id !== this.activeSessionId)
+    // listSessions 失败静默降级（与 refreshSessionTabs 的 catch 对称）：
+    // 调用点为 void 触发（Ctrl+S），无 catch 会成为 unhandled rejection。
+    const others = (await listSessions(this.ctx).catch(() => [])).filter(s => s.id !== this.activeSessionId)
     const target = others[0]?.id
     if (target !== undefined) await this.switchSession(target)
   }
@@ -1519,7 +1560,7 @@ export class TuiApp {
     // 会话 tab 栏初始快照(attach 后;后续 newSession/switchSession 刷新)。
     this.sessionTabs = summaries.map(row => ({
       id: row.id,
-      label: row.id.slice(0, 8),
+      label: shortSessionLabel(row.id),
       current: row.id === active,
     }))
 
@@ -1767,22 +1808,64 @@ export class TuiApp {
     overlay.activate('picker')
   }
 
-  /** #31/#33：打开主题选择器（THEME_NAMES + 当前主题 ● 高亮）。
+  /** P1：偏好原子落盘（禁用态 no-op；prefs 已就地变更）。 */
+  private persistPrefs(): void {
+    if (this.prefsPath === null) return
+    writePrefs(this.prefsPath, this.prefs)
+  }
+
+  /** P1.5：提交文本进输入历史——内存（Ctrl+P/N 即时可用）+ 磁盘异步追加（重启恢复）。 */
+  private pushHistory(trimmed: string): void {
+    this.history = [trimmed, ...this.history.filter(h => h !== trimmed)].slice(0, MAX_INPUT_HISTORY)
+    this.inputLine.setHistory(this.history)
+    if (this.inputHistoryPath !== null) void appendInputHistory(this.inputHistoryPath, trimmed)
+  }
+
+  /** P1：应用主题并持久化（/theme 与 picker 确认共用的写透点；未知主题 no-op）。 */
+  private applyThemeAndPersist(name: string): boolean {
+    if (!setTheme(name)) return false
+    this.prefs.theme = name
+    this.persistPrefs()
+    return true
+  }
+
+  /** P1：/theme auto——切回自动检测并持久化（探测异步，落定后回显）。 */
+  private async applyThemeAuto(): Promise<void> {
+    const background = await detectTerminalBackground()
+    setTheme(autoThemeFor(background))
+    this.prefs.theme = 'auto'
+    this.persistPrefs()
+    this.commitToScrollback({ text: '主题已切换: auto（随终端明暗）', trailingNewline: true })
+  }
+
+  /** P1：/theme export——委托 theme-custom（模板构建 + 就地注册属于主题域）。 */
+  private exportTheme(nameArg?: string): string {
+    return exportCurrentTheme(nameArg)
+  }
+
+  /** #31/#33：打开主题选择器（THEME_NAMES + custom: + 当前主题 ● 高亮）。
    *  实时预览：↑↓ 移动即 setTheme 生效；Enter 落定；Esc/q 还原打开前主题。 */
   private openThemePicker(): void {
     const overlay = this.overlay
     const picker = this.picker
     if (overlay === null || picker === null) return
     const prev = getActiveThemeName()
-    const items: PickerItem[] = THEME_NAMES.map(name => ({
+    const allNames = [...THEME_NAMES, ...listCustomThemes().map(n => `custom:${n}`)]
+    const items: PickerItem[] = allNames.map(name => ({
       label: name === prev ? `${name}（当前）` : name,
       value: name,
       current: name === prev,
     }))
-    const selectedIndex = Math.max(0, THEME_NAMES.indexOf(prev as ThemeName))
+    const selectedIndex = Math.max(0, allNames.indexOf(prev))
     picker.open('选择主题', items, (item) => {
-      // 确认：主题已在预览中生效；历史重放在 overlay 退出后执行。
-      this.persistTheme?.(item.value)
+      // 确认：主题已在预览中生效；持久化（prefs）落盘。overlay 退出后按新
+      // 主题重放历史——rerenderHistory 会 reset 滚动区（清掉暂存回显），
+      // 故「主题已切换」回显放在重放之后。
+      this.applyThemeAndPersist(item.value)
+      this.overlay?.deactivate()
+      this.rerenderHistory()
+      this.commitToScrollback({ text: `主题已切换: ${item.value}`, trailingNewline: true })
+      this.flushLiveRender()
     }, selectedIndex, {
       // ↑↓ 移动即切换（实时预览，overlay 渲染随主题色即时变化）。
       onPreview: (item) => { setTheme(item.value) },
@@ -1945,7 +2028,7 @@ export class TuiApp {
     const active = this.activeSessionId
     this.sessionTabs = rows.map(row => ({
       id: row.id,
-      label: row.id.slice(0, 8),
+      label: shortSessionLabel(row.id),
       current: row.id === active,
     }))
     this.renderBatcher.schedule()
@@ -2171,9 +2254,9 @@ export class TuiApp {
    */
   private subagentLabel(id: string): string {
     for (const e of this.delegationEntries ?? []) {
-      if (e.kind === 'child' && e.id === id) return e.label ?? id.slice(0, 8)
+      if (e.kind === 'child' && e.id === id) return e.label ?? shortSessionLabel(id)
     }
-    return id.slice(0, 8)
+    return shortSessionLabel(id)
   }
 
   private refreshDelegationTree(sessionId: SessionId): void {
@@ -2184,9 +2267,11 @@ export class TuiApp {
       this.delegationEntries = entries
       this.renderBatcher.schedule()
     }).catch(() => {
-      /* v8 ignore next -- dispose 后 reject 的竞态守卫（同步测试无法构造） */
+      // 非 dispose 原因的失败同样要重绘（置空清面板），否则滞留旧树直到
+      // 120ms ticker 自愈；与 then 分支对称调度。
       if (this.disposed) return
       this.delegationEntries = null
+      this.renderBatcher.schedule()
     })
   }
 
@@ -2252,23 +2337,6 @@ export class TuiApp {
     } catch {
       // 面不匹配时保持空凭据段
     }
-  }
-
-  /** T3.3：刷新 skill 快照（ctx.skills.list；服务缺失时空数组）。 */
-  private refreshSkillItems(): void {
-    const skills = this.ctx.reflect.get('skills', false) as
-      | { list(): Promise<SkillSummaryInput[]> } | undefined
-    if (skills === undefined) { this.skillItems = []; return }
-    void skills.list().then((items) => {
-      /* v8 ignore next -- dispose 后 promise 才 resolve 的场景无法在同步测试中构造 */
-      if (this.disposed) return
-      this.skillItems = items
-      this.renderBatcher.schedule()
-    }).catch(() => {
-      /* v8 ignore next -- 同上：dispose 后 reject 的竞态守卫 */
-      if (this.disposed) return
-      this.skillItems = []
-    })
   }
 
   /** 回显一条警告行到 scrollback（可选服务缺失的 fails-loud 提示共用出口）。 */
@@ -2348,8 +2416,10 @@ export class TuiApp {
     // Phase 9a：@mention 用户侧摘要展开（cwd 边界/截断/降级见 mention-expand）。
     // 展开后的文本进用户消息与 followup——agent 看到的是摘要而非裸路径。
     const expanded = expandMentions(trimmed, this.sessionCwd())
-    this.history = [trimmed, ...this.history.filter(h => h !== trimmed)].slice(0, 100)
-    this.inputLine.setHistory(this.history)
+    // #39：技能手势 MRU（slash 菜单下次打开技能条目排前）；提交路由不变——
+    // /name 经 looksLikeFilePath 走文本流，host 的 pre-step 手势注入技能体。
+    this.skillSurface.recordGesture(trimmed)
+    this.pushHistory(trimmed)
     // 用户气泡：正文 + 📎 附件行 + 识图能力提示；有图且终端支持图形协议时
     // 异步 prepare 后在同一写窗口追加终端图片（见 commitUserPrompt 时序说明）。
     this.commitUserPrompt(expanded, images)
@@ -2512,8 +2582,7 @@ export class TuiApp {
   private handleSteer(text: string): void {
     const trimmed = text.trim()
     if (!trimmed) return
-    this.history = [trimmed, ...this.history.filter(h => h !== trimmed)].slice(0, 100)
-    this.inputLine.setHistory(this.history)
+    this.pushHistory(trimmed)
     this.commitToScrollback({ text: formatSteerMessage({ content: trimmed, width: this.stdout.columns }, this.theme).join('\n'), trailingNewline: true })
     this.controls?.steer(trimmed)
     this.flushLiveRender()
@@ -2850,9 +2919,6 @@ export class TuiApp {
       } else if (key.name === 'return') {
         picker.commit()
         this.overlay.deactivate()
-        this.rerenderHistory()
-        this.commitToScrollback({ text: `主题已切换: ${getActiveThemeName()}`, trailingNewline: true })
-        this.flushLiveRender()
       }
       return
     }
@@ -3134,44 +3200,16 @@ export class TuiApp {
    * 无可渲染数据返回 null（不占位）。
    */
   private glanceMetrics(): FormatGlanceBarInput | null {
+    // C4：投影逻辑提取至 format/glance-metrics（时间注入；此处只喂缓存字段）。
     const view = this.transcript?.view
-    if (view === undefined) return null
-    const modelName = this.glanceModelName
-    /* v8 ignore next -- glanceModelName 在 mountSession 时经 ?? 兜底恒非 null；防御分支 */
-    if (modelName === null) return null
-    const input: FormatGlanceBarInput = {
-      width: this.stdout.columns,
-      modelName,
-    }
-    if (this.glanceEffort !== null) input.effort = this.glanceEffort
-    const usage = this.usageFold
-    if (usage !== null) {
-      // TokenUsage 为 DISJOINT 计数：inputTokens 是未缓存输入，billed input =
-      // 三者之和（llm/types.ts 契约）。缓存命中率只在适配器报了 cache 字段时
-      // 显示（未报不显示 0%——诚实降级）。
-      const billed = usage.inputTokens + (usage.cacheReadTokens ?? 0) + (usage.cacheWriteTokens ?? 0)
-      if (billed > 0) {
-        if (usage.cacheReadTokens !== undefined || usage.cacheWriteTokens !== undefined) {
-          input.cacheHitRate = (usage.cacheReadTokens ?? 0) / billed
-        }
-        if (this.contextWindow !== null && this.contextWindow > 0) {
-          input.contextRatio = Math.min(1, billed / this.contextWindow)
-          input.tokens = { used: billed, max: this.contextWindow }
-        }
-      }
-      // 成本估算：定价表命中才显示（未知模型不猜价，与缓存% 诚实降级同款）。
-      const cost = estimateCost(modelName, usage)
-      if (cost !== undefined) input.cost = cost
-    }
-    if (view.turn >= 0) {
-      input.turnCount = view.turn + 1
-      // O(1)：transcript 折叠时维护的当前 turn 首条消息时间，替代每帧
-      // view.messages.find() 线性扫描（消息列表随会话增长无界）。
-      if (view.firstInTurnTime !== undefined) {
-        input.elapsedMs = Date.now() - view.firstInTurnTime
-      }
-    }
-    return input
+    return buildGlanceMetrics({
+      transcript: view === undefined ? undefined : { turn: view.turn, firstInTurnTime: view.firstInTurnTime },
+      modelName: this.glanceModelName,
+      effort: this.glanceEffort,
+      usage: this.usageFold,
+      contextWindow: this.contextWindow,
+      columns: this.stdout.columns,
+    })
   }
 
   /**
@@ -3188,8 +3226,7 @@ export class TuiApp {
   /** 当前主题变化后，清理终端并用最新颜色重放当前会话历史。 */
   private rerenderHistory(): void {
     if (this.disposed || (this.overlay !== null && this.overlay.activeId() !== null)) return
-    // Theme changes must not turn a previously collapsed live reasoning block
-    // into a full-text block while the screen is being rebuilt.
+    // 主题切换重建屏幕期间，不得把此前已折叠的 live 推理块带回全文展开态。
     this.reasoningExpanded = false
     this.commit.reset()
     this.live.reset()
@@ -3535,7 +3572,7 @@ export class TuiApp {
       configPanelVisible: this.configPanelVisible,
       configProjection: this.configProjection,
       skillsPanelVisible: this.skillsPanelVisible,
-      skillItems: this.skillItems,
+      skillItems: this.skillSurface.all(),
       // LSP 面板（本地语言服务诊断；bridge 缓存折叠——桥未创建时视为无诊断）
       lspPanelVisible: this.lspPanelVisible,
       lspDiagnostics: this.lspDiagnosticsView(),
@@ -3804,7 +3841,7 @@ export class TuiApp {
     const dirtySeg = this.gitDirty > 0 ? `●${this.gitDirty}` : null
     const rightSegments = bottomMetrics === null
       ? (dirtySeg === null ? undefined : [`API ${this.apiKeyReady ? '✓' : '✗'}`, dirtySeg])
-      : [...glanceBarSegments({ ...bottomMetrics, width: cols }), `API ${this.apiKeyReady ? '✓' : '✗'}`, ...(dirtySeg === null ? [] : [dirtySeg])]
+      : [...glanceBarSegments({ ...bottomMetrics, width: cols, hideSegments: this.prefs.glance?.hideSegments }), `API ${this.apiKeyReady ? '✓' : '✗'}`, ...(dirtySeg === null ? [] : [dirtySeg])]
     const footerLines = formatPromptFooter({
       width: cols,
       planActive: planProj?.active === true,
@@ -3951,6 +3988,8 @@ export class TuiApp {
     this.interactionDisposer?.()
     this.interactionDisposer = null
     if (this.question.isPending) this.question.cancel()
+    // #39：技能展示面随 dispose 解绑订阅（防止 dispose 后事件回调泄漏）。
+    this.skillSurface.dispose()
     // overlay 打开期间暂存的 scrollback 条目：退出前按同一协议补写主屏
     // （会话日志是权威数据，scrollback 是展示层——丢条目只影响本次显示，
     // 补写成本低且避免"发了消息但屏上不见"的观感）。

@@ -8,9 +8,13 @@
 
 中文 | [English](README.en.md)
 
-![dsh-tianshu-tui](docs/tui-screenshot.jpg)
+![dsh-tianshu-tui](docs/promo.png)
 
-**dsh-tianshu-tui**（`@huiliyi37/dsh-tianshu-tui`）是官方 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 上的交互式终端 UI 插件。渲染核心从 [天枢 Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) 演进而来（Apache-2.0；逐文件来源见 [SOURCE-MAP.md](SOURCE-MAP.md)）。UI 是纯展示层：所有 agent 状态都来自会话事件流。并做了harness工程层的个性化改造。比如TDD驱动的工作流，证据门，图像和视觉桥接，代码智能检索、记忆和跨会话召回等功能。
+**dsh-tianshu-tui**（`@huiliyi37/dsh-tianshu-tui`）是官方 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 上的交互式终端 UI 插件。渲染核心为自研的 ANSI 极简引擎（由作者自己的开源项目 [天枢 Tianshu-Tui](https://github.com/huiliyi37/Tianshu-Tui) 演进而来，Apache-2.0；逐文件来源见 [SOURCE-MAP.md](SOURCE-MAP.md)），渲染轻量不打断，使用体验流畅。UI 是纯展示层：所有 agent 状态都来自会话事件流。在此之上做了 harness 工程层的个性化改造，如图像与视觉桥接、代码智能检索、记忆与跨会话召回等。
+
+
+> [!WARNING]
+> **生态边界（Ecosystem boundary）**：本插件属于官方 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`@deepseek-ai/*` 生态）——peerDependencies 与代码 import 均指向 `@deepseek-ai/*`。**不要把它装配进 oh-my-tianshu（`@huiliyi37` 生态，CLI 为 `@huiliyi37/dsh-tianshu`）的 tui profile**。oh-my-tianshu 的官方 TUI 是 `@huiliyi37/dsh-tui`：两者同源（共享 109/117 个 TUI 源文件）但生态不同，混装会让插件在运行时靠 `~/.dsh/profiles/node_modules` 中指向官方 dsh 的旧符号链接兜底解析 `@deepseek-ai/*`，形成跨生态脆弱耦合。
 
 ## 文档
 
@@ -29,42 +33,42 @@
 
 ## 安装
 
-本包不是独立程序。须先有官方 CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh)（`0.1.0-rc.6`）。只 `npm i` 本包跑不起来。
+本包不是独立程序。须先有官方 CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh)（`0.1.0-rc.7`）。只 `npm i` 本包跑不起来。
 
 ### 1. 准备环境
 
 - [Node.js](https://nodejs.org/) `^22.19 || >=24`
 - PATH 上有 [`pnpm`](https://pnpm.io/installation)（`dsh plugin` 会转发给它）
 
-**不要直接敲 `dsh`。** 若 PATH 上已有旧的 `dsh`（例如 `~/.local/bin/dsh`，`dsh --version` 不是 `0.1.0-rc.6`），会走到本地 staging，出现 `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`。请始终用下面的 `npx` 命令。
+**不要直接敲 `dsh`。** 若 PATH 上已有旧的 `dsh`（例如 `~/.local/bin/dsh`，`dsh --version` 不是 `0.1.0-rc.7`），会走到本地 staging，出现 `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`。请始终用下面的 `npx` 命令。
 
 ### 2. 把本插件装进 tui profile
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+npx -y @deepseek-ai/dsh@0.1.0-rc.7 plugin --profile tui add @huiliyi37/dsh-tianshu-tui
 ```
 
 pnpm 可能提示 peer missing，可忽略：peer 由官方 `dsh` 宿主提供，不必另装。
 
 从 npm 安装后，每次启动会对照 npm `latest`：有新版本就写入 profile，提示重启后生效。不想联网检查时设 `DSH_TUI_SKIP_UPDATE=1`。`github:` / `link:` 安装不会改写成 npm 包。
 
-也可以从 Git 装：`npx -y @deepseek-ai/dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui`（仓库已包含 `lib/index.js`，不必再打包）。
+也可以从 Git 装：`npx -y @deepseek-ai/dsh@0.1.0-rc.7 plugin --profile tui add github:huiliyi37/dsh-tianshu-tui`（仓库已包含 `lib/index.js`，不必再打包）。
 
 ### 3. 启动
 
 ```sh
-npx -y @deepseek-ai/dsh --profile tui
+npx -y @deepseek-ai/dsh@0.1.0-rc.7 --profile tui
 ```
 
 看到欢迎页品牌 **dsh-tianshu-tui** 即成功。`Ctrl+Q` 或 `/exit` 退出。
 
-已全局安装官方 CLI 且 `dsh --version` 为 `0.1.0-rc.6` 时，把上面的 `npx -y @deepseek-ai/dsh` 换成 `dsh` 即可。
+已全局安装官方 CLI 且 `dsh --version` 为 `0.1.0-rc.7` 时，把上面的 `npx -y @deepseek-ai/dsh` 换成 `dsh` 即可。
 
 若 `npx` 仍报 `ERR_FS_EISDIR`，是 `~/.dsh/profiles/node_modules` 里旧的安装 fallback 与官方 CLI 冲突。换干净目录再启动：
 
 ```sh
-DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
-DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh --profile tui
+DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh@0.1.0-rc.7 plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh@0.1.0-rc.7 --profile tui
 ```
 
 不要在 DeepSeek Harness 工作区根目录对本包跑 tsdown：会把未发布的 `@deepseek-ai/dsh-root` 写进 bundle，加载必失败。
@@ -89,7 +93,7 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 > `@huiliyi37/oh-my-tianshu`（命令 `oh-my-tianshu`），与仓库名一致；旧包已
 > deprecate，请迁移安装。
 
-需要图片再询问能力时，再装配同仓伴生包 `vision-ask/`；需要 LSP 模型工具面（模型可调 `lsp_goto_definition` / `lsp_find_references` / `lsp_diagnostics`）时装配社区插件 [`omdsh-dev/dsh-lsp`](https://github.com/omdsh-dev/dsh-lsp)（`npx -y @deepseek-ai/dsh plugin --profile tui add github:omdsh-dev/dsh-lsp`）——装配后 TUI 展示桥自动消费其 `lsp` 服务（与模型工具面共享同一 LSP server 集，不双份 spawn）。TUI 桥的诊断源探测顺序：社区插件服务（getDiagnostics 形状）→ 官方 `ctx.lsp` seam（deepseek-harness 的 dsh-lsp，经 query(getDiagnostics) 适配）→ 内置桥降级。
+需要图片再询问能力时，再装配同仓伴生包 `vision-ask/`；需要 LSP 模型工具面（模型可调 `lsp_goto_definition` / `lsp_find_references` / `lsp_diagnostics`）时装配社区插件 [`omdsh-dev/dsh-lsp`](https://github.com/omdsh-dev/dsh-lsp)（`npx -y @deepseek-ai/dsh@0.1.0-rc.7 plugin --profile tui add github:omdsh-dev/dsh-lsp`）——装配后 TUI 展示桥自动消费其 `lsp` 服务（与模型工具面共享同一 LSP server 集，不双份 spawn）。TUI 桥的诊断源探测顺序：社区插件服务（getDiagnostics 形状）→ 官方 `ctx.lsp` seam（deepseek-harness 的 dsh-lsp，经 query(getDiagnostics) 适配）→ 内置桥降级。
 
 ## 更新说明
 
@@ -167,11 +171,11 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 
 启动时对照 npm `latest`，把 profile 里的本包升到新版本，提示重启后生效。
 
-**从 `0.1.0-rc.6` 升级：** 那一版还没有自更新，需要手动加一次才会带上新逻辑：
+**从 `0.1.0-rc.7` 升级：** 那一版还没有自更新，需要手动加一次才会带上新逻辑：
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
-npx -y @deepseek-ai/dsh --profile tui
+npx -y @deepseek-ai/dsh@0.1.0-rc.7 plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+npx -y @deepseek-ai/dsh@0.1.0-rc.7 --profile tui
 ```
 
 之后再发新版本，启动时会自动写入 profile。看到「插件已更新到 …，请重启 dsh 后生效」后重启即可。不想联网检查时设 `DSH_TUI_SKIP_UPDATE=1`。`github:` / `link:` 安装不会改写成 npm 包。
@@ -183,7 +187,7 @@ npx -y @deepseek-ai/dsh --profile tui
 - `/model` 后 footer glance 与视觉能力跟实际模型走
 - `Ctrl+S` 可恢复磁盘上的会话
 
-第一版本基线见 [docs/BASELINE-v0.1.0-rc.6.md](docs/BASELINE-v0.1.0-rc.6.md)。
+第一版本基线见 [docs/BASELINE-v0.1.0-rc.7.md](docs/BASELINE-v0.1.0-rc.7.md)。
 
 ## 亮点
 
@@ -349,9 +353,12 @@ Apache-2.0。终端渲染引擎从 [天枢 Tianshu-Tui](https://github.com/huili
 
 ## 友情链接
 
-- [dsh-web-ui](https://github.com/zhu1090093659/dsh-web-ui) — DSH Web UI 插件与皮肤合集
-- [dshfind](https://dshfind.com/zh) — DeepSeek Harness 中文学习与分享社区
-- [deepseek-harness-ux](https://github.com/ayuanwong/deepseek-harness-ux) — 长任务不刷屏：关键进度清晰可见，完成后自动折叠
-- [dsh-TUI](https://github.com/ccch1mneyyy/dsh-TUI) — Claude Code 风格全屏交互终端插件
-- [DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) — 侧边栏完整工作台，支持第三方 Tab、文件/终端/Git/子代理
-- [🐋 DSH Meme Hub](https://github.com/the-beating-light-of-the-nail/dsh-meme-hub) — DeepSeek Harness 社区整活插件精选导航（28 个项目，带截图）
+| 项目 | 简介 |
+|---|---|
+| [dsh-web-ui](https://github.com/zhu1090093659/dsh-web-ui) | DSH Web UI 插件与皮肤合集 |
+| [dshfind](https://dshfind.com/zh) | DeepSeek Harness 中文学习与分享社区 |
+| [deepseek-harness-ux](https://github.com/ayuanwong/deepseek-harness-ux) | 长任务不刷屏：关键进度清晰可见，完成后自动折叠 |
+| [dsh-TUI](https://github.com/ccch1mneyyy/dsh-TUI) | Claude Code 风格全屏交互终端插件 |
+| [DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) | 侧边栏完整工作台：第三方 Tab、文件/终端/Git/子代理 |
+| [DSH Desktop](https://github.com/anywhere-labs/deepseek-harness-desktop) | DeepSeek Harness 社区桌面端（Electron，Windows x64 / macOS Apple Silicon 安装包），下载即用、免配置命令行环境。内置本地 Harness 宿主与插件系统，支持 iOS/Android 远程下发任务、跟踪 agent 进度。 |
+| [dsh-whale-report](https://github.com/SenmuuuuW/dsh-whale-report) | 把 session、token、cost、tool call 与风险异常转成可读的 Agent 报告 |

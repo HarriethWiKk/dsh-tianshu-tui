@@ -39,7 +39,12 @@ export interface FormatGlanceBarInput {
   cost?: number
   stalled?: boolean
   ascii?: boolean
+  /** 隐藏段（prefs.glance.hideSegments 透传；隐藏段不参与拼接与溢出丢弃）。 */
+  hideSegments?: readonly string[]
 }
+
+/** 可隐藏段 key（与 prefs.glance.hideSegments 对齐；model/stalled 永不可隐藏）。 */
+export const GLANCE_HIDEABLE_KEYS = ['effort', 'cache', 'context', 'tokens', 'elapsed', 'cost'] as const
 
 /** 上下文占用警告阈值（≥ 此比例前缀 ⚠ 提示近满；与 Claude Code context 高水位对齐）。 */
 export const CONTEXT_WARN_RATIO = 0.95
@@ -50,20 +55,21 @@ export const CONTEXT_WARN_RATIO = 0.95
  * @returns 无色段文本列表，按固定顺序。
  */
 export function glanceBarSegments(input: FormatGlanceBarInput): string[] {
+  const hidden = new Set(input.hideSegments ?? [])
   const segs: string[] = []
   if (input.modelName !== undefined) segs.push(input.modelName)
-  if (input.effort !== undefined) segs.push(`◎${input.effort}`)
-  if (input.cacheHitRate !== undefined) segs.push(`缓存 ${Math.round(input.cacheHitRate * 100)}%`)
-  if (input.contextRatio !== undefined) {
+  if (input.effort !== undefined && !hidden.has('effort')) segs.push(`◎${input.effort}`)
+  if (input.cacheHitRate !== undefined && !hidden.has('cache')) segs.push(`缓存 ${Math.round(input.cacheHitRate * 100)}%`)
+  if (input.contextRatio !== undefined && !hidden.has('context')) {
     const warn = input.contextRatio >= CONTEXT_WARN_RATIO
     segs.push(`${warn ? '⚠' : ''}上下文 ${Math.round(input.contextRatio * 100)}%`)
   }
-  if (input.tokens !== undefined) {
+  if (input.tokens !== undefined && !hidden.has('tokens')) {
     const t = `${formatTokenCount(input.tokens.used)}/${formatTokenCount(input.tokens.max)}`
     segs.push(input.ascii ? `[${t}]` : `◧ ${t}`)
   }
-  if (input.elapsedMs !== undefined) segs.push(formatElapsedHuman(input.elapsedMs))
-  if (input.cost !== undefined) segs.push(`$${input.cost}`)
+  if (input.elapsedMs !== undefined && !hidden.has('elapsed')) segs.push(formatElapsedHuman(input.elapsedMs))
+  if (input.cost !== undefined && !hidden.has('cost')) segs.push(`$${input.cost}`)
   if (input.density === 'full') {
     if (input.turnCount !== undefined) segs.push(`#${input.turnCount}`)
   }
