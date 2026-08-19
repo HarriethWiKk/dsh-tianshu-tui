@@ -125,9 +125,6 @@ export declare class TuiApp {
     /** 双击 Esc 触发 rewind：第一次 Esc 的时间戳（0 = 无待定；窗口内第二次 Esc
      *  打开 rewind overlay，对齐 Claude Code 的 Esc+Esc 时间回溯）。 */
     private escRewindPendingSince;
-    /** 会话 tab 栏缓存（attach/newSession/switchSession 后经 listSessions 刷新；
-     *  >1 会话时在 chrome 段渲染一行；Ctrl+X / Alt+数字 切换）。 */
-    private sessionTabs;
     /** Phase 9d：流利度追踪（tool 事件 → 渲染策略；stale 提示消费于 renderLive）。 */
     private readonly fluency;
     /** Phase 5.3：底部 glance（状态/错误行派生 + 节流；renderLive 消费 current()）。 */
@@ -523,10 +520,6 @@ export declare class TuiApp {
      * @param id - 目标会话 id；必须是 live store 中已存在的会话。
      */
     switchSession(id: SessionId): Promise<void>;
-    /** 会话 tab 栏缓存刷新：listSessions → 短 id + 当前标记 → 缓存并调度重绘。 */
-    private refreshSessionTabs;
-    /** 会话 tab 栏：Ctrl+X 切到下一个会话（循环；仅一个会话时无操作）。 */
-    private switchToNextTab;
     /**
      * 挂载当前会话的投影与控制面：transcript/live/controls 就位后，
      * 将已提交的历史渲染进 scrollback。

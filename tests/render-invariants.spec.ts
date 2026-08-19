@@ -14,9 +14,8 @@ import { describe, expect, it } from 'vitest'
 import type { RivetTheme } from '../src/theme.js'
 import { color } from '../src/engine/ansi.js'
 import { formatInputFrame } from '../src/format/input-frame.js'
-import { formatSessionTabs } from '../src/format/session-tabs.js'
 import { formatSlashMenu } from '../src/format/slash-menu.js'
-import type { SessionTab } from '../src/format/session-tabs.js'
+import { formatGlanceBar } from '../src/format/glance-bar.js'
 import { firstFg, linesFitWidth, stripSgr } from './helpers/ansi.js'
 
 const WIDTHS = [20, 48, 80, 120, 200]
@@ -62,16 +61,20 @@ describe('formatInputFrame 不变量', () => {
   })
 })
 
-describe('formatSessionTabs 不变量', () => {
-  const tabs: SessionTab[] = Array.from({ length: 12 }, (_, i) => ({
-    id: `s${i}`,
-    label: `s${i}`,
-    current: i === 11,
-  }))
+describe('formatGlanceBar 不变量', () => {
+  const metrics = {
+    modelName: 'deepseek-v4',
+    effort: 'high',
+    cacheHitRate: 0.5,
+    contextRatio: 0.3,
+    tokens: { used: 12500, max: 200000 },
+    elapsedMs: 61_000,
+    cost: 0.42,
+  }
 
-  it('跨宽度守恒：tab 多到放不下时折叠 +N，任何档位单行 ≤ width', () => {
+  it('跨宽度守恒：渐进 drop 次要段，任何档位单行 ≤ width（极窄截断 model）', () => {
     for (const width of WIDTHS) {
-      const lines = formatSessionTabs(tabs, width, fakeTheme())
+      const lines = formatGlanceBar({ ...metrics, width }, fakeTheme())
       expect(lines.length, `width=${width}`).toBeLessThanOrEqual(1)
       if (lines.length === 1) {
         expect(linesFitWidth([lines[0]!.text], width), `width=${width}`).toBe(true)
@@ -79,11 +82,11 @@ describe('formatSessionTabs 不变量', () => {
     }
   })
 
-  it('当前 tab 恒保留（最窄档折叠后仍含当前 label）', () => {
+  it('model 段最后保留（极窄只剩截断的模型名，不空行）', () => {
     for (const width of WIDTHS) {
-      const lines = formatSessionTabs(tabs, width, fakeTheme())
+      const lines = formatGlanceBar({ ...metrics, width }, fakeTheme())
       const text = stripSgr(lines[0]?.text ?? '')
-      expect(text, `width=${width}`).toContain('s11')
+      expect(text, `width=${width}`).toContain('deepseek')
     }
   })
 })

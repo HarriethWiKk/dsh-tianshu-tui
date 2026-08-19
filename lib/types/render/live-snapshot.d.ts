@@ -86,11 +86,4 @@ export interface LiveSnapshot {
     lspDiagnostics: LspDiagnosticView[];
     /** 是否至少一个语言 server 可用（面板空态文案区分「无诊断」/「未安装」）。 */
     lspAvailable: boolean;
-    /** 当前活跃会话 id（tab 高亮；未 attach null）。 */
-    activeSessionId: string | null;
-    /** 全部 live 会话的 tab 投影（id + agent 状态）。 */
-    sessionTabs: Array<{
-        id: string;
-        status: 'idle' | 'running';
-    }>;
 }

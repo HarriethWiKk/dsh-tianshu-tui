@@ -742,7 +742,8 @@ describe('TuiApp Phase 6.4 外部编辑器', () => {
     return { script, dir }
   }
 
-  it('Ctrl+O 触发编辑器，保存退出后内容回填输入行，raw-mode 恢复', async () => {
+  // 真实 spawnSync 编辑器脚本：空载 ~4.4s 已近默认 5s 预算，高负载必超——放宽到 15s。
+  it('Ctrl+O 触发编辑器，保存退出后内容回填输入行，raw-mode 恢复', { timeout: 15_000 }, async () => {
     const ctx = makeCtx()
     const agent = makeAgent('edit-1')
     const handle = makeHandle(agent)
@@ -5435,100 +5436,6 @@ describe('C4 概念稿 菜单快捷键与三行底部区（提交后审查补测
     stdin.emit('data', '\x11') // Ctrl+Q
     await new Promise(resolve => setImmediate(resolve))
     expect(onExit).toHaveBeenCalledTimes(1)
-    await app.dispose()
-  })
-
-  it('会话 tab 栏：多会话 attach 渲染（当前 ●）；Ctrl+X 切下一个；Alt+2 跳转', async () => {
-    const ctx = makeCtx()
-    const agent = makeAgent('tab-1')
-    const handle = makeHandle(agent)
-    ctx.agents.create.mockResolvedValue(handle)
-    ctx.sessions.get.mockReturnValue(agent.session)
-    const s1 = SessionId('session-tab-one')
-    const s2 = SessionId('session-tab-two')
-    const s3 = SessionId('session-tab-three')
-    const headerOf = (id: SessionId, createdAt: number) => ({
-      id, createdAt, version: 0, cwd: undefined, parentSession: undefined,
-    })
-    // listSessions 按 createdAt 降序（新→旧）——s1 最新保证 tab 序 [s1,s2,s3]
-    ctx.sessions.list.mockReturnValue([
-      { id: s1, header: headerOf(s1, Date.now() - 1_000), events: [] },
-      { id: s2, header: headerOf(s2, Date.now() - 2_000), events: [] },
-      { id: s3, header: headerOf(s3, Date.now() - 3_000), events: [] },
-    ])
-    ctx.agents.get.mockReturnValue(agent)
-    const stdin = makeStdin()
-    const stdout = makeStdout()
-    const app = new TuiApp({ ctx, stdout, stdin })
-    await app.attach()
-    expect(app.sessionId).toBe(s1)
-    // tab 栏渲染：短 id + 当前 ●（s1 当前）
-    await new Promise(resolve => setTimeout(resolve, 50))
-    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).toContain('session-tab-one'.replace(/^session-/, '').slice(0, 8) + '●')
-    // Ctrl+X → 下一个（s2）
-    stdin.emit('data', '\x18')
-    await new Promise(resolve => setTimeout(resolve, 50))
-    expect(app.sessionId).toBe(s2)
-    // Alt+3 → 跳第 3 个（s3）
-    stdin.emit('data', '\x1b3')
-    await new Promise(resolve => setTimeout(resolve, 50))
-    expect(app.sessionId).toBe(s3)
-    // Alt+9 越界 → 无操作（仍 s3）
-    stdin.emit('data', '\x1b9')
-    await new Promise(resolve => setTimeout(resolve, 50))
-    expect(app.sessionId).toBe(s3)
-    await app.dispose()
-  })
-
-  it('会话 tab 栏：真实 id 形态（session- 前缀）标签去前缀显示，不出现 [session-] 空壳', async () => {
-    const ctx = makeCtx()
-    const agent = makeAgent('tab-real')
-    const handle = makeHandle(agent)
-    ctx.agents.create.mockResolvedValue(handle)
-    ctx.sessions.get.mockReturnValue(agent.session)
-    const s1 = SessionId('session-aaaabbbbcccc-rest')
-    const s2 = SessionId('session-ddddeeeeffff-rest')
-    const headerOf = (id: SessionId, createdAt: number) => ({
-      id, createdAt, version: 0, cwd: undefined, parentSession: undefined,
-    })
-    ctx.sessions.list.mockReturnValue([
-      { id: s1, header: headerOf(s1, Date.now() - 1_000), events: [] },
-      { id: s2, header: headerOf(s2, Date.now() - 2_000), events: [] },
-    ])
-    ctx.agents.get.mockReturnValue(agent)
-    const stdin = makeStdin()
-    const stdout = makeStdout()
-    const app = new TuiApp({ ctx, stdout, stdin })
-    await app.attach()
-    await new Promise(resolve => setTimeout(resolve, 50))
-    // 数据层断言：label 是去 session- 前缀后的短 id（formatSessionTabs 渲染
-    // [label●] 时不再出现 [session-] 空壳）。
-    // sessionTabs 是 TuiApp 私有成员：测试经类型断言读取（vitest 运行时可见）。
-    const tabs = (app as unknown as { sessionTabs: { label: string }[] }).sessionTabs
-    expect(tabs.map(t => t.label)).toEqual(['aaaabbbb', 'ddddeeee'])
-    expect(tabs.some(t => t.label.includes('session-'))).toBe(false)
-    await app.dispose()
-  })
-
-  it('会话 tab 栏：仅一个会话时不渲染 tab 行', async () => {
-    const ctx = makeCtx()
-    const agent = makeAgent('tab-1')
-    const handle = makeHandle(agent)
-    ctx.agents.create.mockResolvedValue(handle)
-    ctx.sessions.get.mockReturnValue(agent.session)
-    const only = SessionId('session-tab-only')
-    ctx.sessions.list.mockReturnValue([
-      { id: only, header: { id: only, createdAt: Date.now(), version: 0, cwd: undefined, parentSession: undefined }, events: [] },
-    ])
-    ctx.agents.get.mockReturnValue(agent)
-    const stdout = makeStdout()
-    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
-    await app.attach()
-    await new Promise(resolve => setTimeout(resolve, 50))
-    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    // 单会话：tab 行不渲染（避免占一行）
-    expect(written).not.toContain('session-tab-only'.slice(0, 8) + '●')
     await app.dispose()
   })
 

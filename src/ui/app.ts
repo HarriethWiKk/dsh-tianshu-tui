@@ -106,7 +106,6 @@ import {
   renderWorkflowPanel,
   renderConfigPanel,
   renderSkillsPanel,
-  renderSessionTabs,
   renderLspPanel,
 } from '../render/live-panels.js'
 import type { LiveSnapshot } from '../render/live-snapshot.js'
@@ -226,7 +225,6 @@ import {
   type ModelFacet,
 } from '../commands/registry.js'
 import { PickerController, type PickerItem } from '../picker.js'
-import { formatSessionTabs, type SessionTab } from '../format/session-tabs.js'
 import { shortSessionLabel } from '../session-label.js'
 import { accumulateUsage, formatSessionCostReport, type SessionCostBucket } from '../format/session-cost.js'
 import { renderTranscript, parseToolArguments, toolResultText, type RenderedRow } from './render.js'
@@ -518,9 +516,6 @@ export class TuiApp {
   /** 双击 Esc 触发 rewind：第一次 Esc 的时间戳（0 = 无待定；窗口内第二次 Esc
    *  打开 rewind overlay，对齐 Claude Code 的 Esc+Esc 时间回溯）。 */
   private escRewindPendingSince = 0
-  /** 会话 tab 栏缓存（attach/newSession/switchSession 后经 listSessions 刷新；
-   *  >1 会话时在 chrome 段渲染一行；Ctrl+X / Alt+数字 切换）。 */
-  private sessionTabs: SessionTab[] = []
   /** Phase 9d：流利度追踪（tool 事件 → 渲染策略；stale 提示消费于 renderLive）。 */
   private readonly fluency = new FluencyTracker()
   /** Phase 5.3：底部 glance（状态/错误行派生 + 节流；renderLive 消费 current()）。 */
@@ -1562,12 +1557,6 @@ export class TuiApp {
     const active = this.activeSessionId
     const summaries = await listSessions(this.ctx)
     const others = summaries.filter(s => s.id !== active)
-    // 会话 tab 栏初始快照(attach 后;后续 newSession/switchSession 刷新)。
-    this.sessionTabs = summaries.map(row => ({
-      id: row.id,
-      label: shortSessionLabel(row.id),
-      current: row.id === active,
-    }))
 
     // 环境检查结果：唯一来源（首启与有会话统一一行，不重复渲染）。
     const env: WelcomeEnvCheck = {
@@ -1641,8 +1630,6 @@ export class TuiApp {
     this.controls = controlsFromHandle(handle)
     this.activeSessionId = id
     this.mountSession(id)
-    // 会话 tab 栏刷新（新会话出现在 tab 栏并成为当前）。
-    void this.refreshSessionTabs()
     return id
   }
 
@@ -2022,31 +2009,6 @@ export class TuiApp {
       this.controls = controlsFromHandle(handle)
     }
     this.mountSession(id)
-    // 会话 tab 栏刷新（切换后当前标记跟随）。
-    void this.refreshSessionTabs()
-  }
-
-  /** 会话 tab 栏缓存刷新：listSessions → 短 id + 当前标记 → 缓存并调度重绘。 */
-  private async refreshSessionTabs(): Promise<void> {
-    const rows = await listSessions(this.ctx).catch(() => [])
-    if (this.disposed) return
-    const active = this.activeSessionId
-    this.sessionTabs = rows.map(row => ({
-      id: row.id,
-      label: shortSessionLabel(row.id),
-      current: row.id === active,
-    }))
-    this.renderBatcher.schedule()
-  }
-
-  /** 会话 tab 栏：Ctrl+X 切到下一个会话（循环；仅一个会话时无操作）。 */
-  private switchToNextTab(): void {
-    const tabs = this.sessionTabs
-    const active = this.activeSessionId
-    if (tabs.length <= 1) return
-    const idx = tabs.findIndex(t => t.id === active)
-    const next = tabs[(idx + 1) % tabs.length]
-    if (next !== undefined && next.id !== active) void this.switchSession(SessionId(next.id))
   }
 
   /**
@@ -2844,18 +2806,6 @@ export class TuiApp {
       return
     }
     // 会话 tab 栏：Ctrl+X 循环下一个（Ctrl+Tab 终端编码不可靠，不用）。
-    if (key.name === 'ctrl_x') {
-      this.switchToNextTab()
-      return
-    }
-    // 会话 tab 栏：Alt+1..9 直接跳第 N 个（ESC+digit 解析为 meta+char）。
-    if (key.meta === true && key.char >= '1' && key.char <= '9') {
-      const target = this.sessionTabs[Number(key.char) - 1]
-      if (target !== undefined && target.id !== this.activeSessionId) {
-        void this.switchSession(SessionId(target.id))
-      }
-      return
-    }
     if (key.name === 'ctrl_q') {
       if (this.onExit !== undefined) this.onExit()
       return
@@ -3582,16 +3532,9 @@ export class TuiApp {
       lspPanelVisible: this.lspPanelVisible,
       lspDiagnostics: this.lspDiagnosticsView(),
       lspAvailable: this.lspBridge === null ? true : this.lspBridge.isAvailable(),
-      // P3：会话 tab 栏（多会话 side conversation；快照从 live store 派生）
-      activeSessionId: this.activeSessionId === null ? null : String(this.activeSessionId),
-      sessionTabs: this.sessionManager.list().map(s => ({ id: String(s.id), status: s.status })),
     }
 
     // ── 面板段（7 面板纯函数；组合器负责 { text } 包装与 theme 着色）。──
-    // P3：会话 tab 栏（多会话 side conversation；单行，secondary 色）。
-    for (const line of renderSessionTabs(snapshot)) {
-      lines.push({ text: color(line, theme.secondary) })
-    }
     // glance 段：状态行 + 错误行（metrics 已并入输入轨下方 footer，避免双份）。
     for (const line of renderGlancePanel(snapshot)) lines.push({ text: line })
     // T4 + T2.3：任务窗格 + 后台任务区（/tasks 面板内；taskPanelVisible 门控
@@ -3746,13 +3689,6 @@ export class TuiApp {
     // chrome 起点：提问/审批贴输入轨（列入 chrome，小窗口也不会被从顶裁掉），
     // 其后是 slash / vim / 图片 / 输入轨 / footer。溢出裁剪只作用在动态段。
     const chromeStart = lines.length
-
-    // 会话 tab 栏(chrome 段:不参与动态裁剪;>1 会话时显示;Ctrl+X/Alt+数字切换)。
-    if (this.sessionTabs.length > 1) {
-      for (const line of formatSessionTabs(this.sessionTabs, cols, this.theme)) {
-        lines.push(line)
-      }
-    }
 
     // 提问 / 审批紧挨输入轨。
     const questionPeek = this.question.peek()
