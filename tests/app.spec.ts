@@ -3009,7 +3009,7 @@ describe('TuiApp 会话交互 UX 对齐（显示层 = 实际能力）', () => {
     await app.attach()
     app.notifyPluginUpdated('0.1.0-rc.7')
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).toContain('插件已更新到 0.1.0-rc.7，请重启 dsh 后生效')
+    expect(written).toContain('插件已更新到 0.1.0-rc.7。输入 /restart 立即生效')
     await app.dispose()
   })
 
@@ -3025,7 +3025,7 @@ describe('TuiApp 会话交互 UX 对齐（显示层 = 实际能力）', () => {
     expect(before).not.toContain('插件已更新到')
     await app.attach()
     const after = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(after).toContain('插件已更新到 0.1.0-rc.7，请重启 dsh 后生效')
+    expect(after).toContain('插件已更新到 0.1.0-rc.7。输入 /restart 立即生效')
     await app.dispose()
   })
 

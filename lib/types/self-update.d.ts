@@ -130,5 +130,7 @@ export declare function installNpmVersion(latest: string, profileDir: string, ti
  */
 export declare function runSelfUpdate(opts?: RunSelfUpdateOptions): Promise<UpdateResult>;
 export declare function updateNoticeText(version: string): string;
+/** 失败提示里的手动更新命令包名（app 侧文案引用）。 */
+export declare const updateNoticePackage = "@huiliyi37/dsh-tianshu-tui";
 /** 更新后将自动重启（autoRestartOnUpdate）时的提示。 */
 export declare function autoRestartNoticeText(version: string): string;

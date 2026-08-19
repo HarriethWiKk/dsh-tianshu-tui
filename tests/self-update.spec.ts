@@ -152,7 +152,7 @@ describe('runSelfUpdate', () => {
 
 describe('updateNoticeText', () => {
   it('提示重启后生效', () => {
-    expect(updateNoticeText('0.1.0-rc.7')).toBe('插件已更新到 0.1.0-rc.7，请重启 dsh 后生效')
+    expect(updateNoticeText('0.1.0-rc.7')).toBe('插件已更新到 0.1.0-rc.7。输入 /restart 立即生效（或 Ctrl+Q 退出后重新启动 dsh）')
   })
 
   it('autoRestartNoticeText 提示自动重启', () => {

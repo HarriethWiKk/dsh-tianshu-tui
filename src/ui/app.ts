@@ -64,7 +64,7 @@ import { resolveToolViews, type ToolPresenterSource } from '../adapter/tool-view
 import { trackAgent, type LiveAgent } from '../adapter/live.js'
 import { controlsFromHandle, controlsFromRegistry, type AgentControls } from '../adapter/send.js'
 import { listSessions, flushAll, getSession, type SessionSummary } from '../adapter/sessions.js'
-import { updateNoticeText, autoRestartNoticeText, readOwnVersion } from '../self-update.js'
+import { updateNoticeText, autoRestartNoticeText, updateNoticePackage, readOwnVersion } from '../self-update.js'
 import { supportsOsc52 } from '../term-caps.js'
 import { getTheme, getActiveThemeName, listCustomThemes, setTheme, THEME_NAMES, type RivetTheme } from '../theme.js'
 import { displayWidth, ambiguousWideEnabled } from '../width.js'
@@ -1226,12 +1226,17 @@ export class TuiApp {
   }
 
   /**
-   * 自更新失败的用户提示（P1-1）：回显一行 warning，附 SKIP 开关提示。
-   * attach 完成前调用则排队，完成后写入 scrollback。
+   * 自更新失败的用户提示（P1-1；文案 #43 反馈优化）：可操作引导优先——
+   * 重试/手动命令/关闭开关，而不是只甩环境变量。attach 完成前调用则排队。
    */
   notifyPluginUpdateFailed(error: string): void {
     if (this.disposed) return
-    const text = `⚠ 自更新失败：${error}（可用 DSH_TUI_SKIP_UPDATE=1 关闭）`
+    const text = [
+      `⚠ 自更新失败：${error}`,
+      '  · 重启 dsh 会自动重试（网络恢复后即可成功）',
+      `  · 手动更新：npx -y @deepseek-ai/dsh plugin --profile tui add ${updateNoticePackage}@latest`,
+      '  · 不想再看到此提示：启动前设 DSH_TUI_SKIP_UPDATE=1',
+    ].join('\n')
     if (!this.attached) {
       this.pendingUpdateFailNotice = text
       return

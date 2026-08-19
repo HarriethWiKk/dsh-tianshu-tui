@@ -350,8 +350,11 @@ export async function runSelfUpdate(opts: RunSelfUpdateOptions = {}): Promise<Up
 }
 
 export function updateNoticeText(version: string): string {
-  return `插件已更新到 ${version}，请重启 dsh 后生效`
+  return `插件已更新到 ${version}。输入 /restart 立即生效（或 Ctrl+Q 退出后重新启动 dsh）`
 }
+
+/** 失败提示里的手动更新命令包名（app 侧文案引用）。 */
+export const updateNoticePackage = TUI_PACKAGE
 
 /** 更新后将自动重启（autoRestartOnUpdate）时的提示。 */
 export function autoRestartNoticeText(version: string): string {

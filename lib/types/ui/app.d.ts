@@ -332,8 +332,8 @@ export declare class TuiApp {
     /** 更新提示落盘：attach 完成前排队（pendingUpdateNotice），完成后写 scrollback。 */
     private notifyUpdateLine;
     /**
-     * 自更新失败的用户提示（P1-1）：回显一行 warning，附 SKIP 开关提示。
-     * attach 完成前调用则排队，完成后写入 scrollback。
+     * 自更新失败的用户提示（P1-1；文案 #43 反馈优化）：可操作引导优先——
+     * 重试/手动命令/关闭开关，而不是只甩环境变量。attach 完成前调用则排队。
      */
     notifyPluginUpdateFailed(error: string): void;
     /** T3.1：结构化提问 answerer——薄转发 QuestionController（渲染/ESC/重绘由控制器回调承担）。 */
