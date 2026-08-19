@@ -17,7 +17,9 @@
  * 压缩成功后可零工具解析出实际宽高（PNG IHDR / JPEG SOF），供气泡展示。
  */
 import { type ImageToolCommand } from './image-tool.js';
-/** Provider cap: 10 MB decoded per image (matches common vision API limits). */
+/** Provider cap: 3.5 MB decoded per image。对齐宿主 attachment-local 单图准入
+ *  默认（rc.8 由 5MB 收紧至 3.5MB，含 base64 膨胀后仍在 5MB 路由检查内）——
+ *  本地预算高于准入会让原样放行的图被附件存储拒绝。 */
 export declare const MAX_IMAGE_BYTES: number;
 /** Long-edge clamp. 1568px keeps token cost bounded while staying legible. */
 export declare const MAX_EDGE = 1568;

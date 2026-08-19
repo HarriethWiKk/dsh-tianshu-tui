@@ -28,8 +28,10 @@ import {
   type ImageToolCommand,
 } from './image-tool.js'
 
-/** Provider cap: 10 MB decoded per image (matches common vision API limits). */
-export const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+/** Provider cap: 3.5 MB decoded per image。对齐宿主 attachment-local 单图准入
+ *  默认（rc.8 由 5MB 收紧至 3.5MB，含 base64 膨胀后仍在 5MB 路由检查内）——
+ *  本地预算高于准入会让原样放行的图被附件存储拒绝。 */
+export const MAX_IMAGE_BYTES = Math.floor(3.5 * 1024 * 1024)
 /** Long-edge clamp. 1568px keeps token cost bounded while staying legible. */
 export const MAX_EDGE = 1568
 /** Max number of images per prompt (matches desktop Composer). */
