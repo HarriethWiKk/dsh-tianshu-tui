@@ -119,7 +119,7 @@ function findIoImportsIn(corpus: SourceFile[], prefixes: string[]): Array<{ path
 const MAX_LINES_BASELINE: Readonly<Record<string, number>> = {
   'ui/app.ts': 4032, // C4 拆分目标：只降不升
   'pi/latex-to-unicode.ts': 2076, // 数据表 port，实质不拆
-  'engine/input-line.ts': 1412,
+  'engine/input-line.ts': 1558, // 天枢长文本优化整文件同步（146 行：视觉行导航/翻页/逻辑行域/阈值），2026-08-20 重置
   'commands/registry.ts': 993, // P1 /theme auto|export 988 → #40 onThemeChanged 993
 }
 const MAX_LINES_REDLINE = 750

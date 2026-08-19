@@ -5913,16 +5913,28 @@ describe('bracketed paste 接线（多行/长文本粘贴不逐行提交）', ()
     await app.dispose()
   })
 
-  it('长粘贴（超折叠阈值）收纳为标记，不撑爆输入行', async () => {
+  it('长粘贴（超折叠阈值 100 行）收纳为标记；100 行内保持原文可编辑', async () => {
     const { stdin, stdout, app } = boot()
     await app.attach()
     stdout.write.mockClear()
-    const longText = Array.from({ length: 20 }, (_, i) => `line-${i}`).join('\n')
-    stdin.emit('data', `\x1b[200~${longText}\x1b[201~`)
+    // 新阈值（天枢 2026-08-17 长文本优化同源）：折叠抬到 100 行/10000 字——
+    // 折行缓存化后长草稿不卡，常规长粘贴应保持可编辑
+    const medium = Array.from({ length: 50 }, (_, i) => `mid-${i}`).join('\n')
+    stdin.emit('data', `\x1b[200~${medium}\x1b[201~`)
     await new Promise(resolve => setTimeout(resolve, 40))
-    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).toContain('[paste #1 +20 lines]') // 折叠标记
+    let written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).not.toContain('[paste #') // 50 行：不折叠
     await app.dispose()
+
+    const b2 = boot()
+    await b2.app.attach()
+    b2.stdout.write.mockClear()
+    const longText = Array.from({ length: 120 }, (_, i) => `line-${i}`).join('\n')
+    b2.stdin.emit('data', `\x1b[200~${longText}\x1b[201~`)
+    await new Promise(resolve => setTimeout(resolve, 40))
+    written = b2.stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('[paste #1 +120 lines]') // 120 行：折叠标记
+    await b2.app.dispose()
   })
 })
 

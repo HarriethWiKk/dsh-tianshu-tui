@@ -53,6 +53,12 @@ export interface InputLineOptions {
     /** 图片附件变化回调 */
     onImagesChange?: (images: string[]) => void;
 }
+/**
+ * 输入框可视行上限：长草稿不占满整屏。
+ * @param rows - 终端行数。
+ * @returns 至少 3、至多 16，约 `rows / 3`。
+ */
+export declare function inputViewportMaxLines(rows: number): number;
 /** displayLines / displayLinesWithCaret 的视窗裁剪参数。 */
 export interface InputLineDisplayOptions {
     /** Maximum display rows to return. When exceeded, keep the cursor line visible. */
@@ -78,6 +84,12 @@ export declare class InputLine {
     private _vimEnabled;
     private _vimMode;
     private _maxLength;
+    /** 手工换行：Enter 插入 \\n 而不是提交（粘贴流结束的 return 仍提交）。 */
+    private _newlineMode;
+    /** 最近一次 displayLines 的折行宽度；↑↓/PgUp 按视觉行移动。 */
+    private _wrapWidth;
+    /** 最近一次 displayLines 的可视行上限；PageUp/Down 按此翻页。 */
+    private _maxDisplayLines;
     /** 图片附件 data URL 列表 */
     private _images;
     /** Grapheme 边界缓存（按 value 失效）。光标移动不改 value，命中缓存省去 O(n) 分段。 */
@@ -106,6 +118,8 @@ export declare class InputLine {
      *  流结束（普通 return）时按 \n 合并为一次提交。bracketed paste 整段经
      *  onPaste 到达、不触发累积；Vim normal 的 return 同样走合并（一致性）。 */
     private _inlinePasteLines;
+    /** 粘贴流合并提交：累积行 + 当前行并为一次多行提交；无累积行则原样提交。 */
+    private submitFlushingPasteLines;
     /** 选区锚点（shift+方向键设定）；null = 无选区。选区 = [min(anchor,cursor), max)。 */
     private _selAnchor;
     /** vim visual linewise 标记（V 进入时为 true，v 进入/退出 visual 时复位）。 */
@@ -127,6 +141,18 @@ export declare class InputLine {
     get vimEnabled(): boolean;
     /** 占位符文本（value 为空时显示）。 */
     get placeholder(): string;
+    /**
+     * 运行时替换空输入占位提示（如 Ctrl+C 连按退出的临时提示）。
+     * @param value - 新占位符文本。
+     */
+    setPlaceholder(value: string): void;
+    /** 手工换行模式：Enter 插入换行；粘贴流（非 bracketed paste）结束时并入草稿不提交。 */
+    get newlineMode(): boolean;
+    /**
+     * 开关手工换行模式。
+     * @param enabled - true 时普通 Enter 插入 \\n。
+     */
+    setNewlineMode(enabled: boolean): void;
     /** 图片附件 data URL 列表（防御性拷贝）。 */
     get images(): string[];
     /**
@@ -292,10 +318,27 @@ export declare class InputLine {
     private getLineCol;
     /** 由（行,grapheme 列）还原 code-unit 偏移，col 超出行长则贴到行尾。 */
     private posFromLineCol;
-    /** Up：多行且不在首行时上移一行，否则取上一条历史。 */
+    /** 逻辑行 `line` 内 code-unit 偏移 → 整段 buffer 偏移。 */
+    private absolutePos;
+    /**
+     * 按显示宽度把一行切成视觉行起点（不含自绘 █）。
+     * @param logical - 一条逻辑行（不含换行符）。
+     * @param maxContentWidth - 去掉 `❯ ` 前缀后的内容列数。
+     */
+    private visualRowStarts;
+    /** 全部逻辑行展开后的视觉行（start/end 为该逻辑行内偏移）。 */
+    private collectVisualRows;
+    /**
+     * 在软折行与逻辑行之间移动。单视觉行且无换行时交给历史上翻。
+     * @param delta - 负上正下；越界夹到两端（不翻历史）。
+     */
+    private tryMoveVisual;
+    /** Up：有折行或多行时上移视觉行，否则取上一条历史。 */
     private moveUpOrHistory;
-    /** Down：多行时专注行间导航（末行原地停，不翻历史）；单行取下一条历史。 */
+    /** Down：有折行或多行时下移视觉行，否则取下一条历史。 */
     private moveDownOrHistory;
+    /** PageUp/PageDown：按最近一次视窗行数翻页；单行短草稿不翻历史。 */
+    private movePage;
     private historyPrev;
     private historyNext;
     private handleVimNormal;

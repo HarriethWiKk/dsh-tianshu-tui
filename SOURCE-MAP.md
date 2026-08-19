@@ -46,7 +46,7 @@
 | src/engine/image-tool.ts | engine/image-tool.ts | modified（新增 resizeJpegCandidates——长边缩放 + JPEG 质量候选链，win32 脚本含 EncoderParameter 质量参数；语义对齐上游 desktop 子树 image-compress.ts；resize 链 sips 显式 -s format png） |
 | src/engine/input-controller.ts | engine/input-controller.ts | modified（类型内联；`tabComplete` Tab 补全状态机驱动） |
 | src/engine/input-handler.ts | engine/input-handler.ts | modified |
-| src/engine/input-line.ts | engine/input-line.ts | modified（多行 ↑↓ 导航 grapheme 列保持——CJK/emoji 跨行不拆簇，上游 dfe8b6f41 同步） |
+| src/engine/input-line.ts | engine/input-line.ts | modified（多行 ↑↓ 导航 grapheme 列保持——CJK/emoji 跨行不拆簇；2026-08 天枢长文本优化整文件同步：charDisplayWidth 折行缓存（10 万字符草稿按键 ~1.3s→~10ms）+ 粘贴折叠阈值 100 行/10000 字 + 输入视窗 16 行上限（… 上/下 N 行）+ Home/End/Ctrl+U/K 逻辑行域 + PageUp/Down 翻页 + ↑↓ 软折行视觉导航 + 换行模式粘贴并入草稿） |
 | src/engine/live-engine.ts | engine/live-engine.ts | modified |
 | src/engine/metrics-glance-controller.ts | engine/metrics-glance-controller.ts | modified |
 | src/engine/overlay-controller.ts | engine/overlay-controller.ts | modified |
@@ -149,7 +149,7 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 | src/ui-glyphs.ts | ui-glyphs.ts | ported |
 | src/ui/app.ts | — | new（角色对应上游 engine/app.ts，为面向 dsh cordis 服务的独立装配实现，非逐行移植） |
 | src/ui/render.ts | — | new |
-| src/width.ts | width.ts | modified |
+| src/width.ts | width.ts | modified（+charDisplayWidth：单字符宽度两档有界缓存，输入框折行热路径专用，与 displayWidth 恒等） |
 | src/workflow-panel.ts | — | new |
 
 验证命令（映射覆盖护栏，随 tui 包测试执行）：

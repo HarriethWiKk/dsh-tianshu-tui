@@ -11,7 +11,9 @@ import {
 import {
   ambiguousWidthMode,
   ambiguousWideEnabled,
+  charDisplayWidth,
   displayWidth,
+  resetCharWidthCache,
   resetWidthModeCache,
   truncateToDisplayWidth,
 } from '../src/width.js'
@@ -424,5 +426,27 @@ describe('detectTerminalBackground', () => {
     await expect(
       detectTerminalBackground({ stdin, stdout: makeTtyStdout(), env: {} }),
     ).resolves.toBe('dark')
+  })
+})
+
+describe('charDisplayWidth（输入框折行热路径缓存，天枢 2026-08-17 同源）', () => {
+  it('逐字符结果与 displayWidth 恒等（含 CJK/emoji/组合/ASCII 混排）', () => {
+    const sample = '你好世界 aB9！🎉👨‍👩‍👧 é éｱｲｳ ÂÂÂ ……'
+    resetCharWidthCache()
+    for (const ch of sample) {
+      for (const wide of [false, true]) {
+        expect(charDisplayWidth(ch, wide), `char=${JSON.stringify(ch)} wide=${wide}`)
+          .toBe(displayWidth(ch, { ambiguousAsWide: wide }))
+      }
+    }
+  })
+
+  it('缓存命中可变（同键二次调用走缓存仍正确）+ resetCharWidthCache 清空', () => {
+    resetCharWidthCache()
+    expect(charDisplayWidth('好', false)).toBe(2)
+    expect(charDisplayWidth('好', false)).toBe(2) // 命中路径
+    expect(charDisplayWidth('a', false)).toBe(1)
+    resetCharWidthCache()
+    expect(charDisplayWidth('a', false)).toBe(1) // 清空后重建
   })
 })

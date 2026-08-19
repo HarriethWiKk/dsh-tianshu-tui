@@ -45,7 +45,7 @@ import { ANSI, color, imageProtocol, osc52Clipboard } from '../engine/ansi.js'
 import { LiveEngine, LIVE_TOOL_CARD_MAX, liveMaxRowsFor, nextDynamicBudget, padDynamicRegion, type LiveRegionLine } from '../engine/live-engine.js'
 import { WriteBatcher } from '../engine/write-batcher.js'
 import { InputHandler, type KeyPress, type KeyName } from '../engine/input-handler.js'
-import { InputLine } from '../engine/input-line.js'
+import { InputLine, inputViewportMaxLines } from '../engine/input-line.js'
 import { InputController, type SlashHintEntry } from '../engine/input-controller.js'
 import { ResizeHandler } from '../engine/resize-handler.js'
 import { BlockStreamWriter } from '../block-stream-writer.js'
@@ -3758,7 +3758,11 @@ export class TuiApp {
       ? theme.warning
       : this.approval.alwaysApprove ? theme.error : theme.secondary
     const promptColor = this.liveAgent?.state.status === 'running' ? theme.dim : modeColor
-    const inputView = this.inputLine.displayLinesWithCaret({ maxWidth: cols })
+    const inputView = this.inputLine.displayLinesWithCaret({
+      maxWidth: cols,
+      // 长草稿视窗裁剪（3..16 行随终端高度；超出折叠为「… 上/下 N 行」）
+      maxLines: inputViewportMaxLines(this.stdout.rows),
+    })
     const framedLines = inputView.lines.map((line) => (
       line.startsWith('❯ ') ? `${color('❯', promptColor)}${line.slice(1)}` : line
     ))
