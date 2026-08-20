@@ -97,7 +97,17 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 
 ## 更新说明
 
-当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.11`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.11)）。
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.12`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.12)）。
+
+### 0.1.2-rc.12（2026-08-20）
+
+输入体验大版本：长文本性能 + 交互语义修复 + 界面语言统一（天枢同源优化三波）。
+
+- **输入框长文本性能** — 折行逐字符量宽走缓存（10 万字符草稿每次按键 ~1.3s → ~10ms）；粘贴可编辑阈值抬至 100 行/10000 字（此前 10 行即收成标记）；输入视窗 16 行上限（超出折叠「… 上/下 N 行」）；`Home/End/Ctrl+U/K` 以逻辑行为范围、`PageUp/Down` 翻页、`↑↓` 按软折行移动；换行模式下粘贴并入草稿不提交
+- **Ctrl+C 连按退出无死角** — 窗口内第二次恒退出（有草稿时第一次清空、`Ctrl+Z` 可恢复）；打断中第二次直接退出不用等落定；`vim` normal 下 Esc 空操作不再误弹 rewind；Kitty 键盘协议 CSI u 完整解码（Ctrl+C=CSI 99;5u、release 事件去重）
+- **活区卡片语言统一** — 工具卡/委派树/后台任务一套符号：进行中 `⠋`、成功 `›`、失败 `✗`、正文 `⎿`；终态行后退（muted）；正在跑的子代理和 build 终于长得像同类对象
+- **会话 tab 栏退场** — 常驻 tab 栏与 Ctrl+X/Alt+数字切换移除（多会话走 `/session` 与 `Ctrl+S`），界面少占一行
+- **更新提示可操作化** — 自更新失败给出三行引导（重启重试/手动更新命令/关闭提示）；成功提示写明 `/restart` 用法
 
 ### 0.1.2-rc.11（2026-08-20）
 
