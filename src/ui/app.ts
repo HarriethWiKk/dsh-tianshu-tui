@@ -3014,36 +3014,61 @@ export class TuiApp {
       // 空闲：双击 Esc（窗口内第二次）触发 rewind（CC 的 Esc+Esc 时间回溯）；
       // 第一次只记时间戳并继续流向后续分支（vim 等空闲 Esc 语义保留），
       // 窗口过期后第二次仅刷新时间戳。
-      const now = Date.now()
-      if (this.escRewindPendingSince !== 0 && now - this.escRewindPendingSince < REWIND_DOUBLE_ESC_MS) {
-        this.escRewindPendingSince = 0
-        this.rewindSession()
-        return
+      // vim normal 下 Esc 是空操作：布防/触发都跳过——vim 用户离开 insert 后
+      // 习惯性补按 Esc，不该弹出 rewind overlay（天枢 59d00152 同步）。
+      const vimEscNoop = this.vimEnabled && this.inputLine.vimMode === 'normal'
+      if (!vimEscNoop) {
+        const now = Date.now()
+        if (this.escRewindPendingSince !== 0 && now - this.escRewindPendingSince < REWIND_DOUBLE_ESC_MS) {
+          this.escRewindPendingSince = 0
+          this.rewindSession()
+          return
+        }
+        this.escRewindPendingSince = now
       }
-      this.escRewindPendingSince = now
     }
     if (key.name === 'ctrl_c') {
       // Windows 控制台（PowerShell/conhost）下 Ctrl+C 可能同时产生 0x03 字节
       // 与 SIGINT：记录字节处理时间，供 index.ts 的 SIGINT 防抖（双触发时
       // SIGINT 忽略，避免刚打断的 TUI 被 teardown 拆掉——「输入框消失」）。
-      this.lastCtrlCAt = Date.now()
-      // raw-mode 下 Ctrl+C 是 0x03 数据字节而非 SIGINT。
-      // 在途：打断当前 turn。空闲空输入：连按两次才 onExit（单次 dispose
-      // 会拆掉 TUI 而 dsh 进程仍在，表现为“按 Ctrl+C 后无法继续、只能再按一次退出”）。
-      if (this.liveAgent?.state.status === 'running') {
+      // Kitty flag 1 下 Ctrl+C 是 CSI 99;5u 而非 0x03，同样走此分支。
+      const now = Date.now()
+      this.lastCtrlCAt = now
+      const empty = this.inputLine.value === ''
+      const pending = this.inputController.ctrlCPendingSince
+      const within = pending !== 0 && now - pending < InputController.EXIT_WINDOW_MS
+      // 窗口内第二次 Ctrl+C 恒退出（不要求空输入）：第一次（无论打断、清空还是
+      // 布防提示）已表达退出意图，草稿/在途不再拦路——「连按两次退出」对
+      // 「有草稿想退出」与「打断后立刻退出」同样成立（天枢 59d00152 语义）。
+      if (this.onExit !== undefined && within) {
         this.inputController.ctrlCPendingSince = 0
-        this.handleAbort()
+        this.onExit()
         return
       }
-      if (this.inputLine.value === '' && this.onExit !== undefined) {
-        const now = Date.now()
-        const pending = this.inputController.ctrlCPendingSince
-        if (pending !== 0 && now - pending < InputController.EXIT_WINDOW_MS) {
+      if (this.liveAgent?.state.status === 'running') {
+        this.handleAbort()
+        // 打断同时布防连按窗口（有草稿也布防）：agent 落定前第二次 Ctrl+C
+        // 直接退出，不再要求等 agent 变 idle 后重按。
+        if (this.onExit !== undefined) {
+          this.inputController.ctrlCPendingSince = now
+        } else {
           this.inputController.ctrlCPendingSince = 0
-          this.onExit()
-          return
         }
+        this.flushLiveRender()
+        return
+      }
+      if (empty && this.onExit !== undefined) {
         this.inputController.ctrlCPendingSince = now
+        this.flushLiveRender()
+        return
+      }
+      if (!empty) {
+        // 空闲草稿：清空输入行（shell 语义；setValue 记 undo，Ctrl+Z 可恢复）
+        // 并布防连按窗口——第二次 Ctrl+C 即退出，无「已取消」噪音。
+        this.inputLine.setValue('')
+        if (this.onExit !== undefined) {
+          this.inputController.ctrlCPendingSince = now
+        }
         this.flushLiveRender()
         return
       }

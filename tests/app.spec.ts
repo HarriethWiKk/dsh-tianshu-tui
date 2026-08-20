@@ -6676,3 +6676,114 @@ describe('LSP 诊断桥（黑盒：假 server 注入）', () => {
     await app.dispose()
   })
 })
+
+describe('Ctrl+C 连按退出新语义 + vim Esc + Kitty CSI u（天枢 59d00152 同步）', () => {
+  it('有草稿：第一次 Ctrl+C 清空输入行（可 Ctrl+Z 恢复）并布防，第二次退出', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('draft-exit')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const onExit = vi.fn()
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin, onExit })
+    await app.attach()
+
+    stdin.emit('data', 'draft text')
+    await new Promise(resolve => setImmediate(resolve))
+    stdin.emit('data', '\x03')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(onExit).not.toHaveBeenCalled()
+    expect((app as unknown as { inputLine: { value: string } }).inputLine.value).toBe('') // 草稿被清（setValue 记 undo）
+    const afterFirst = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(afterFirst).toContain('再按 Ctrl+C 退出')
+
+    stdin.emit('data', '\x1a') // Ctrl+Z：undo 恢复被清空的草稿
+    await new Promise(resolve => setImmediate(resolve))
+    expect((app as unknown as { inputLine: { value: string } }).inputLine.value).toBe('draft text')
+
+    // 恢复后再走一轮：清空布防 → 第二次退出
+    stdin.emit('data', '\x03')
+    await new Promise(resolve => setImmediate(resolve))
+    stdin.emit('data', '\x03')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(onExit).toHaveBeenCalledTimes(1)
+    await app.dispose()
+  })
+
+  it('running 中第一次 Ctrl+C 打断并布防；agent 落定前第二次直接退出', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('busy-exit')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const onExit = vi.fn()
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin, onExit })
+    await app.attach()
+    const id = app.sessionId
+    if (id === null) throw new Error('no session')
+    const statusHandlers = (ctx.on as ReturnType<typeof vi.fn>).mock.calls
+      .filter((call: unknown[]) => call[0] === 'agent/status')
+      .map(call => call[1] as (payload: { agent: { id: SessionId }; status: string }) => void)
+    for (const handler of statusHandlers) handler({ agent: { id }, status: 'running' })
+
+    stdin.emit('data', '\x03')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(agent.cancel).toHaveBeenCalledTimes(1)
+    expect(onExit).not.toHaveBeenCalled()
+    // 仍 running（agent 未落定）：第二次直接退出，不等 idle
+    stdin.emit('data', '\x03')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(onExit).toHaveBeenCalledTimes(1)
+    await app.dispose()
+  })
+
+  it('vim normal 下 Esc 空操作：双击不弹 rewind overlay', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('vim-esc')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin, vimEnabled: true })
+    await app.attach()
+    // 进 vim normal：Esc 切模式
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 100))
+    expect((app as unknown as { inputLine: { vimMode: string } }).inputLine.vimMode).toBe('normal')
+
+    stdout.write.mockClear()
+    // normal 下双击 Esc：不触发 rewind（无 overlay 的 alt-screen 进入）
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 100))
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 100))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).not.toContain('\x1b[?1049h') // 未进 alt screen（rewind 未开）
+    await app.dispose()
+  })
+
+  it('Kitty flag 1：CSI 99;5u 即 Ctrl+C（布防退出窗口）；release 事件不重复计', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('kitty-c')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const onExit = vi.fn()
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin, onExit })
+    await app.attach()
+
+    stdin.emit('data', '\x1b[99;5u') // press → 布防
+    await new Promise(resolve => setImmediate(resolve))
+    expect(onExit).not.toHaveBeenCalled()
+    stdin.emit('data', '\x1b[99;5:3u') // release → 只消费
+    await new Promise(resolve => setImmediate(resolve))
+    expect(onExit).not.toHaveBeenCalled()
+    stdin.emit('data', '\x1b[99;5u') // 第二次 press → 退出
+    await new Promise(resolve => setImmediate(resolve))
+    expect(onExit).toHaveBeenCalledTimes(1)
+    await app.dispose()
+  })
+})
