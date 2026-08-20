@@ -9,7 +9,7 @@
  * @module @deepseek-ai/dsh-tianshu-tui/format/task-panel
  */
 
-import { displayWidth } from '../width.js'
+import { truncateToLiveWidth } from './live-card.js'
 
 /** 任务条目（与 session-projection 任务单元的 wire 形状一致）。 */
 export interface TaskItem {
@@ -41,21 +41,8 @@ export function projectTaskPanel(tasks: TaskItem[] | null, width: number): strin
     return rows
   }
   for (const task of tasks) {
-    rows.push(truncateByWidth(` ${statusMark(task.status)} ${task.content}`, Math.max(1, width)))
+    rows.push(truncateToLiveWidth(` ${statusMark(task.status)} ${task.content}`, Math.max(1, width)))
   }
   return rows
 }
 
-/** 按显示宽度截断字符串（仅发生截断时尾部补 …）。 */
-function truncateByWidth(text: string, max: number): string {
-  if (max <= 1) return '…'
-  let out = ''
-  let w = 0
-  for (const ch of text) {
-    const cw = displayWidth(ch)
-    if (w + cw > max - 1) break
-    out += ch
-    w += cw
-  }
-  return w < displayWidth(text) ? `${out}…` : out
-}

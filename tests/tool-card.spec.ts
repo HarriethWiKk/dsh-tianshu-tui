@@ -209,9 +209,11 @@ describe('isToolCardTruncated', () => {
 })
 
 describe('formatToolCardLive', () => {
-  it('dim ● 标题 + 末 N 行 tail', () => {
+  it('dim ⠋ 标题 + 末 N 行 tail（无 tick 的进行中形，卡片语言统一）', () => {
+    process.env.RIVET_ASCII_UI = '0'
+    resetTermCapsCache()
     const lines = formatToolCardLive({ toolName: 'bash', outputTail: 'a\nb\nc\nd', columns: 80 }, fakeTheme())
-    expect(plain(lines).join('\n')).toContain('● Run')
+    expect(plain(lines).join('\n')).toContain('⠋ Run')
     expect(plain(lines).join('\n')).toContain('d')
   })
 

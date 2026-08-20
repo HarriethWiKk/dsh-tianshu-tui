@@ -95,14 +95,17 @@ describe('renderTasksPanel', () => {
     expect(renderTasksPanel({ ...baseSnapshot(), taskPanelVisible: true, taskItems: null })).toEqual([])
   })
 
-  it('后台任务区：taskSnapshots 逐行渲染（running/completed 标记）', () => {
+  it('后台任务区：活区卡语言（running ⠋ / completed › 终态后退）', () => {
     const snap = { ...baseSnapshot(), taskPanelVisible: true, taskSnapshots: [
-      { id: 't1', kind: 'build', label: 'pnpm build', status: 'running' as const, startedAt: 1 },
+      { id: 't1', kind: 'build', label: 'pnpm build', status: 'running' as const, startedAt: 1, detail: 'linking' },
       { id: 't2', kind: 'test', label: 'vitest', status: 'completed' as const, startedAt: 2 },
     ] }
     const text = renderTasksPanel(snap).join('\n')
-    expect(text).toContain('⏳ pnpm build')
-    expect(text).toContain('✓ vitest')
+    expect(text).toContain('⠋ pnpm build')
+    expect(text).toContain('⎿') // running 的 detail 落 ⎿ body 行（前缀带 dim ANSI）
+    expect(text).toContain('linking')
+    expect(text).toContain('›') // 终态后退：title 涂 muted（ANSI 在 › 与标题之间）
+    expect(text).toContain('vitest')
   })
 })
 

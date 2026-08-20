@@ -95,7 +95,7 @@ export interface ToolCardHeaderInput {
  */
 export declare function formatToolCardHeader(input: ToolCardHeaderInput, theme: RivetTheme): string;
 /**
- * 格式化工具卡片为 ANSI 行数组（Claude Code ●/⎿ 结构）。
+ * 格式化工具卡片为 ANSI 行数组（›/⎿ 结构）。
  * @param input - 工具名、输出内容与折叠/展开等渲染选项。
  * @param theme - 当前主题（状态形色与家族着色取语义 token）。
  * @returns ANSI 行数组：标题行 + 按截断策略折叠的 body 行。
@@ -133,7 +133,7 @@ export interface FormatToolCardLiveInput {
     compact?: boolean;
 }
 /**
- * live 区进行中工具的渲染：dim `●` 标题行 + 末 N 行输出（⎿ 缩进）。
+ * live 区进行中工具的渲染：dim `⠋` 标题行 + 末 N 行输出（⎿ 缩进）。
  * @param input - 工具名、流式输出 tail、耗时与终端列数等。
  * @param theme - 当前主题。
  * @returns ANSI 行数组：标题行 + tailLines 行（compact 模式仅标题行）。

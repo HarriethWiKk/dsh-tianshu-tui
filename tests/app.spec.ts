@@ -4525,9 +4525,14 @@ describe('TuiApp subagent / workflow / tasks 服务接线', () => {
     stdin.emit('data', '\r')
     await new Promise(resolve => setImmediate(resolve))
     let written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).toContain('⏳ 跑测试')
-    expect(written).toContain('✓ 构建 · ok')
-    expect(written).toContain('✗ 清理')
+    // 活区卡语言（天枢 f636eb0e）：running ⠋（无 detail 仅 header）/
+    // completed › + detail 进 suffix（title muted，ANSI 在 › 与标题间）/ killed ✗
+    expect(written).toContain('⠋ 跑测试')
+    expect(written).toContain('›')
+    expect(written).toContain('构建')
+    expect(written).toContain('ok')
+    expect(written).toContain('✗')
+    expect(written).toContain('清理')
 
     stdout.write.mockClear()
     ;(taskDone as ((s: { label: string }) => void) | null)?.({ label: '编译' })

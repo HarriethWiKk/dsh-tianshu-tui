@@ -38,7 +38,7 @@
 | src/controllers/question-controller.ts | — | new |
 | src/controllers/session-manager.ts | — | new |
 | src/controllers/skill-surface.ts | — | new（#39 技能展示面：快照缓存 + userInvocable 过滤 + slash 菜单投影 + 手势 MRU + skills/change 订阅，从 ui/app.ts 提取） |
-| src/delegation-panel.ts | — | new |
+| src/delegation-panel.ts | — | new（activity 状态形对齐活区卡语言：running ⠋ / inactive ›；截断走 live-card truncateToLiveWidth） |
 | src/engine/ansi.ts | engine/ansi.ts | modified（新增 DECSCUSR 光标形状常量：稳态竖条 + 默认恢复，overlay 输入光标用） |
 | src/engine/clipboard-image.ts | engine/clipboard-image.ts | modified（移除未声明的 @mariozechner/clipboard native 路径，保留 shell 链 + 注入点；readText 注入测试密封化） |
 | src/engine/commit-engine.ts | engine/commit-engine.ts | modified |
@@ -74,6 +74,7 @@
 | src/format/history-search-overlay.ts | — | new |
 | src/format/input-frame.ts | — | new（输入轨：上下圆角横线 ╭─╮/╰─╯，左右不封，纯渲染） |
 | src/format/keymap-panel.ts | — | new |
+| src/format/live-card.ts | — | new（活区共享卡片 chrome：›/⠋/✗/? 状态形 + ⎿ body + suffix 右起丢弃——工具卡/委派树/后台任务统一语言，天枢 f636eb0e 同步） |
 | src/format/markdown.ts | format/markdown.ts | modified |
 | src/format/memory-overlay.ts | — | new |
 | src/format/permission-diff.ts | format/permission-diff.ts | modified |
@@ -88,8 +89,8 @@
 | src/format/subagent-line.ts | — | new（grok SubagentBlock 移植：subagent 对话流状态行，纯渲染） |
 | src/format/spinner-status.ts | format/spinner-status.ts | modified |
 | src/format/steer-message.ts | — | new |
-| src/format/task-panel.ts | — | new |
-| src/format/tool-card.ts | format/tool-card.ts | modified |
+| src/format/task-panel.ts | — | new（todo checklist 保持 [ ]/⏳/[x]——清单不是进程卡；截断复用 live-card） |
+| src/format/tool-card.ts | format/tool-card.ts | modified（消费 live-card 共享常量与 liveCardGlyph——去重本地 ⎿ 前缀/spinner 分支；live 无 tick 进行中形 ●→⠋） |
 | src/format/tool-family.ts | tool-family.ts | modified（目录重排：上游根 → src/format/） |
 | src/format/tool-group.ts | — | new |
 | src/format/tool-view-card.ts | — | new（presenter 结算卡：diff/terminal 结构化渲染 + generic 回落；renderFileDiff 与审批预览共用） |
@@ -124,7 +125,7 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 | src/port.ts | — | new |
 | src/preset-surface.ts | — | new（agent 预设展示面纯投影：preset 名 = header 创建值 + agent-preset/selected 切换值 fold（官方 resolveSessionPreset 等价）；wire 工具面 = 最近 request/header 的 tools 集合（foldRequestHeader）；只消费日志事实，不重放 preset 插件私有晋升逻辑） |
 | src/question-panel.ts | — | new |
-| src/render/live-panels.ts | — | new |
+| src/render/live-panels.ts | — | new（后台任务快照走 formatLiveCard：running ⠋+⎿ detail / completed › 终态后退 / 其余 ✗） |
 | src/render/live-snapshot.ts | — | new |
 | src/restore-session.ts | restore-session.ts | modified |
 | src/ring-buffer.ts | ring-buffer.ts | modified |

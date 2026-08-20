@@ -24,12 +24,13 @@ import { projectWorkflow, type WorkflowRunView } from '../workflow-panel.js'
 import { projectConfigPanel } from '../config-panel.js'
 import { projectSkillPanel } from '../skill-panel.js'
 import { projectLspPanel, groupLspDiagnostics } from '../format/lsp-diagnostics.js'
+import { formatLiveCard, liveCardGlyph, type LiveCardStatus } from '../format/live-card.js'
 
-/** 后台任务区状态标记（与 renderLive 现状一致：running ⏳ / completed ✓ / 其余 ✗）。 */
-function taskSnapshotMark(status: string): string {
-  if (status === 'running') return '⏳'
-  if (status === 'completed') return '✓'
-  return '✗'
+/** 后台任务快照 → 活区卡状态形（running ⠋ / completed › / 其余 ✗）。 */
+function taskSnapshotStatus(status: 'running' | 'stopping' | 'completed' | 'killed' | 'failed'): LiveCardStatus {
+  if (status === 'running') return 'running'
+  if (status === 'completed') return 'success'
+  return 'error'
 }
 
 /**
@@ -59,8 +60,20 @@ export function renderTasksPanel(snapshot: LiveSnapshot): string[] {
   const rows: string[] = []
   rows.push(...projectTaskPanel(snapshot.taskItems, snapshot.cols))
   for (const t of snapshot.taskSnapshots) {
-    const detail = t.detail === undefined ? '' : ` · ${t.detail}`
-    rows.push(`${taskSnapshotMark(t.status)} ${t.label}${detail}`)
+    // 后台任务快照走活区卡（天枢 f636eb0e 卡片语言统一）：running ⠋ +
+    // 可选 ⎿ detail；completed ›（终态后退 muted）；其余状态（stopping/
+    // killed/failed）✗。
+    const running = t.status === 'running'
+    const detail = t.detail
+    rows.push(...formatLiveCard({
+      glyph: liveCardGlyph(taskSnapshotStatus(t.status)),
+      title: t.label,
+      ...(running || detail === undefined ? {} : { suffixes: [detail] }),
+      ...(running && detail !== undefined ? { body: [detail] } : {}),
+      width: snapshot.cols,
+      dim: !running,
+      theme: snapshot.theme,
+    }))
   }
   return rows
 }
