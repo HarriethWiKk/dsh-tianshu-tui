@@ -41,6 +41,14 @@ export interface SkillSurfaceOptions {
   recordSlashUse: (name: string) => void
   /** 宿主事件订阅（ctx.on）；attach 订阅 / dispose 解绑。 */
   onEvent: (event: string, cb: () => void) => () => void
+  /**
+   * 会话 cwd 现取（TuiApp.sessionCwd，读 session.header.cwd）。
+   * #44：skills.list({ cwd }) 让宿主 dsh-skill-filesystem 的 roots(cwd)
+   * 扫描项目级技能根（.dsh/skills、.agents/skills）——cwd 缺省时宿主整段
+   * 跳过项目根，项目技能在 /skills 面板与 slash 菜单完全不可见。
+   * 缺省（未注入）维持无参 list（用户根 + bundled）。
+   */
+  getSessionCwd?: () => string | undefined
 }
 
 /** #39：userInvocable 技能 → InputController 提示条目的投影（🧭 标记区分技能与命令）。 */
@@ -62,6 +70,7 @@ export class SkillSurfaceController {
   private items: SkillSummaryInput[] = []
   private readonly getService: (name: string) => unknown
   private readonly listCommandHints: () => SlashHintEntry[]
+  private readonly getSessionCwd: (() => string | undefined) | undefined
   private readonly setSlashEntries: (entries: SlashHintEntry[]) => void
   private readonly scheduleRender: () => void
   private readonly isDisposed: () => boolean
@@ -73,6 +82,7 @@ export class SkillSurfaceController {
   constructor(options: SkillSurfaceOptions) {
     this.getService = options.getService
     this.listCommandHints = options.listCommandHints
+    this.getSessionCwd = options.getSessionCwd
     this.setSlashEntries = options.setSlashEntries
     this.scheduleRender = options.scheduleRender
     this.isDisposed = options.isDisposed
@@ -100,13 +110,16 @@ export class SkillSurfaceController {
    */
   refresh(): void {
     const skills = this.getService('skills') as
-      | { list(): Promise<SkillSummaryInput[]> } | undefined
+      | { list(opts?: { cwd?: string }): Promise<SkillSummaryInput[]> } | undefined
     if (skills === undefined) {
       this.items = []
       this.refreshEntries()
       return
     }
-    void skills.list().then((items) => {
+    // #44：带会话 cwd 查询——宿主按 cwd 扫描项目级 .dsh/skills 与
+    // .agents/skills（cwd undefined 时宿主跳过项目根）。
+    const cwd = this.getSessionCwd?.()
+    void skills.list(cwd === undefined ? undefined : { cwd }).then((items) => {
       /* v8 ignore next -- dispose 后 promise 才 resolve 的场景无法在同步测试中构造 */
       if (this.isDisposed()) return
       this.items = items

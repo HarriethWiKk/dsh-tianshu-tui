@@ -944,6 +944,8 @@ export class TuiApp {
       isDisposed: () => this.disposed,
       recordSlashUse: (name) => { this.inputController.recordSlashUse(name) },
       onEvent: (event, cb) => this.ctx.on(event as keyof Events, cb),
+      // #44：技能发现带会话 cwd——项目级 .dsh/skills 与 .agents/skills 可见
+      getSessionCwd: () => this.sessionCwd(),
     })
     // 命令提示数据源投影到 InputController（slash hint / Tab 补全目标）。
     this.skillSurface.refreshEntries()

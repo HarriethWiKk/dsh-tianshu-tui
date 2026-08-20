@@ -6792,3 +6792,28 @@ describe('Ctrl+C 连按退出新语义 + vim Esc + Kitty CSI u（天枢 59d00152
     await app.dispose()
   })
 })
+
+describe('技能发现携带会话 cwd（#44：项目级技能可见）', () => {
+  it('skills.list 收到 { cwd }——会话 header.cwd 优先，缺失回退 process.cwd', async () => {
+    const ctx = makeCtx()
+    const list = vi.fn(async (_opts?: { cwd?: string }) => [])
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'skills') return { list }
+      return undefined
+    })
+    // 会话 header 携带项目 cwd（git worktree 根）
+    const agent = makeAgent('skill-cwd')
+    ;(agent.session.header as { cwd?: string }).cwd = '/repos/lims2025'
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
+    await app.attach()
+    // /skills 打开触发 refresh（构造期 refresh 也应已带 cwd）
+    app.handleSubmit('/skills')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(list.mock.calls.length).toBeGreaterThan(0)
+    expect(list.mock.calls.every(call => call[0]?.cwd !== undefined)).toBe(true)
+    expect(list.mock.calls.some(call => call[0]?.cwd === '/repos/lims2025')).toBe(true)
+    await app.dispose()
+  })
+})

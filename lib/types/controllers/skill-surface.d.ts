@@ -39,6 +39,14 @@ export interface SkillSurfaceOptions {
     recordSlashUse: (name: string) => void;
     /** 宿主事件订阅（ctx.on）；attach 订阅 / dispose 解绑。 */
     onEvent: (event: string, cb: () => void) => () => void;
+    /**
+     * 会话 cwd 现取（TuiApp.sessionCwd，读 session.header.cwd）。
+     * #44：skills.list({ cwd }) 让宿主 dsh-skill-filesystem 的 roots(cwd)
+     * 扫描项目级技能根（.dsh/skills、.agents/skills）——cwd 缺省时宿主整段
+     * 跳过项目根，项目技能在 /skills 面板与 slash 菜单完全不可见。
+     * 缺省（未注入）维持无参 list（用户根 + bundled）。
+     */
+    getSessionCwd?: () => string | undefined;
 }
 /** #39：userInvocable 技能 → InputController 提示条目的投影（🧭 标记区分技能与命令）。 */
 export declare function toSkillHint(skill: {
@@ -59,6 +67,7 @@ export declare class SkillSurfaceController {
     private items;
     private readonly getService;
     private readonly listCommandHints;
+    private readonly getSessionCwd;
     private readonly setSlashEntries;
     private readonly scheduleRender;
     private readonly isDisposed;
