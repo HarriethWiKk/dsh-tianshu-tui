@@ -31,6 +31,7 @@
 | src/braille-spinner.ts | braille-spinner.ts | modified |
 | src/command-palette.ts | command-palette.ts | modified |
 | src/commands/registry.ts | — | new |
+| src/commands/model-validate.ts | — | new（回流 tianshu 8cc0cbe589：/model 目录分级校验（advisory 契约：provider 硬拒 / 目录外就近建议 / 空目录放行 / 未装配跳过）+ SPARK_ALIASES 一键别名表，自 registry 提取） |
 | src/completion/file-completer.ts | file-completer.ts | modified（目录重排 src/tui/ → src/completion/；`resolveFileCompletion` Tab 协调入口为 dsh 新增） |
 | src/config-panel.ts | — | new |
 | src/controllers/approval-controller.ts | — | new |

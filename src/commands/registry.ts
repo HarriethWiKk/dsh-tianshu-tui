@@ -34,6 +34,7 @@ import { getActiveThemeName, setTheme, THEME_NAMES } from '../theme.js'
 import { listSessions, loadHistory } from '../adapter/sessions.js'
 import { sessionTitleFor } from '../adapter/session-title.js'
 import { parseRouteKey } from '../engine/route-key.js'
+import { SPARK_ALIASES, validateModelSelection, type LlmCatalogFacet } from './model-validate.js'
 import { collectDoctorReport, getDoctorFixGuidance } from '../format/doctor-report.js'
 import { formatWireSurface, wirePhaseLabel, wireToolNames } from '../preset-surface.js'
 
@@ -145,16 +146,6 @@ interface MemoryFacet {
  * TuiApp 的显隐切换）；/status 保持 TuiApp 内注册。
  */
 export const BUILTIN_COMMAND_NAMES = ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'glance', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'restart', 'yolo', 'help', 'cost'] as const
-
-/**
- * /model 一键切换别名（TUI 便捷层）：展开为已注册的 deepseek-official
- * 路由 + 官方 wire 模型 id。官方 API 没有 spark 模型名，也没有
- * deepseek-spark provider；别名只是 flash/pro 的快捷写法。
- */
-const SPARK_ALIASES: Readonly<Record<string, { provider: string; model: string }>> = {
-  'spark-flash': { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
-  'spark-pro': { provider: 'deepseek-official', model: 'deepseek-v4-pro' },
-}
 
 /**
  * 最小唯一前缀解析：`/` 前缀 + 命令名 `startsWith` 匹配。
@@ -465,6 +456,10 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
         const next = routed === undefined
           ? { provider: current.provider, model: input }
           : routed
+        // 目录校验（advisory 契约：目录空放行、llm 未装配跳过）；拒绝不切换并点名当前选择。
+        const llm = ctx.reflect.get('llm', false) as LlmCatalogFacet | undefined
+        const invalid = await validateModelSelection(llm, next, current)
+        if (invalid !== null) { echo(invalid); return }
         // effort 显式传入（含清除：省略 = 回 provider 默认——与 installModelSelection
         // 的 "absent effort clears inherited" 语义一致）。
         const selection = effortRaw === undefined
