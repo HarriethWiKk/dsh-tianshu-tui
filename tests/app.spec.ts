@@ -365,6 +365,78 @@ describe('TuiApp agent-ensure 三分支', () => {
     // 非自有 agent：无 handle 可 dispose，且 bare agent 无 dispose 语义
   })
 
+  it('switchSession resume 失败 → 抛错且不提交切换状态（停留原会话）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('keep-1')
+    ctx.sessions.get.mockReturnValue(agent.session)
+    ctx.agents.resume.mockResolvedValueOnce(makeHandle(agent)) // 首切成功
+    ctx.agents.resume.mockRejectedValueOnce(new Error('工件损坏')) // 目标不可恢复
+    const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
+    await app.switchSession(SessionId('old-1'))
+
+    await expect(app.switchSession(SessionId('broken-2'))).rejects.toThrow('工件损坏')
+    const state = app as unknown as {
+      activeSessionId: SessionId
+      transcript: { view: { messages: unknown[] } } | null
+      modelRef: unknown
+    }
+    expect(state.activeSessionId).toBe(SessionId('old-1'))
+    expect(state.transcript).not.toBeNull()
+    await app.dispose()
+  })
+
+  it('Ctrl+S 切换失败 → 回显 ⚠ 会话切换失败，停留原会话', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('ctrl-s-keep')
+    const other = makeAgent('ctrl-s-bad')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockImplementation((id: SessionId) => (id === agent.session.id ? agent.session : other.session))
+    ctx.sessions.list.mockReturnValue([agent.session, other.session])
+    ctx.agents.get.mockImplementation((id: SessionId) => (id === agent.session.id ? agent : undefined))
+    ctx.agents.resume.mockRejectedValue(new Error('bad'))
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    const state = app as unknown as { activeSessionId: SessionId | null }
+    const before = state.activeSessionId
+
+    stdin.emit('data', '\x13') // ctrl_s
+    await new Promise(resolve => setTimeout(resolve, 60))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('⚠ 会话切换失败: bad')
+    expect(state.activeSessionId).toBe(before)
+    await app.dispose()
+  })
+
+  it('/session 选择器选中不可恢复会话 → guarded 回显失败原因', async () => {
+    const ctx = makeCtx()
+    const a = makeAgent('pick-a')
+    const b = makeAgent('pick-b')
+    ctx.agents.create.mockResolvedValue(makeHandle(a))
+    ctx.sessions.get.mockImplementation((id: SessionId) => (id === a.session.id ? a.session : b.session))
+    ctx.sessions.list.mockReturnValue([a.session, b.session])
+    ctx.agents.get.mockImplementation((id: SessionId) => (id === a.session.id ? a : undefined))
+    ctx.agents.resume.mockRejectedValue(new Error('bad'))
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    const state = app as unknown as { activeSessionId: SessionId | null }
+    const before = state.activeSessionId
+
+    app.handleSubmit('/session') // 无参 → 打开会话选择器
+    await new Promise(resolve => setTimeout(resolve, 40))
+    expect(stdout.write.mock.calls.map(c => `${c[0]}`).join('')).toContain('选择会话')
+    stdin.emit('data', '\x1b[B') // ↓ 选中第二项（pick-b）
+    stdin.emit('data', '\r') // Enter 确认
+    await new Promise(resolve => setTimeout(resolve, 60))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('⚠ 会话切换失败: bad')
+    expect(state.activeSessionId).toBe(before)
+    await app.dispose()
+  })
+
   it('dispose 时 flushAll 遍历 live sessions 并 flush', async () => {
     const ctx = makeCtx()
     const agent = makeAgent('flush-1')

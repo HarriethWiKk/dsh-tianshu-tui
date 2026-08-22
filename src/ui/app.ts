@@ -261,7 +261,7 @@ import {
 } from '../controllers/approval-controller.js'
 import { QuestionController } from '../controllers/question-controller.js'
 import { BtwController } from '../controllers/btw-controller.js'
-import { SessionManager } from '../controllers/session-manager.js'
+import { SessionManager, resumeModelSelection } from '../controllers/session-manager.js'
 import { renderBtwPanel } from '../format/btw-panel.js'
 import { CHROME_GUTTER, formatWelcomeHero, type WelcomeEnvCheck, type WelcomeTipItem } from '../format/welcome.js'
 import { formatWhaleLogo, WHALE_MIN_ROWS } from '../format/whale.js'
@@ -1535,7 +1535,7 @@ export class TuiApp {
     // 调用点为 void 触发（Ctrl+S），无 catch 会成为 unhandled rejection。
     const others = (await listSessions(this.ctx).catch(() => [])).filter(s => s.id !== this.activeSessionId)
     const target = others[0]?.id
-    if (target !== undefined) await this.switchSession(target)
+    if (target !== undefined) this.switchSessionGuarded(target)
   }
 
   /**
@@ -1901,7 +1901,7 @@ export class TuiApp {
       items.push(item)
     }
     picker.open('选择会话', items, (item) => {
-      void this.switchSession(SessionId(item.value))
+      this.switchSessionGuarded(SessionId(item.value))
     }, selectedIndex)
     overlay.activate('picker')
   }
@@ -1986,43 +1986,45 @@ export class TuiApp {
    * （非自有，不 dispose）；无则 resume 拿 handle（本层持有并 dispose）。
    * resume 的模型定路沿用会话持久化的 request header（跨重启续模），
    * 无 header（从未成功发起请求的会话）才落 agentDefaultModel 当前选择。
-   * @param id - 目标会话 id；必须是 live store 中已存在的会话。
+   * 恢复先于任何切换状态提交：目标不可恢复时在此抛错，应用停留在原会话（不进入半切换态）。
+   * @param id - 目标会话 id；live 会话或可恢复的持久化会话。
    */
   async switchSession(id: SessionId): Promise<void> {
-    // P3 side conversation：切走时保留旧会话 agent（keepHandle 让渡 registry；
-    // 切回时走下方 agents.get 兜底分支——不 create 不 resume，transcript 重放）。
-    await this.detachProjections({ keepHandle: true })
-    this.dynamicRowsHighWater = 0
-    this.activeSessionId = id
     const agent = this.ctx.agents.get(id)
-    if (agent !== undefined) {
-      /* v8 ignore next -- agent 已确认存在（if 分支外），controlsFromRegistry 恒返回非空 */
-      this.controls = controlsFromRegistry(this.ctx, id) ?? null
-      // registry 兜底：ref 由其他装配方持有，本层不可热切
-      this.modelRef = null
-    } else {
-      const persisted = getSession(this.ctx, id)?.requestHeader()?.config
-      const selection: ModelSelection = persisted === undefined
-        ? this.ctx.agentDefaultModel.currentSelection()
-        : {
-          provider: persisted.provider,
-          model: persisted.model,
-          ...persisted.reasoningEffort === undefined ? {} : { reasoningEffort: persisted.reasoningEffort },
-        }
-      // C2 项 4：持有可变 ref（resume 续模的 selection 也进 ref.current）
-      this.modelRef = { current: selection, assembled: undefined }
-      const ref = this.modelRef
-      const handle = await this.ctx.agents.resume({
+    const persisted = agent === undefined ? getSession(this.ctx, id)?.requestHeader()?.config : undefined
+    const selection = resumeModelSelection(persisted, () => this.ctx.agentDefaultModel.currentSelection())
+    // C2 项 4：持有可变 ref（resume 续模的 selection 也进 ref.current）
+    const ref: ModelSelectionRef = { current: selection, assembled: undefined }
+    const handle = agent !== undefined
+      ? undefined
+      : await this.ctx.agents.resume({
         resumeSessionId: id,
         agentOptions: { provider: selection.provider, model: selection.model },
         setup: (agentCtx) => {
           installModelSelection(agentCtx, ref)
         },
       })
+    // P3 side conversation：切走时保留旧会话 agent（keepHandle 让渡 registry；
+    // 切回时走上方 agents.get 兜底分支——不 create 不 resume，transcript 重放）。
+    await this.detachProjections({ keepHandle: true })
+    this.dynamicRowsHighWater = 0
+    this.activeSessionId = id
+    if (agent !== undefined) {
+      /* v8 ignore next -- agent 已确认存在（if 分支外），controlsFromRegistry 恒返回非空 */
+      this.controls = controlsFromRegistry(this.ctx, id) ?? null
+      // registry 兜底：ref 由其他装配方持有，本层不可热切
+      this.modelRef = null
+    } else if (handle !== undefined) {
+      this.modelRef = ref
       this.ownedHandle = handle
       this.controls = controlsFromHandle(handle)
     }
     this.mountSession(id)
+  }
+
+  /** 按键面切换：失败回显 ⚠ 并停留原会话（rejection 不逃逸成 unhandled）。 */
+  private switchSessionGuarded(id: SessionId): void {
+    void this.switchSession(id).catch((error: unknown) => { this.echoWarn(`⚠ 会话切换失败: ${error instanceof Error ? error.message : String(error)}`) })
   }
 
   /**

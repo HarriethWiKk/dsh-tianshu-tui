@@ -13,6 +13,8 @@
  */
 import type { Context } from '@deepseek-ai/cordis';
 import type { SessionId } from '@deepseek-ai/dsh-session';
+import type { ModelSelection } from '@deepseek-ai/dsh-agent';
+import type { ReasoningEffortId } from '@deepseek-ai/dsh-llm';
 /** 会话投影元数据（tab 栏/列表渲染消费；不存完整 transcript）。 */
 export interface SessionSnapshot {
     id: SessionId;
@@ -21,6 +23,20 @@ export interface SessionSnapshot {
     /** 事件条数（live session 的事件日志长度）。 */
     messageCount: number;
 }
+/** resume 定路输入：会话持久化 request header 的路由段（缺 reasoningEffort 视为未定）。 */
+export interface PersistedRouteConfig {
+    provider: string;
+    model: string;
+    reasoningEffort?: ReasoningEffortId;
+}
+/**
+ * resume 模型定路：持久化 request header 优先（跨重启续模），无 header
+ * （从未成功发起请求的会话）才落 agentDefaultModel 当前选择。
+ * @param persisted - 目标会话的持久化路由段；undefined = 无 header。
+ * @param fallback - 缺省选择的惰性取值（仅无持久化路由时调用，避免多余读取）。
+ * @returns resume 使用的模型选择。
+ */
+export declare function resumeModelSelection(persisted: PersistedRouteConfig | undefined, fallback: () => ModelSelection): ModelSelection;
 /** 多会话快照层：从 live store（ctx.sessions/ctx.agents）派生投影元数据，不持有会话生命周期。 */
 export declare class SessionManager {
     private readonly ctx;

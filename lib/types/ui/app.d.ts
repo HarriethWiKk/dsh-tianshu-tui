@@ -517,9 +517,12 @@ export declare class TuiApp {
      * （非自有，不 dispose）；无则 resume 拿 handle（本层持有并 dispose）。
      * resume 的模型定路沿用会话持久化的 request header（跨重启续模），
      * 无 header（从未成功发起请求的会话）才落 agentDefaultModel 当前选择。
-     * @param id - 目标会话 id；必须是 live store 中已存在的会话。
+     * 恢复先于任何切换状态提交：目标不可恢复时在此抛错，应用停留在原会话（不进入半切换态）。
+     * @param id - 目标会话 id；live 会话或可恢复的持久化会话。
      */
     switchSession(id: SessionId): Promise<void>;
+    /** 按键面切换：失败回显 ⚠ 并停留原会话（rejection 不逃逸成 unhandled）。 */
+    private switchSessionGuarded;
     /**
      * 挂载当前会话的投影与控制面：transcript/live/controls 就位后，
      * 将已提交的历史渲染进 scrollback。
