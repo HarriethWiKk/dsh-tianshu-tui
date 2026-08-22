@@ -120,6 +120,24 @@ HTTP_PROXY=http://127.0.0.1:7890 HTTPS_PROXY=http://127.0.0.1:7890 npm publish -
 
 身份应为 `huiliyi37`。`whoami` 失败就停，不要硬发。
 
+rc.13 实测两坑（2026-08-22）：
+
+- **预发布必须显式 tag**：新版 npm 对 `-rc.n` 这类 prerelease 拒绝无 tag 发布
+  （报「You must specify a tag using --tag」）。按上方命令带 `--tag latest`
+  即可，同时满足检查清单的「npm `latest` = 新版本」。
+- **`~/.npm` 属主为 root 会卡死所有 npm 命令**：症状是 `whoami` / `publish` /
+  `view` 全部 EPERM，且真实报错被「日志写不进 `~/.npm/_logs`」吞掉，看似与
+  认证无关。会话级绕过：
+
+  ```sh
+  export NPM_CONFIG_CACHE=/tmp/npm-cache NPM_CONFIG_LOGS_DIR=/tmp/npmlogs
+  ```
+
+  永久修复一次即可：`sudo chown -R "$(id -u):$(id -g)" ~/.npm`。
+- **调试认证严禁把 `.npmrc` 原文打进终端输出**：sed/grep 掩码命令要先在已知
+  样例上自测再对真文件跑（掩码模式没命中就会原样打印整行）。token 一旦泄露
+  进任何日志或会话记录，立即去 npmjs.com → Access Tokens 轮换并替换本地值。
+
 ### 10. GitHub Release（主仓）
 
 ```sh
