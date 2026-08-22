@@ -97,7 +97,22 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 
 ## 更新说明
 
-当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.12`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.12)）。
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.13`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.13)）。
+
+### 0.1.2-rc.13（2026-08-22）
+
+tianshu-public 修复回流版本：上游 8 月中旬以来 10 项 fix(tui) 全量回流——会话安全 + 输入/粘贴语义 + 模型路由正确性（B 批 UI 行为变化为本版头条）。
+
+- **会话切换不再产生幽灵状态** — 切到不可恢复的会话时停留原会话并回显「⚠ 会话切换失败 + 原因」；Ctrl+S / 会话选择器等触发点不再逃逸 unhandled rejection，启动路径保持响亮失败
+- **剪贴板大图不再静默丢失** — Ctrl+V 与右键粘贴位图走与文件路径同一条预算管线：超限截图要么自动压缩进预算、要么响亮失败并区分原因（无工具 / 仍超限），不再「挂上 📎 却在提交时被丢弃」；overlay 关闭后 1s 内 Ctrl+V 只走文本（焦点去抖接线）
+- **slash 菜单不再顶推输入框** — 菜单行计入动态段高水位记账：开合、过滤全程输入框行位钉住，欢迎首帧不凭空垫白
+- **rewind 面板可退出、只列真人消息** — Ctrl+C 第一次即关闭（不再被面板吞掉）、Esc 分阶段处理（选粒度时先回列表）；插件注入行与空助手行不再进检查点列表；无可回退消息时回显原因
+- **/model 目录校验** — 拼写错误当场拒绝：未知 provider 硬拒并列已注册路由，目录外模型给至多三条就近建议（advisory 契约：空目录放行、llm 未装配跳过）；spark 别名目标未注册时响亮失败，不再静默保存死路由
+- **含斜杠模型 id 不再截断** — openrouter 风格 `stealth/ox-alpha` 一类 id 按首个斜杠分割，选择器确认与 /model 实参都不再把 model 截成首段
+- **输入框重影根修** — CPR 污染检测在输入增行/折行后作废基线：合法几何变化不再误判为外来写入触发欠回顶（旧帧顶部残留成「多一行」）
+- **/clear 一并收起命令面板** — /config /skills 等 live 面板清屏后不再原样画回，需重新打开
+- **Alt+控制键可达 + 空行 Alt+⌫ 删附件** — ESC+控制码组合（如 Alt+Backspace）正确路由；空行快捷移除末张图片附件（📎 行同步消失并提示键位），非空行仍是词删除
+- **fork 会话标题不再撞父会话** — 标题认 `session/end-seed` 边界，优先展示 fork 自有标题或首条真人消息；未活跃 fork 与老日志行为不变
 
 ### 0.1.2-rc.12（2026-08-20）
 
