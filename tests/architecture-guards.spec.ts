@@ -115,9 +115,11 @@ function findIoImportsIn(corpus: SourceFile[], prefixes: string[]): Array<{ path
  *  + onThemeChanged 装配）重置——aa800bb 落地时未更新基线（多会话 rebase 后
  *  未重跑守护，本批复核修正）；此后继续只降不升。
  *  ui/app.ts 4032 = PR #37/#38 会话短标签统一（shortSessionLabel 模块化）合并
- *  净 +4；此后继续只降不升。 */
+ *  净 +4；此后继续只降不升。
+ *  ui/app.ts 4060 = 回流 tianshu d860ff5f8e（剪贴板位图预算管线两路由收敛 +
+ *  焦点去抖接线 + attachClipboardImage 助手）净 +28 重置；此后继续只降不升。 */
 const MAX_LINES_BASELINE: Readonly<Record<string, number>> = {
-  'ui/app.ts': 4032, // C4 拆分目标：只降不升
+  'ui/app.ts': 4060, // C4 拆分目标：只降不升；回流 tianshu d860ff5f8e（剪贴板位图预算管线两路由收敛 + 焦点去抖接线 + attachClipboardImage）净 +28，2026-08-22 重置——管线主体在 engine/image-attach.ts，app.ts 仅余 UI 接线，无再提取面
   'pi/latex-to-unicode.ts': 2076, // 数据表 port，实质不拆
   'engine/input-line.ts': 1561, // 天枢长文本优化整文件同步（146 行：视觉行导航/翻页/逻辑行域/阈值），2026-08-20 重置；回流 tianshu 85c17784a4 imageSummary 空行键位提示 +3，2026-08-22 再重置
   'commands/registry.ts': 993, // P1 /theme auto|export 988 → #40 onThemeChanged 993

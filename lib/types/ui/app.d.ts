@@ -344,10 +344,19 @@ export declare class TuiApp {
     private handlePaste;
     /**
      * Ctrl+V 处理：优先读剪贴板图片 → 失败则 fallback 到文本粘贴。
-     * 焦点防抖：输入框在最近 FOCUS_DEBOUNCE_MS 内刚获得焦点时跳过读图
-     * （编辑器/overlay 切回后 1s 内的 Ctrl+V 大概率是文本操作）。
+     * 焦点防抖：输入框在最近 FOCUS_DEBOUNCE_MS 内刚「重获焦点」（overlay
+     * 关闭近似——终端 raw mode 下无窗口焦点事件）时跳过读图，避免把粘贴进
+     * 对话框/选择器的那次 Ctrl+V 再当一次读图。
      */
     private handleCtrlV;
+    /**
+     * 剪贴板位图附件化：dataUrl 解回字节后走与文件路径同一条预算管线
+     * （magic 校验 + 原样直发 + 三级自适应压缩）——超限大图在此被压缩或
+     * 响亮失败，而不是挂上后在提交时被静默丢弃。
+     * @param dataUrl - 剪贴板读图结果（data:image/...;base64,...）。
+     * @param name - 附件显示名。
+     */
+    private attachClipboardImage;
     /**
      * 设置当前主控模型的识图能力与桥接状态（图片附件气泡提示数据源）。
      * 由装配方按 agent 配置注入；TUI 是纯表现层，不自行查询模型能力。

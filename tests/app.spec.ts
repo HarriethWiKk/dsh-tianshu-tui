@@ -6491,6 +6491,47 @@ describe('TuiApp 剪贴板图片与复制（opencode 接线移植）', () => {
     expect(line.images).toHaveLength(1)
     expect(line.value).toBe('')
   })
+
+  it('Ctrl+V 位图管线失败（假图）→ 回显 ⚠ 处理失败，不挂 📎 不插乱码', async () => {
+    vi.mocked(readImageFromClipboard).mockResolvedValueOnce({
+      dataUrl: `data:image/png;base64,${Buffer.from('not an image at all').toString('base64')}`,
+      mime: 'image/png',
+      name: 'clipboard.png',
+      source: 'png',
+    })
+    const { stdin, stdout, app } = boot()
+    await app.attach()
+    stdout.write.mockClear()
+    stdin.emit('data', '\x16')
+    await new Promise(resolve => setTimeout(resolve, 40))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('⚠ 剪贴板图片处理失败: Unsupported image format')
+    expect(written).not.toContain('📎')
+    await app.dispose()
+  })
+
+  it('overlay 关闭后 1s 内 Ctrl+V 只走文本（焦点去抖接线，不再读图）', async () => {
+    vi.mocked(readImageFromClipboard).mockResolvedValueOnce({ dataUrl: PNG_DATA_URL, mime: 'image/png', name: 'clipboard.png', source: 'png' })
+    const { stdin, stdout, app } = boot()
+    await app.attach()
+    // 打开再关闭一个 overlay（命令面板）：onOverlayChange(false) 接线焦点去抖。
+    stdin.emit('data', '\t') // 空输入框 Tab → 打开命令面板
+    await new Promise(resolve => setTimeout(resolve, 30))
+    expect(stdout.write.mock.calls.map(c => `${c[0]}`).join('')).toContain('\x1B[?1049h')
+    stdin.emit('data', '\x1b') // Esc 关闭
+    await new Promise(resolve => setTimeout(resolve, 80))
+    const afterClose = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(afterClose).toContain('\x1B[?1049l') // 面板确已关闭（去抖接线前提）
+    stdout.write.mockClear()
+    vi.mocked(readImageFromClipboard).mockClear()
+    vi.mocked(readTextFromClipboard).mockResolvedValueOnce('text-after-close')
+    stdin.emit('data', '\x16') // ctrl_v：去抖窗口内只走文本
+    await new Promise(resolve => setTimeout(resolve, 60))
+    expect(readImageFromClipboard).not.toHaveBeenCalled()
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('text-after-close')
+    await app.dispose()
+  })
 })
 
 describe('TuiApp 首帧渲染等待 settings/credentials 服务（A1/A2）', () => {

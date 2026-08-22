@@ -94,3 +94,17 @@ export declare function looksLikeImagePath(text: string): boolean;
  * @throws 无可用图像工具，或压缩后仍超限（错误信息区分两种原因）
  */
 export declare function loadImageAttachment(absolutePath: string, options?: LoadImageOptions): Promise<ImageAttachment>;
+/**
+ * 剪贴板位图的附件化入口：与文件路径走同一条预算管线。
+ *
+ * 修复的缺口：剪贴板路径原先直接拼 dataUrl，不做过限压缩——超限大图能挂上
+ * （📎 有显示）却在提交时被 normalizeSubmitImages 静默丢弃。此处把位图落临时
+ * 文件后复用 {@link loadImageAttachment} 的全部语义（magic 校验、原样直发、
+ * 三级自适应压缩），两条入口不再分叉。
+ * @param buf - 剪贴板位图字节。
+ * @param name - 附件名（显示与诊断用，如 `clipboard.png`）。
+ * @param options - maxBytes/maxEdge 上限覆盖。
+ * @returns 图片附件（超限时为压缩后的 data URL）。
+ * @throws 格式不支持、无可用图像工具，或压缩后仍超限（错误信息区分原因）。
+ */
+export declare function loadClipboardImageAttachment(buf: Buffer, name: string, options?: LoadImageOptions): Promise<ImageAttachment>;
