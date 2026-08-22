@@ -496,6 +496,21 @@ describe('内置命令 — /model', () => {
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('openai/gpt-5'))
   })
 
+  it('含斜杠的模型 id（openrouter 风格）：按首个斜杠分割不截断', async () => {
+    const { cmd } = commandByName('model')
+    const saveSelection = vi.fn(async () => {})
+    const ctx = makeCtx({
+      agentDefaultModel: {
+        currentSelection: vi.fn(() => ({ provider: 'deepseek', model: 'v4-flash' })),
+        saveSelection,
+      },
+    })
+    const { args, echo } = makeArgs({ text: 'openrouter/stealth/ox-alpha', ctx })
+    await cmd.run(args)
+    expect(saveSelection).toHaveBeenCalledWith({ provider: 'openrouter', model: 'stealth/ox-alpha' })
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('openrouter/stealth/ox-alpha'))
+  })
+
   it('裸模型名沿用当前 provider', async () => {
     const { cmd } = commandByName('model')
     const saveSelection = vi.fn(async () => {})

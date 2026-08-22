@@ -53,6 +53,7 @@ import { StreamRenderer } from '../engine/stream-renderer.js'
 import { TuiPerfMonitor, isTuiPerfEnabled } from '../engine/perf-monitor.js'
 import { loadClipboardImageAttachment, loadImageAttachment, looksLikeImagePath, MAX_IMAGES } from '../engine/image-attach.js'
 import { readImageFromClipboard, readTextFromClipboard, FOCUS_DEBOUNCE_MS } from '../engine/clipboard-image.js'
+import { parseRouteKey } from '../engine/route-key.js'
 import {
   encodeTermImage,
   parseImageDataUrl,
@@ -1830,14 +1831,12 @@ export class TuiApp {
       return
     }
     picker.open('选择模型', items, (item) => {
-      const [provider, model] = item.value.split('/')
-      /* v8 ignore next -- split('/') 恒非空，[0] 必有值；noUncheckedIndexedAccess 防御 */
-      if (provider === undefined || model === undefined) return
-      const selection = { provider, model }
+      const selection = parseRouteKey(item.value)
+      if (selection === undefined) return
       void (this.ctx as unknown as { agentDefaultModel?: ModelFacet }).agentDefaultModel
         ?.saveSelection(selection)
       const hot = this.switchLiveModel(selection)
-      this.commitToScrollback({ text: `模型已切换: ${provider}/${model}${hot ? '（当前会话与默认均生效）' : '（默认生效）'}`, trailingNewline: true })
+      this.commitToScrollback({ text: `模型已切换: ${selection.provider}/${selection.model}${hot ? '（当前会话与默认均生效）' : '（默认生效）'}`, trailingNewline: true })
     }, selectedIndex)
     overlay.activate('picker')
   }

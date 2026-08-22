@@ -5418,10 +5418,36 @@ describe('Issue #31 交互式选择器（/model /theme /session 无参打开）'
     await type('/model')
     expect(written()).toContain('选择模型')
     expect(written()).toContain('deepseek-official/deepseek-v4-pro（当前）')
-    // 当前 pro 已选中；Enter 确认 → saveSelection + 热切（不重新选择）
+    // 当前项已选中；Enter 确认 → saveSelection + 热切（不重新选择）
     stdin.emit('data', '\r')
     await new Promise(resolve => setTimeout(resolve, 30))
     expect(saveSelection).toHaveBeenCalledWith({ provider: 'deepseek-official', model: 'deepseek-v4-pro' })
+    await app.dispose()
+  })
+
+  it('/model 选择器：含斜杠的模型 id 确认时不截断（openrouter 风格）', async () => {
+    const { ctx, stdin, app, written, type } = await bootPicker()
+    const saveSelection = vi.fn(async () => {})
+    ctx.agentDefaultModel = {
+      currentSelection: vi.fn(() => ({ provider: 'openrouter', model: 'stealth/ox-alpha' })),
+      saveSelection,
+    } as never
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'llm') {
+        return {
+          listProviders: () => [{ id: 'openrouter', name: 'openrouter' }],
+          listModels: async () => [{ id: 'stealth/ox-alpha', name: 'Ox Alpha' }],
+          resolveModelInfo: async () => ({ inputModalities: undefined }),
+        }
+      }
+      return undefined
+    })
+    await type('/model')
+    expect(written()).toContain('openrouter/stealth/ox-alpha（当前）')
+    // 当前项已选中；Enter 确认 → 整个 id 原样落盘，不再只剩首段
+    stdin.emit('data', '\r')
+    await new Promise(resolve => setTimeout(resolve, 30))
+    expect(saveSelection).toHaveBeenCalledWith({ provider: 'openrouter', model: 'stealth/ox-alpha' })
     await app.dispose()
   })
 

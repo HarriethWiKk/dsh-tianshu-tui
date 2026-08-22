@@ -33,6 +33,7 @@ declare module '@deepseek-ai/dsh-session/types' {
 import { getActiveThemeName, setTheme, THEME_NAMES } from '../theme.js'
 import { listSessions, loadHistory } from '../adapter/sessions.js'
 import { sessionTitleFor } from '../adapter/session-title.js'
+import { parseRouteKey } from '../engine/route-key.js'
 import { collectDoctorReport, getDoctorFixGuidance } from '../format/doctor-report.js'
 import { formatWireSurface, wirePhaseLabel, wireToolNames } from '../preset-surface.js'
 
@@ -459,12 +460,11 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
         // 非别名输入原样解析。
         const aliased = SPARK_ALIASES[target]
         const input = aliased === undefined ? target : `${aliased.provider}/${aliased.model}`
-        const parts = input.split('/')
-        // noUncheckedIndexedAccess：parts 元素可能 undefined，空串回退无害
-        /* v8 ignore next 2 -- split 恒返回非空数组且元素恒为 string；noUncheckedIndexedAccess 收窄防御 */
-        const next = parts.length === 2
-          ? { provider: parts[0] ?? '', model: parts[1] ?? '' }
-          : { provider: current.provider, model: parts[0] ?? '' }
+        // 首个斜杠分割：模型 id 可自身含 '/'（openrouter 风格）；无斜杠裸输入沿当前 provider 只换模型。
+        const routed = parseRouteKey(input)
+        const next = routed === undefined
+          ? { provider: current.provider, model: input }
+          : routed
         // effort 显式传入（含清除：省略 = 回 provider 默认——与 installModelSelection
         // 的 "absent effort clears inherited" 语义一致）。
         const selection = effortRaw === undefined

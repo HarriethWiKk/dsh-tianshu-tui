@@ -45,6 +45,7 @@
 | src/engine/image-attach.ts | engine/image-attach.ts | modified（三级自适应压缩：1568px 保透明 PNG / JPEG 0.82 → JPEG 0.55 → 1024px+0.55，语义对齐上游 desktop 子树 image-compress.ts 的 compressImageSafe；probeImageSize 头部解析为 dsh 新增） |
 | src/engine/image-tool.ts | engine/image-tool.ts | modified（新增 resizeJpegCandidates——长边缩放 + JPEG 质量候选链，win32 脚本含 EncoderParameter 质量参数；语义对齐上游 desktop 子树 image-compress.ts；resize 链 sips 显式 -s format png） |
 | src/engine/input-controller.ts | engine/input-controller.ts | modified（类型内联；`tabComplete` Tab 补全状态机驱动） |
+| src/engine/route-key.ts | — | new（回流 tianshu e289f6d980：parseRouteKey 首斜杠分割 provider/model 路由键——模型 id 自身可含 /，picker 行与 /model 实参同一文法） |
 | src/engine/input-handler.ts | engine/input-handler.ts | modified（+Kitty CSI u / xterm modifyOtherKeys 完整解码：Ctrl+字母映射 ctrl_* 名、release 事件只消费、冒号修饰段解析、带修饰可打印键保留 char——天枢 59d00152 同步） |
 | src/engine/input-line.ts | engine/input-line.ts | modified（多行 ↑↓ 导航 grapheme 列保持——CJK/emoji 跨行不拆簇；2026-08 天枢长文本优化整文件同步：charDisplayWidth 折行缓存（10 万字符草稿按键 ~1.3s→~10ms）+ 粘贴折叠阈值 100 行/10000 字 + 输入视窗 16 行上限（… 上/下 N 行）+ Home/End/Ctrl+U/K 逻辑行域 + PageUp/Down 翻页 + ↑↓ 软折行视觉导航 + 换行模式粘贴并入草稿） |
 | src/engine/live-engine.ts | engine/live-engine.ts | modified |
