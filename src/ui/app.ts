@@ -236,7 +236,7 @@ import type { FormatGlanceBarInput } from '../format/glance-bar.js'
 import { formatPermissionDiff } from '../format/permission-diff.js'
 import { formatApprovalCard } from '../format/approval-card.js'
 import { HistorySearchOverlay } from '../format/history-search-overlay.js'
-import { RewindOverlay, type RewindMode, type RewindResult } from '../format/rewind-overlay.js'
+import { RewindOverlay, collectUserRewindCheckpoints, type RewindMode, type RewindResult } from '../format/rewind-overlay.js'
 import { openInEditorDetailed, getEditorCommand } from '../external-editor.js'
 import { FluencyTracker } from '../fluency-hook.js'
 import { expandMentions } from '../mention-expand.js'
@@ -1684,17 +1684,16 @@ export class TuiApp {
   }
 
   /**
-   * C3 项 3：打开 rewind overlay（/rewind）。消息快照 = transcript 视图
-   * （seq/turn/text），执行回调做「文件回退 + 会话截断 + 持久化截断」。
-   * @returns 是否已打开（无活跃会话或无消息时 false）。
+   * C3 项 3：打开 rewind overlay（/rewind）。检查点 = transcript 里真人用户
+   * 说过的非空 `user/message`；执行回调做「文件回退 + 会话截断 + 持久化截断」。
+   * @returns 是否已打开（无活跃会话或无可回退用户消息时 false）。
    */
   rewindSession(): boolean {
     const overlay = this.overlay
     const rewind = this.rewindOverlay
-    if (overlay === null || rewind === null) return false
-    if (this.activeSessionId === null) return false
-    const messages = this.transcript?.view.messages ?? []
-    if (messages.length === 0) return false
+    if (overlay === null || rewind === null || this.activeSessionId === null) return false
+    const messages = collectUserRewindCheckpoints(this.transcript?.view.messages ?? [])
+    if (messages.length === 0) { this.echoWarn('没有可回退的用户消息'); return false }
     rewind.setMessages(messages, (mode, atSeq) => this.executeRewind(mode, atSeq))
     overlay.activate('rewind')
     return true
@@ -2910,8 +2909,14 @@ export class TuiApp {
       }
       return
     }
-    // C3 项 3：rewind overlay 打开——键转发给 overlay 状态机；done 后任意键关闭。
+    // C3 项 3：rewind overlay——Ctrl+C 与 list/done 阶段的 Esc 立即关闭（对齐
+    // memory，否则首次 Ctrl+C 走不到进程退出）；mode 的 Esc 由状态机收回列表。
     if (this.overlay?.activeId() === 'rewind' && this.rewindOverlay !== null) {
+      if (key.name === 'ctrl_c' ||
+        (key.name === 'escape' && (this.rewindOverlay.isListPhase() || this.rewindOverlay.isDone()))) {
+        this.overlay.deactivate()
+        return
+      }
       if (this.rewindOverlay.handleKey(key.name, key.char)) {
         this.overlay.rerender()
       }

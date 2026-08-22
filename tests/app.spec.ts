@@ -245,6 +245,27 @@ function sessionEventBus(ctx: ReturnType<typeof makeCtx>): (id: SessionId, event
   }
 }
 
+/** 向 transcript 灌一条 user/message（rewind 检查点过滤用；默认真人用户源）。 */
+function emitTranscriptUser(
+  bus: (id: SessionId, event: Record<string, unknown>) => void,
+  id: SessionId,
+  seq: number,
+  text: string,
+  source: { kind: 'user' } | { kind: 'plugin'; plugin: string } = { kind: 'user' },
+): void {
+  bus(id, {
+    seq,
+    time: seq,
+    type: 'user/message',
+    data: {
+      id: `m-${seq}`,
+      role: 'user',
+      source,
+      content: [{ type: 'text', text }],
+    },
+  })
+}
+
 afterEach(() => {
   // 订阅/释放平衡：InputHandler.dispose() 恒调 stdin.pause()，本文件一测一
   // app——出现过 pause 即该用例走完了 app.dispose()；此时每个 recording ctx
@@ -656,10 +677,7 @@ describe('TuiApp 审查 HIGH 修复回归（177c12e）', () => {
     const bus = sessionEventBus(ctx)
     const id = app.sessionId
     if (id === null) throw new Error('sessionId missing')
-    bus(id, {
-      seq: 1, time: 1, type: 'assistant/message',
-      data: { turn: 1, step: 0, message: { role: 'assistant', content: [{ type: 'text', text: 'hi' }] }, usage: { inputTokens: 10, outputTokens: 5 } },
-    })
+    emitTranscriptUser(bus, id, 1, 'hi')
     // eslint-disable-next-line no-console
     // 单次 Esc → 不打开
     stdin.emit('data', '\x1b')
@@ -693,10 +711,7 @@ describe('TuiApp 审查 HIGH 修复回归（177c12e）', () => {
     const bus = sessionEventBus(ctx)
     const id = app.sessionId
     if (id === null) throw new Error('sessionId missing')
-    bus(id, {
-      seq: 1, time: 1, type: 'assistant/message',
-      data: { turn: 1, step: 0, message: { role: 'assistant', content: [{ type: 'text', text: 'hi' }] }, usage: { inputTokens: 10, outputTokens: 5 } },
-    })
+    emitTranscriptUser(bus, id, 1, 'hi')
     // 第一次 Esc → 记时间戳
     stdin.emit('data', '\x1b')
     await new Promise(resolve => setTimeout(resolve, 150))
@@ -5350,6 +5365,131 @@ describe('Issue #31 交互式选择器（/model /theme /session 无参打开）'
     expect(written()).toContain('选择会话')
     expect(written()).toContain('s-1')
     expect(written()).toContain('s-2')
+    await app.dispose()
+  })
+})
+
+describe('TuiApp rewind overlay 退出与用户检查点过滤（回流 tianshu d5031fa07d）', () => {
+  it('rewind 打开后第三次 Esc 关闭 overlay（不立刻重开）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('rewind-esc-close')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    ;(agent.session as { id: SessionId }).id = app.sessionId ?? SessionId('rewind-esc-close')
+    const bus = sessionEventBus(ctx)
+    const id = app.sessionId
+    if (id === null) throw new Error('sessionId missing')
+    emitTranscriptUser(bus, id, 1, '检查点')
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 200))
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 150))
+    const opened = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(opened).toContain('⟲ rewind 回退')
+    expect(opened).toContain('\x1B[?1049h')
+    const altOnCount = opened.split('\x1B[?1049h').length - 1
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 150))
+    const closed = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(closed).toContain('\x1B[?1049l')
+    expect(closed.split('\x1B[?1049h').length - 1).toBe(altOnCount)
+    await app.dispose()
+  })
+
+  it('rewind 打开时 Ctrl+C 关闭 overlay（不退出进程）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('rewind-ctrl-c-close')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const onExit = vi.fn()
+    const app = new TuiApp({ ctx, stdout, stdin, onExit })
+    await app.attach()
+    ;(agent.session as { id: SessionId }).id = app.sessionId ?? SessionId('rewind-ctrl-c-close')
+    const bus = sessionEventBus(ctx)
+    const id = app.sessionId
+    if (id === null) throw new Error('sessionId missing')
+    emitTranscriptUser(bus, id, 1, '检查点')
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 200))
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 150))
+    expect(stdout.write.mock.calls.map(c => `${c[0]}`).join('')).toContain('⟲ rewind 回退')
+    stdin.emit('data', '\x03')
+    await new Promise(resolve => setTimeout(resolve, 150))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('\x1B[?1049l')
+    expect(onExit).not.toHaveBeenCalled()
+    await app.dispose()
+  })
+
+  it('rewind 列表只收真人用户检查点：插件源与空助手行不出现', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('rewind-filter')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    await app.attach()
+    ;(agent.session as { id: SessionId }).id = app.sessionId ?? SessionId('rewind-filter')
+    const bus = sessionEventBus(ctx)
+    const id = app.sessionId
+    if (id === null) throw new Error('sessionId missing')
+    emitTranscriptUser(bus, id, 1, '我说过的话')
+    emitTranscriptUser(bus, id, 2, '禅已超时', { kind: 'plugin', plugin: 'zen' })
+    bus(id, {
+      seq: 3,
+      time: 3,
+      type: 'assistant/message',
+      data: {
+        turn: 1,
+        step: 0,
+        message: { role: 'assistant', content: [] },
+        usage: { inputTokens: 1, outputTokens: 1 },
+      },
+    })
+    expect(app.rewindSession()).toBe(true)
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('⟲ rewind 回退')
+    expect(written).toContain('我说过的话')
+    expect(written).not.toContain('禅已超时')
+    expect(written.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '')).not.toMatch(/✦/)
+    await app.dispose()
+  })
+
+  it('没有用户检查点时不打开 rewind，并回显原因', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('rewind-empty')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    await app.attach()
+    ;(agent.session as { id: SessionId }).id = app.sessionId ?? SessionId('rewind-empty')
+    const bus = sessionEventBus(ctx)
+    const id = app.sessionId
+    if (id === null) throw new Error('sessionId missing')
+    emitTranscriptUser(bus, id, 1, '插件锚点', { kind: 'plugin', plugin: 'spark-anchors' })
+    bus(id, {
+      seq: 2,
+      time: 2,
+      type: 'assistant/message',
+      data: {
+        turn: 1,
+        step: 0,
+        message: { role: 'assistant', content: [] },
+        usage: { inputTokens: 1, outputTokens: 1 },
+      },
+    })
+    expect(app.rewindSession()).toBe(false)
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).not.toContain('⟲ rewind 回退')
+    expect(written).toContain('没有可回退的用户消息')
     await app.dispose()
   })
 })

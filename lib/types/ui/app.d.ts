@@ -443,9 +443,9 @@ export declare class TuiApp {
         directive?: string;
     }): Promise<SessionId>;
     /**
-     * C3 项 3：打开 rewind overlay（/rewind）。消息快照 = transcript 视图
-     * （seq/turn/text），执行回调做「文件回退 + 会话截断 + 持久化截断」。
-     * @returns 是否已打开（无活跃会话或无消息时 false）。
+     * C3 项 3：打开 rewind overlay（/rewind）。检查点 = transcript 里真人用户
+     * 说过的非空 `user/message`；执行回调做「文件回退 + 会话截断 + 持久化截断」。
+     * @returns 是否已打开（无活跃会话或无可回退用户消息时 false）。
      */
     rewindSession(): boolean;
     /**
