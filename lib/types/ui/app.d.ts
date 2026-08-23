@@ -229,6 +229,17 @@ export declare class TuiApp {
     private searchOverlay;
     /** T1.2：/status 面板显隐（/status 切换；数据源为投影缓存）。 */
     private statusPanelVisible;
+    /** /todos 紧凑待办面板显隐（/todos 切换；数据源为 todos 投影的保留快照）。 */
+    private todosPanelVisible;
+    /** /todos 明细展开（false = 单行摘要卡）。 */
+    private todosExpanded;
+    /**
+     * todos 保留快照：只吸收非空投影值。todos 投影在 turn/start 时被 fold 重置
+     * 为 null（tool-todo 的投影语义：清单随回合开始清空），若面板直接跟随投影，
+     * 每回合开始都会闪烁消失——保留快照让已显示的清单跨回合黏滞，null 只在
+     * 会话首次写入前出现（渲染「尚无待办」空态）。
+     */
+    private todosRetained;
     /** T4：任务投影变更订阅 disposer；随会话卸载释放。 */
     private projectionDisposer;
     /** T5：紧凑渲染模式（/density 切换）——工具卡仅标题行。 */

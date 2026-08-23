@@ -7,8 +7,9 @@
  * import app.ts——依赖方向保持 `app.ts → render/` 单向。
  *
  * 快照字段按面板分组：glance（状态行/错误行/metrics 行）、tasks（任务窗格
- * + 后台任务区 + 完成通知）、status（goal/todos/plan）、delegation（委派树）、
- * workflow（运行中 + 已结算 run 视图）、config、skills。
+ * + 后台任务区 + 完成通知）、status（goal/todos/plan）、todos（紧凑待办卡）、
+ * delegation（委派树）、workflow（运行中 + 已结算 run 视图）、config、skills、
+ * lsp。
  *
  * @module @deepseek-ai/dsh-tianshu-tui/render/live-snapshot
  */
@@ -60,6 +61,12 @@ export interface LiveSnapshot {
     plan: PlanProjectionInput | null;
     /** 会话级汇总段（summary-state 本地 fold；无已完成轮时 turns 为 0，面板段不渲染）。 */
     sessionTotals: SessionTotalsInput;
+    /** /todos 面板显隐。 */
+    todosPanelVisible: boolean;
+    /** /todos 明细展开（false = 单行摘要卡）。 */
+    todosExpanded: boolean;
+    /** todos 保留快照（只吸收非空投影值：turn/start 清成 null 不回退显示）。 */
+    todosItems: TaskItem[] | null;
     /** /subagents 面板显隐。 */
     subagentsPanelVisible: boolean;
     /** 委派树条目（listDescendants 预取；null = 服务缺失/未预取 → 降级不渲染）。 */

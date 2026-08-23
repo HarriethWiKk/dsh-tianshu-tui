@@ -98,9 +98,10 @@ import {
   projectQuestionPanel,
 } from '../question-panel.js'
 import type { ConfigPanelProjection } from '../config-panel.js'
-/** Wave 2：renderLive 7 面板纯函数 + 单帧快照类型（app.ts → render/ 单向依赖）。 */
+/** Wave 2：renderLive 8 面板纯函数 + 单帧快照类型（app.ts → render/ 单向依赖）。 */
 import {
   renderGlancePanel,
+  renderTodosPanel,
   renderTasksPanel,
   renderStatusPanel,
   renderDelegationPanel,
@@ -628,6 +629,17 @@ export class TuiApp {
   private searchOverlay: HistorySearchOverlay | null = null
   /** T1.2：/status 面板显隐（/status 切换；数据源为投影缓存）。 */
   private statusPanelVisible = false
+  /** /todos 紧凑待办面板显隐（/todos 切换；数据源为 todos 投影的保留快照）。 */
+  private todosPanelVisible = false
+  /** /todos 明细展开（false = 单行摘要卡）。 */
+  private todosExpanded = false
+  /**
+   * todos 保留快照：只吸收非空投影值。todos 投影在 turn/start 时被 fold 重置
+   * 为 null（tool-todo 的投影语义：清单随回合开始清空），若面板直接跟随投影，
+   * 每回合开始都会闪烁消失——保留快照让已显示的清单跨回合黏滞，null 只在
+   * 会话首次写入前出现（渲染「尚无待办」空态）。
+   */
+  private todosRetained: TaskItem[] | null = null
   /** T4：任务投影变更订阅 disposer；随会话卸载释放。 */
   private projectionDisposer: (() => void) | null = null
   /** T5：紧凑渲染模式（/density 切换）——工具卡仅标题行。 */
@@ -779,7 +791,7 @@ export class TuiApp {
       isBlankSession: () => this.isBlankSession(),
       clearScrollback: () => {
         // 命令切换的 live 信息面板（/config /skills /lsp /tasks /status
-        // /subagents /workflow）随清屏一并收起：这些面板渲染在 live 区，
+        // /todos /subagents /workflow）随清屏一并收起：这些面板渲染在 live 区，
         // 只清 scrollback 不清可见性标志的话，2J 清屏后的全量重绘会把面板
         // 内容原样画回来——用户看到的便是「/clear 清不掉命令输出」（如
         // /config 的配置面板残留）。与既有语义一致：会话切换时 task/status
@@ -789,6 +801,7 @@ export class TuiApp {
         this.lspPanelVisible = false
         this.taskPanelVisible = false
         this.statusPanelVisible = false
+        this.todosPanelVisible = false
         this.subagentsPanelVisible = false
         this.workflowPanelVisible = false
         this.commit.reset()
@@ -868,6 +881,33 @@ export class TuiApp {
         this.statusPanelVisible = !this.statusPanelVisible
         if (this.statusPanelVisible && this.ctx.reflect.get('sessionProjections', false) === undefined) {
           this.echoWarn('⚠ sessionProjections 服务不可用（未装配 session-projection 插件），目标/任务/计划投影段无数据（会话汇总段为本地投影，不受影响）')
+        }
+        this.renderBatcher.schedule()
+      },
+    })
+    // todos 紧凑待办面板显隐切换：无参切换显隐，all 展开/收起明细。数据源是
+    // todos 投影的保留快照（turn/start 清空不回退显示），与 /status 的完整
+    // checklist 任务段、/tasks 窗格同源不同呈现——摘要卡服务「一眼当前进度」，
+    // 明细行只封顶展示，完整清单仍在 /status。
+    this.slash.register({
+      name: 'todos',
+      description: '切换待办紧凑面板（无参显隐；all 展开明细）',
+      argsHint: '[all]',
+      run: ({ text }) => {
+        const sub = text.trim()
+        if (sub !== '' && sub !== 'all') {
+          this.echoWarn('用法: /todos [all]')
+          return
+        }
+        if (sub === 'all') {
+          this.todosExpanded = !this.todosExpanded
+          this.todosPanelVisible = this.todosPanelVisible || this.todosExpanded
+        } else {
+          this.todosPanelVisible = !this.todosPanelVisible
+          if (!this.todosPanelVisible) this.todosExpanded = false
+        }
+        if (this.todosPanelVisible && this.ctx.reflect.get('sessionProjections', false) === undefined) {
+          this.echoWarn('⚠ sessionProjections 服务不可用（未装配 session-projection 插件），待办面板无数据')
         }
         this.renderBatcher.schedule()
       },
@@ -2108,6 +2148,7 @@ export class TuiApp {
     // 整体降级：任务窗格/status 面板在切换时回显警告（fails loud），plan 徽标不显示。
     this.taskPanelVisible = false
     this.statusPanelVisible = false
+    this.todosPanelVisible = false
     this.taskItems = null
     this.planState = { active: false, pending: false }
     this.projectionCache = null
@@ -2115,7 +2156,10 @@ export class TuiApp {
     if (projections !== undefined) {
       const snap = projections.snapshot(session)
       this.projectionCache = { ...snap.values }
-      this.taskItems = snap.values.todos as TaskItem[] | null | undefined ?? null
+      // 保留快照同源初始化（重放/重挂载时已写入的清单直接可见）。
+      const snapTodos = snap.values.todos as TaskItem[] | null | undefined
+      this.taskItems = snapTodos ?? null
+      this.todosRetained = snapTodos ?? null
       const plan = snap.values.plan as PlanProjectionWire | undefined
       this.planState = { active: plan?.active ?? false, pending: plan?.pending ?? false }
       const statusLine = this.statusLine as WorkflowStatusLine | null
@@ -2128,7 +2172,12 @@ export class TuiApp {
           this.projectionCache[key as ProjectionKey] = value
         }
         if (key === 'todos') {
-          this.taskItems = value as TaskItem[] | null
+          const items = value as TaskItem[] | null
+          this.taskItems = items
+          // 黏滞保留快照：turn/start 会把 todos 投影 fold 重置为 null，面板
+          // 若直接跟随投影每回合开头都会闪烁消失——只吸收非空值（null 不回
+          // 退显示；黏滞语义见 todosRetained 字段注释）。
+          if (items !== null) this.todosRetained = items
           this.renderBatcher.schedule()
         } else if (key === 'plan') {
           const plan = value as PlanProjectionWire | null
@@ -3611,6 +3660,10 @@ export class TuiApp {
         toolCalls: this.sessionSummary.totalToolCalls,
         elapsedMs: this.sessionSummary.totalElapsedMs,
       },
+      // todos 紧凑面板（/todos；与 /status 任务段、/tasks 窗格同源不同呈现）
+      todosPanelVisible: this.todosPanelVisible,
+      todosExpanded: this.todosExpanded,
+      todosItems: this.todosRetained,
       subagentsPanelVisible: this.subagentsPanelVisible,
       delegationEntries: this.delegationEntries,
       subagentIdentities: (this.projectionCache?.subagent as
@@ -3629,9 +3682,12 @@ export class TuiApp {
       lspAvailable: this.lspBridge === null ? true : this.lspBridge.isAvailable(),
     }
 
-    // ── 面板段（7 面板纯函数；组合器负责 { text } 包装与 theme 着色）。──
+    // ── 面板段（8 面板纯函数；组合器负责 { text } 包装与 theme 着色）。──
     // glance 段：状态行 + 错误行（metrics 已并入输入轨下方 footer，避免双份）。
     for (const line of renderGlancePanel(snapshot)) lines.push({ text: line })
+    // /todos 紧凑待办卡（todosPanelVisible 门控在 renderTodosPanel 内）——放在
+    // glance 之后、任务窗格之前：摘要卡服务「一眼当前进度」，优先级高于窗格。
+    for (const line of renderTodosPanel(snapshot)) lines.push({ text: line })
     // T4 + T2.3：任务窗格 + 后台任务区（/tasks 面板内；taskPanelVisible 门控
     // 在 renderTasksPanel 内，窗格行在前、后台任务区行在后）。
     for (const line of renderTasksPanel(snapshot)) lines.push({ text: line })

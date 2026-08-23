@@ -143,9 +143,10 @@ interface MemoryFacet {
  * /status 同款：注册表只声明名字参与前缀解析/提示，实际显隐切换 handler 由
  * TuiApp 经 register 接线（见 ui/app.ts）。
  * /subagents、/workflow、/tasks 的命令定义在 createBuiltinCommands（deps 注入
- * TuiApp 的显隐切换）；/status 保持 TuiApp 内注册。
+ * TuiApp 的显隐切换）；/status、/todos 保持 TuiApp 内注册（/todos：无参显隐 +
+ * all 明细展开，数据源为 todos 投影保留快照）。
  */
-export const BUILTIN_COMMAND_NAMES = ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'glance', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'restart', 'yolo', 'help', 'cost'] as const
+export const BUILTIN_COMMAND_NAMES = ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'glance', 'goal', 'status', 'todos', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'restart', 'yolo', 'help', 'cost'] as const
 
 /**
  * 最小唯一前缀解析：`/` 前缀 + 命令名 `startsWith` 匹配。

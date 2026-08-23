@@ -1,23 +1,25 @@
 /**
- * live-panels — renderLive 的 7 面板段纯函数（Wave 2 提取）。
+ * live-panels — renderLive 的 8 面板段纯函数（Wave 2 提取）。
  *
  * renderLive 每帧把 TuiApp 读取的字段子集组装为 LiveSnapshot（render/
- * live-snapshot.ts），交给本模块的 7 个纯函数（(snapshot) => string[]）
+ * live-snapshot.ts），交给本模块的 8 个纯函数（(snapshot) => string[]）
  * 渲染面板行；组合器负责 { text } 包装与 theme 着色、非面板段（提问/审批/
  * 流利度/流式尾巴/工具卡/输入行）直渲染。面板是纯函数：同一 snapshot 恒返回
  * 同一行序列，无 I/O、无时钟、无副作用——taskNotice 的「渲染后清空」副作用
  * 由组合器承担。
  *
- * 每个面板复用既有 project* 纯函数（format/task-panel、status-panel、
- * delegation-panel、workflow-panel、config-panel、skill-panel、
- * format/glance-bar），本模块只做「snapshot → 既有面板函数输入」的适配与
- * 顺序编排，不重复实现渲染逻辑。依赖方向保持 app.ts → render/ 单向。
+ * 每个面板复用既有 project* 纯函数（format/task-panel、format/todos-panel、
+ * status-panel、delegation-panel、workflow-panel、config-panel、skill-panel、
+ * format/lsp-diagnostics、format/glance-bar），本模块只做「snapshot → 既有面
+ * 板函数输入」的适配与顺序编排，不重复实现渲染逻辑。依赖方向保持 app.ts →
+ * render/ 单向。
  *
  * @module @deepseek-ai/dsh-tianshu-tui/render/live-panels
  */
 
 import type { LiveSnapshot } from './live-snapshot.js'
 import { projectTaskPanel } from '../format/task-panel.js'
+import { projectTodosPanel } from '../format/todos-panel.js'
 import { projectStatusPanel } from '../status-panel.js'
 import { projectDelegationTree } from '../delegation-panel.js'
 import { projectWorkflow, type WorkflowRunView } from '../workflow-panel.js'
@@ -99,6 +101,21 @@ export function renderConfigPanel(snapshot: LiveSnapshot): string[] {
     { ...projection, settings, permission: projection.permission ?? null },
     { width: snapshot.cols },
   )
+}
+
+/**
+ * 渲染 todos 紧凑待办面板（/todos）：一行摘要卡（三态计数 + 当前进行项）或
+ * 封顶明细。面板隐藏 → 空数组；数据源是保留快照（只吸收非空投影值，
+ * turn/start 清空不回退显示——黏滞语义在 app.ts，本函数保持纯呈现）。
+ * @param snapshot - 当前帧快照。
+ * @returns 面板行数组。
+ */
+export function renderTodosPanel(snapshot: LiveSnapshot): string[] {
+  if (!snapshot.todosPanelVisible) return []
+  return projectTodosPanel(snapshot.todosItems, {
+    width: snapshot.cols,
+    expanded: snapshot.todosExpanded,
+  })
 }
 
 /**

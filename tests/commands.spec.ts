@@ -1695,3 +1695,17 @@ describe('内置命令 — /preset（agent 预设模式切换）', () => {
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('no-such'))
   })
 })
+
+describe('内置命令 — /todos', () => {
+  it('内置命令集含 /todos（TuiApp 内注册：无参显隐 + all 明细展开）', () => {
+    expect(BUILTIN_COMMAND_NAMES).toContain('todos')
+  })
+
+  it('/tod 唯一命中 todos；/t 因 theme/tasks/todos 同前缀而歧义', () => {
+    // /t 同时命中 theme/tasks/todos → 歧义拒绝；/tod 才是 todos 的最小唯一前缀。
+    expect(resolveSlashCommand('/t', BUILTIN_COMMAND_NAMES)).toBeNull()
+    const parsed = resolveSlashCommand('/tod all', BUILTIN_COMMAND_NAMES)
+    expect(parsed?.command.name).toBe('todos')
+    expect(parsed?.text).toBe('all')
+  })
+})

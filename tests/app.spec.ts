@@ -2545,6 +2545,101 @@ describe('TuiApp T4 任务窗格（/tasks + sessionProjections）', () => {
   })
 })
 
+describe('TuiApp /todos 紧凑待办面板（保留快照 + 显隐切换）', () => {
+  /** 装配带 sessionProjections 替身的 app（快照/onChanged 捕获，供用例推送）。 */
+  async function mountWithProjections() {
+    const ctx = makeCtx()
+    let changeListener: ((s: { id: string }, key: string, value: unknown) => void) | null = null
+    let mountedAgent: { session: { id: string } } | null = null
+    ctx.agents.create.mockImplementation(({ sessionId }: { sessionId: string }) => {
+      const agent = makeAgent(sessionId)
+      mountedAgent = agent
+      ctx.sessions.get.mockReturnValue(agent.session)
+      return makeHandle(agent)
+    })
+    const onChanged = vi.fn((l: (s: { id: string }, key: string, value: unknown) => void) => {
+      changeListener = l
+      return () => { }
+    })
+    const snapshot = vi.fn(() => ({ values: { todos: [
+      { content: '理解问题', status: 'completed' },
+      { content: '写实现', status: 'in_progress' },
+    ] } }))
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'sessionProjections') return { snapshot, onChanged }
+      return undefined
+    })
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    return {
+      app,
+      stdin,
+      stdout,
+      listener: () => changeListener as unknown as (s: { id: string }, key: string, value: unknown) => void,
+      mounted: () => mountedAgent as unknown as { session: { id: string } },
+    }
+  }
+
+  function writtenOf(stdout: ReturnType<typeof makeStdout>): string {
+    return stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+  }
+
+  it('/todos 打开渲染摘要卡；/todos all 展开明细', async () => {
+    const t = await mountWithProjections()
+    for (const ch of '/todos') t.stdin.emit('data', ch)
+    t.stdin.emit('data', '\r')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(writtenOf(t.stdout)).toContain('📋 待办 ✓1 ⏳1 □0 · 写实现')
+
+    // all → 展开：摘要行 + 封顶明细条目
+    for (const ch of '/todos all') t.stdin.emit('data', ch)
+    t.stdin.emit('data', '\r')
+    await new Promise(resolve => setImmediate(resolve))
+    const text = writtenOf(t.stdout)
+    expect(text).toContain('[x] 理解问题')
+    expect(text).toContain('⏳ 写实现')
+    await t.app.dispose()
+  })
+
+  it('黏滞保留：turn/start 把投影清成 null 不回退显示已打开的面板', async () => {
+    const t = await mountWithProjections()
+    for (const ch of '/todos') t.stdin.emit('data', ch)
+    t.stdin.emit('data', '\r')
+    await new Promise(resolve => setImmediate(resolve))
+
+    const listener = t.listener()
+    const mounted = t.mounted()
+    expect(listener).not.toBeNull()
+    // turn/start fold 重置 → null 推送：面板保持显示上一份非空清单
+    listener!({ id: mounted.session.id }, 'todos', null)
+    await new Promise(resolve => setTimeout(resolve, 200))
+    expect(writtenOf(t.stdout)).toContain('📋 待办 ✓1 ⏳1 □0 · 写实现')
+
+    // 新一轮写入非空清单 → 保留快照吸收更新（摘要行刷新为新的三态计数）
+    listener!({ id: mounted.session.id }, 'todos', [{ content: '新任务', status: 'pending' }])
+    await new Promise(resolve => setTimeout(resolve, 200))
+    expect(writtenOf(t.stdout)).toContain('📋 待办 ✓0 ⏳0 □1')
+    await t.app.dispose()
+  })
+
+  it('/clear 一并收起 /todos 面板', async () => {
+    const t = await mountWithProjections()
+    for (const ch of '/todos') t.stdin.emit('data', ch)
+    t.stdin.emit('data', '\r')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(writtenOf(t.stdout)).toContain('📋 待办')
+
+    // 只看清屏后的重绘帧：清空写入缓冲再提交 /clear，避免清屏前旧帧干扰
+    t.stdout.write.mockClear()
+    t.app.handleSubmit('/clear')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(writtenOf(t.stdout)).not.toContain('📋 待办')
+    await t.app.dispose()
+  })
+})
+
 describe('TuiApp T1.1 投影总线（ProjectionFacet 5 域）', () => {
   it('mountSession 一次性快照 5 域，onChanged 按 key 分流缓存', async () => {
     const ctx = makeCtx()

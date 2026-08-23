@@ -92,6 +92,7 @@
 | src/format/spinner-status.ts | format/spinner-status.ts | modified |
 | src/format/steer-message.ts | — | new |
 | src/format/task-panel.ts | — | new（todo checklist 保持 [ ]/⏳/[x]——清单不是进程卡；截断复用 live-card） |
+| src/format/todos-panel.ts | format/todos-panel.ts | ported（/todos 紧凑待办面板纯函数层；回流 tianshu a7b8f63392） |
 | src/format/tool-card.ts | format/tool-card.ts | modified（消费 live-card 共享常量与 liveCardGlyph——去重本地 ⎿ 前缀/spinner 分支；live 无 tick 进行中形 ●→⠋） |
 | src/format/tool-family.ts | tool-family.ts | modified（目录重排：上游根 → src/format/） |
 | src/format/tool-group.ts | — | new |
