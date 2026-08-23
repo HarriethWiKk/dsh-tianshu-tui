@@ -35,7 +35,8 @@
     "build": "tsc -p tsconfig.build.json && tsdown",
     "lint": "oxlint src tests scripts vision-ask/src vision-ask/tests",
     "typecheck": "tsc --noEmit && tsc --noEmit -p vision-ask/tsconfig.json",
-    "test": "vitest run && vitest run --root vision-ask"
+    "test": "vitest run && vitest run --root vision-ask",
+    "e2e:tui": "bash scripts/e2e-tui.sh"
   },
   "engines": {
     "node": "^22.19 || >=24"
