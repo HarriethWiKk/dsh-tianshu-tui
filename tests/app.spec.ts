@@ -1902,6 +1902,37 @@ describe('TuiApp Phase 9d 流利度装配', () => {
 describe('TuiApp Phase 6.1 slash 命令系统', () => {
   beforeEach(() => { setTheme('graphite') })
 
+  it('构造后经 tui.commands 追加的命令进入斜杠菜单（含中文描述）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('slash-ext')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+
+    const app = new TuiApp({ ctx, stdout, stdin })
+    // 构造期 provide 的注册表服务：外部插件（如 next-workflow）经它延迟注册
+    const tuiCommands = ctx.provide.mock.calls.find(call => call[0] === 'tui.commands')?.[1] as {
+      register(command: { name: string; description: string; argsHint?: string; run: () => void }): void
+    }
+    tuiCommands.register({
+      name: 'ext-workflow',
+      description: '外部插件追加的固定意图管线',
+      argsHint: '[candidates] <objective>',
+      run: () => {},
+    })
+    await app.attach()
+
+    for (const ch of '/ext-w') stdin.emit('data', ch)
+    await new Promise(resolve => setImmediate(resolve))
+
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('/ext-workflow [candidates] <objective>')
+    expect(written).toContain('外部插件追加的固定意图管线')
+    await app.dispose()
+  })
+
   it('/theme 经注册表生效并回显', async () => {
     const ctx = makeCtx()
     const agent = makeAgent('slash-theme')

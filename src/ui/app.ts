@@ -725,8 +725,11 @@ export class TuiApp {
       onSubmit: (text, images) => { this.handleSubmit(text, images) },
       onTabComplete: () => this.handleTabComplete(),
       // slash 菜单状态随输入变化刷新（键入/粘贴/外部 setValue 统一入口；
-      // 渲染由各调用路径 flushLiveRender 承担，此处不触发重绘）。
-      onChange: (value) => { this.inputController.refreshSlash(value) },
+      // 渲染由各调用路径 flushLiveRender 承担，此处不触发重绘）。输入变化前
+      // 先重投影提示快照：注册表可被外部插件经 tui.commands 服务在构造后
+      // 扩展（回流 tianshu bc5cec1359），构造期一次性快照会让晚注册的命令
+      // 在 / 菜单与 Tab 补全里不可见。
+      onChange: (value) => { this.syncSlashHints(); this.inputController.refreshSlash(value) },
     })
     this.resize = new ResizeHandler({ stdout: options.stdout })
     // 渲染帧合并器（T9）：事件路径（流式块）走 schedule 16ms 合并，
@@ -2703,6 +2706,16 @@ export class TuiApp {
     this.inputLine.setValue(result.text, result.cursor)
     this.flushLiveRender()
     return true
+  }
+
+  /** 把 slash 注册表投影到 InputController（菜单 / Tab 补全数据源）。
+   * 注册表可被外部插件经 tui.commands 服务在构造后扩展（回流 tianshu
+   * bc5cec1359：bundle 行序使插件 apply 晚于 TUI 构造），故每次输入变化前
+   * 重投影一次；#39 技能条目由 skillSurface 缓存合并，重投影不会丢。
+   * 列表很小，成本可忽略。
+   */
+  private syncSlashHints(): void {
+    this.skillSurface.refreshEntries()
   }
 
   /**

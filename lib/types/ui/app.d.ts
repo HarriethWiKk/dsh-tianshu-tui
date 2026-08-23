@@ -649,6 +649,13 @@ export declare class TuiApp {
      * 返回 false，Tab 保持原行为（InputLine 照常发出 'tab' 事件）。
      */
     private handleTabComplete;
+    /** 把 slash 注册表投影到 InputController（菜单 / Tab 补全数据源）。
+     * 注册表可被外部插件经 tui.commands 服务在构造后扩展（回流 tianshu
+     * bc5cec1359：bundle 行序使插件 apply 晚于 TUI 构造），故每次输入变化前
+     * 重投影一次；#39 技能条目由 skillSurface 缓存合并，重投影不会丢。
+     * 列表很小，成本可忽略。
+     */
+    private syncSlashHints;
     /**
      * 输入行 ghost 预览文本（阶段 2）：菜单选中命令时预览补全剩余
      * （`/th` + 选中 /theme → `eme`）；完整命令名 + 尾空格 → 预览参数占位
