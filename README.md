@@ -33,42 +33,42 @@
 
 ## 安装
 
-本包不是独立程序。须先有官方 CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh)（`0.1.0-rc.7`）。只 `npm i` 本包跑不起来。
+本包不是独立程序。须先有官方 CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh)（`0.1.0-rc.8`）。只 `npm i` 本包跑不起来。
 
 ### 1. 准备环境
 
 - [Node.js](https://nodejs.org/) `^22.19 || >=24`
 - PATH 上有 [`pnpm`](https://pnpm.io/installation)（`dsh plugin` 会转发给它）
 
-**不要直接敲 `dsh`。** 若 PATH 上已有旧的 `dsh`（例如 `~/.local/bin/dsh`，`dsh --version` 不是 `0.1.0-rc.7`），会走到本地 staging，出现 `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`。请始终用下面的 `npx` 命令。
+**不要直接敲 `dsh`。** 若 PATH 上已有旧的 `dsh`（例如 `~/.local/bin/dsh`，`dsh --version` 不是 `0.1.0-rc.8`），会走到本地 staging，出现 `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`。请始终用下面的 `npx` 命令。
 
 ### 2. 把本插件装进 tui profile
 
 ```sh
-npx -y @deepseek-ai/dsh@0.1.0-rc.7 plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+npx -y @deepseek-ai/dsh@0.1.0-rc.8 plugin --profile tui add @huiliyi37/dsh-tianshu-tui
 ```
 
 pnpm 可能提示 peer missing，可忽略：peer 由官方 `dsh` 宿主提供，不必另装。
 
 从 npm 安装后，每次启动会对照 npm `latest`：有新版本就写入 profile，提示重启后生效。不想联网检查时设 `DSH_TUI_SKIP_UPDATE=1`。`github:` / `link:` 安装不会改写成 npm 包。
 
-也可以从 Git 装：`npx -y @deepseek-ai/dsh@0.1.0-rc.7 plugin --profile tui add github:huiliyi37/dsh-tianshu-tui`（仓库已包含 `lib/index.js`，不必再打包）。
+也可以从 Git 装：`npx -y @deepseek-ai/dsh@0.1.0-rc.8 plugin --profile tui add github:huiliyi37/dsh-tianshu-tui`（仓库已包含 `lib/index.js`，不必再打包）。
 
 ### 3. 启动
 
 ```sh
-npx -y @deepseek-ai/dsh@0.1.0-rc.7 --profile tui
+npx -y @deepseek-ai/dsh@0.1.0-rc.8 --profile tui
 ```
 
 看到欢迎页品牌 **dsh-tianshu-tui** 即成功。`Ctrl+Q` 或 `/exit` 退出。
 
-已全局安装官方 CLI 且 `dsh --version` 为 `0.1.0-rc.7` 时，把上面的 `npx -y @deepseek-ai/dsh` 换成 `dsh` 即可。
+已全局安装官方 CLI 且 `dsh --version` 为 `0.1.0-rc.8` 时，把上面的 `npx -y @deepseek-ai/dsh` 换成 `dsh` 即可。
 
 若 `npx` 仍报 `ERR_FS_EISDIR`，是 `~/.dsh/profiles/node_modules` 里旧的安装 fallback 与官方 CLI 冲突。换干净目录再启动：
 
 ```sh
-DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh@0.1.0-rc.7 plugin --profile tui add @huiliyi37/dsh-tianshu-tui
-DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh@0.1.0-rc.7 --profile tui
+DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh@0.1.0-rc.8 plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh@0.1.0-rc.8 --profile tui
 ```
 
 不要在 DeepSeek Harness 工作区根目录对本包跑 tsdown：会把未发布的 `@deepseek-ai/dsh-root` 写进 bundle，加载必失败。
@@ -93,11 +93,50 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 > `@huiliyi37/oh-my-tianshu`（命令 `oh-my-tianshu`），与仓库名一致；旧包已
 > deprecate，请迁移安装。
 
-需要图片再询问能力时，再装配同仓伴生包 `vision-ask/`；需要 LSP 模型工具面（模型可调 `lsp_goto_definition` / `lsp_find_references` / `lsp_diagnostics`）时装配社区插件 [`omdsh-dev/dsh-lsp`](https://github.com/omdsh-dev/dsh-lsp)（`npx -y @deepseek-ai/dsh@0.1.0-rc.7 plugin --profile tui add github:omdsh-dev/dsh-lsp`）——装配后 TUI 展示桥自动消费其 `lsp` 服务（与模型工具面共享同一 LSP server 集，不双份 spawn）。TUI 桥的诊断源探测顺序：社区插件服务（getDiagnostics 形状）→ 官方 `ctx.lsp` seam（deepseek-harness 的 dsh-lsp，经 query(getDiagnostics) 适配）→ 内置桥降级。
+需要图片再询问能力时，再装配同仓伴生包 `vision-ask/`；需要 LSP 模型工具面（模型可调 `lsp_goto_definition` / `lsp_find_references` / `lsp_diagnostics`）时装配社区插件 [`omdsh-dev/dsh-lsp`](https://github.com/omdsh-dev/dsh-lsp)（`npx -y @deepseek-ai/dsh@0.1.0-rc.8 plugin --profile tui add github:omdsh-dev/dsh-lsp`）——装配后 TUI 展示桥自动消费其 `lsp` 服务（与模型工具面共享同一 LSP server 集，不双份 spawn）。TUI 桥的诊断源探测顺序：社区插件服务（getDiagnostics 形状）→ 官方 `ctx.lsp` seam（deepseek-harness 的 dsh-lsp，经 query(getDiagnostics) 适配）→ 内置桥降级。
 
 ## 更新说明
 
-当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.10`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.10)）。
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.13`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.13)）。
+
+### 0.1.2-rc.13（2026-08-22）
+
+tianshu-public 修复回流版本：上游 8 月中旬以来 10 项 fix(tui) 全量回流——会话安全 + 输入/粘贴语义 + 模型路由正确性（B 批 UI 行为变化为本版头条）。
+
+- **会话切换不再产生幽灵状态** — 切到不可恢复的会话时停留原会话并回显「⚠ 会话切换失败 + 原因」；Ctrl+S / 会话选择器等触发点不再逃逸 unhandled rejection，启动路径保持响亮失败
+- **剪贴板大图不再静默丢失** — Ctrl+V 与右键粘贴位图走与文件路径同一条预算管线：超限截图要么自动压缩进预算、要么响亮失败并区分原因（无工具 / 仍超限），不再「挂上 📎 却在提交时被丢弃」；overlay 关闭后 1s 内 Ctrl+V 只走文本（焦点去抖接线）
+- **slash 菜单不再顶推输入框** — 菜单行计入动态段高水位记账：开合、过滤全程输入框行位钉住，欢迎首帧不凭空垫白
+- **rewind 面板可退出、只列真人消息** — Ctrl+C 第一次即关闭（不再被面板吞掉）、Esc 分阶段处理（选粒度时先回列表）；插件注入行与空助手行不再进检查点列表；无可回退消息时回显原因
+- **/model 目录校验** — 拼写错误当场拒绝：未知 provider 硬拒并列已注册路由，目录外模型给至多三条就近建议（advisory 契约：空目录放行、llm 未装配跳过）；spark 别名目标未注册时响亮失败，不再静默保存死路由
+- **含斜杠模型 id 不再截断** — openrouter 风格 `stealth/ox-alpha` 一类 id 按首个斜杠分割，选择器确认与 /model 实参都不再把 model 截成首段
+- **输入框重影根修** — CPR 污染检测在输入增行/折行后作废基线：合法几何变化不再误判为外来写入触发欠回顶（旧帧顶部残留成「多一行」）
+- **/clear 一并收起命令面板** — /config /skills 等 live 面板清屏后不再原样画回，需重新打开
+- **Alt+控制键可达 + 空行 Alt+⌫ 删附件** — ESC+控制码组合（如 Alt+Backspace）正确路由；空行快捷移除末张图片附件（📎 行同步消失并提示键位），非空行仍是词删除
+- **fork 会话标题不再撞父会话** — 标题认 `session/end-seed` 边界，优先展示 fork 自有标题或首条真人消息；未活跃 fork 与老日志行为不变
+
+### 0.1.2-rc.12（2026-08-20）
+
+输入体验大版本：长文本性能 + 交互语义修复 + 界面语言统一（天枢同源优化三波）。
+
+- **输入框长文本性能** — 折行逐字符量宽走缓存（10 万字符草稿每次按键 ~1.3s → ~10ms）；粘贴可编辑阈值抬至 100 行/10000 字（此前 10 行即收成标记）；输入视窗 16 行上限（超出折叠「… 上/下 N 行」）；`Home/End/Ctrl+U/K` 以逻辑行为范围、`PageUp/Down` 翻页、`↑↓` 按软折行移动；换行模式下粘贴并入草稿不提交
+- **Ctrl+C 连按退出无死角** — 窗口内第二次恒退出（有草稿时第一次清空、`Ctrl+Z` 可恢复）；打断中第二次直接退出不用等落定；`vim` normal 下 Esc 空操作不再误弹 rewind；Kitty 键盘协议 CSI u 完整解码（Ctrl+C=CSI 99;5u、release 事件去重）
+- **活区卡片语言统一** — 工具卡/委派树/后台任务一套符号：进行中 `⠋`、成功 `›`、失败 `✗`、正文 `⎿`；终态行后退（muted）；正在跑的子代理和 build 终于长得像同类对象
+- **会话 tab 栏退场** — 常驻 tab 栏与 Ctrl+X/Alt+数字切换移除（多会话走 `/session` 与 `Ctrl+S`），界面少占一行
+- **更新提示可操作化** — 自更新失败给出三行引导（重启重试/手动更新命令/关闭提示）；成功提示写明 `/restart` 用法
+
+### 0.1.2-rc.11（2026-08-20）
+
+生态对齐 rc.8 + 个性化持久化 + Windows 修复大版本。
+
+- **官方生态对齐 `^0.1.0-rc.8`** — 逐项核验 rc.6→rc.8 消费面：事件全为加法（`assistant/message` 新增 `interrupted`、新增 `team/*` 事件）；图片单图本地预算 10MB→3.5MB 对齐宿主新准入默认（避免原样放行的图被附件存储拒绝）；rc.8 官方 bash 提速（宿主侧工具调用 ~7s→0.3s）自动受益。安装需宿主 `0.1.0-rc.8`（`npx -y @deepseek-ai/dsh@0.1.0-rc.8`）
+- **本地偏好持久化（`~/.dsh-tui/prefs.json`）** — `/theme`、`/density`、`/subagents` `/workflow` 面板显隐、`/glance` metrics 段开关全部重启保留；`/theme auto` 可回退自动档；`/theme export [name]` 当前主题一键导出为自定义模板；主题选择器列出 `custom:` 主题
+- **输入历史持久化** — `~/.dsh-tui/input-history.json` 上限 1000 条，Ctrl+P/N 跨重启可用（内容为输入原文，删文件即清空）
+- **输入框多行导航修复** — 含 emoji/组合字符的长文本 ↑↓ 跨行不再拆簇错位（grapheme 列保持）
+- **Windows 修复** — LSP 诊断启动修复（`.cmd` 派发）、12 处子进程补 `windowsHide`（不再闪控制台窗口）、剪贴板读图测试注入
+- **自更新可靠性（#43）** — 官方 npm 源超时自动回退 `registry.npmmirror.com` 镜像；新增 `DSH_TUI_UPDATE_REGISTRY` 自定义源链；更新检查 1 小时磁盘缓存免每启联网
+- **技能展示面（#39）** — `/` 菜单、Tab 菜单与 Ctrl+P 面板可见 userInvocable 技能（🧭），转录技能调用渲染为 chip
+- **会话短标签修复（#37/#38）** — tab 栏/欢迎页/委派树等处不再显示 `[session-]` 空壳
+- **主题切换即时重放（#40）** — 切主题后滚动区历史按新配色即时重绘；生态边界警告（#33）置顶 README
 
 ### 0.1.2-rc.10（2026-08-16）
 
@@ -171,11 +210,11 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 
 启动时对照 npm `latest`，把 profile 里的本包升到新版本，提示重启后生效。
 
-**从 `0.1.0-rc.7` 升级：** 那一版还没有自更新，需要手动加一次才会带上新逻辑：
+**从 `0.1.0-rc.8` 升级：** 那一版还没有自更新，需要手动加一次才会带上新逻辑：
 
 ```sh
-npx -y @deepseek-ai/dsh@0.1.0-rc.7 plugin --profile tui add @huiliyi37/dsh-tianshu-tui
-npx -y @deepseek-ai/dsh@0.1.0-rc.7 --profile tui
+npx -y @deepseek-ai/dsh@0.1.0-rc.8 plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+npx -y @deepseek-ai/dsh@0.1.0-rc.8 --profile tui
 ```
 
 之后再发新版本，启动时会自动写入 profile。看到「插件已更新到 …，请重启 dsh 后生效」后重启即可。不想联网检查时设 `DSH_TUI_SKIP_UPDATE=1`。`github:` / `link:` 安装不会改写成 npm 包。
@@ -187,7 +226,7 @@ npx -y @deepseek-ai/dsh@0.1.0-rc.7 --profile tui
 - `/model` 后 footer glance 与视觉能力跟实际模型走
 - `Ctrl+S` 可恢复磁盘上的会话
 
-第一版本基线见 [docs/BASELINE-v0.1.0-rc.7.md](docs/BASELINE-v0.1.0-rc.7.md)。
+第一版本基线见 [docs/BASELINE-v0.1.0-rc.8.md](docs/BASELINE-v0.1.0-rc.8.md)。
 
 ## 亮点
 

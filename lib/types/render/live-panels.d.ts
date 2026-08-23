@@ -26,14 +26,6 @@ import type { LiveSnapshot } from './live-snapshot.js';
  */
 export declare function renderGlancePanel(snapshot: LiveSnapshot): string[];
 /**
- * 渲染会话 tab 栏（P3 side conversation）：状态栏上方单行，全部 live 会话
- * 的缩略 tab。活跃会话 ▸ 前缀；运行中会话 ⏳ 后缀。单会话不渲染——tab 只在
- * 有多个目标可切换时才有信息量，单会话的随机短 id 白占一行（chrome 瘦身）。
- * @param snapshot - 当前帧快照。
- * @returns tab 栏行（0 或 1 行；纯文本，着色由组合器按整行处理）。
- */
-export declare function renderSessionTabs(snapshot: LiveSnapshot): string[];
-/**
  * 渲染任务面板：任务窗格（projectTaskPanel） + 后台任务区（taskSnapshots
  * 逐行）。面板隐藏 → 空数组；taskItems 为 null（服务缺失/未写入）→ 窗格不
  * 渲染，后台任务区独立渲染（与 renderLive 现状同语义）。

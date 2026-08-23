@@ -62,6 +62,25 @@ export declare function wrapToDisplayWidth(text: string, max: number, opts?: Dis
  */
 export declare function displayWidth(text: string, opts?: DisplayWidthOptions): number;
 /**
+ * 单个 code point 的显示宽度（= displayWidth(ch) 的结果缓存版）。
+ *
+ * 热路径专用：输入框折行对每个字符调用一次宽度度量，而 string-width
+ * 每次调用都新建 Intl.Segmenter 并跑若干 Unicode 属性正则（单字符 ~0.1ms）。
+ * 长草稿（万级字符）下逐字符直调 displayWidth 会让每次按键渲染上百毫秒
+ * （10 万字符草稿 ~1.3s；缓存后 ~10ms，天枢 2026-08-17 长文本优化同源）。
+ * 按字符缓存后热路径退化为 Map 命中（~0.1µs）；两档（加宽/不加宽）分开缓存
+ * ——同字符在不同档位下宽度不同。只缓存结果、不改算法，宽度与 displayWidth
+ * 逐字符求和恒等（折行点不因缓存漂移）。
+ *
+ * @param ch - 单个 code point（1–2 个 UTF-16 code unit；多 code point 串
+ *   会得到与 displayWidth 不一致的结果，调用方须按 code point 迭代）。
+ * @param ambiguousAsWide - 是否按加宽档位度量（与 displayWidth 同口径）。
+ * @returns 显示宽度（cell 数）。
+ */
+export declare function charDisplayWidth(ch: string, ambiguousAsWide: boolean): number;
+/** 测试钩子：清空单字符宽度缓存。 */
+export declare function resetCharWidthCache(): void;
+/**
  * 按显示宽度截断（ANSI 安全：转义序列原样保留、不计宽；截断发生时补一个 RESET
  * 防止颜色泄漏到后续行）。已在预算内则原样返回。
  * @param text - 待截断文本（可含 ANSI）。

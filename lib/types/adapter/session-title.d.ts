@@ -9,11 +9,13 @@
  * cordis.patch.yml：session-title + session-title-llm）。
  *
  * 展示优先级：
- * 1. 已折叠的最新 `session/title` 事件（fallback / LLM provider / 用户 rename 源）；
- * 2. 确定性 fallback——首条真人消息的前几个词（与 dsh-base 装配配置
+ * 1. seed 边界（`session/end-seed`，fork/恢复标记）之后本会话自己的标题事件
+ *    或首条真人消息——同父 fork 不再撞父标题；
+ * 2. 全量折叠的最新 `session/title` 事件（fallback / LLM provider / 用户 rename 源）；
+ * 3. 确定性 fallback——首条真人消息的前几个词（与 dsh-base 装配配置
  *    `fallbackMaxWords: 5` / `fallbackMaxBytes: 40` 对齐；历史会话无标题事件
  *    时免费可用，纯函数现算、不落盘）；
- * 3. 无任何真人聊天记录 → {@link EMPTY_TITLE}。
+ * 4. 无任何真人聊天记录 → {@link EMPTY_TITLE}。
  *
  * @module @deepseek-ai/dsh-tianshu-tui/adapter/session-title
  */
@@ -26,7 +28,8 @@ export declare const FALLBACK_MAX_WORDS = 5;
 export declare const FALLBACK_MAX_BYTES = 40;
 /**
  * 计算一个会话在 `/session list` 中的展示标题。
- * 纯函数、同步、无副作用：fold 官方标题事件 → 确定性 fallback → 「新对话」。
+ * 纯函数、同步、无副作用：seed 边界后的自有标题 → 全量 fold → 确定性
+ * fallback → 「新对话」。
  * @param events - 会话事件日志（live 或持久化重放）。
  * @returns 展示标题（恒非空）。
  */

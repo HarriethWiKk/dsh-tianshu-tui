@@ -21,7 +21,6 @@ import {
   renderWorkflowPanel,
   renderStatusPanel,
   renderGlancePanel,
-  renderSessionTabs,
 } from '../src/render/live-panels.js'
 
 /** 假主题（与既有 spec 同构：每个 token 一个独特 hex）。 */
@@ -73,8 +72,6 @@ function baseSnapshot(): LiveSnapshot {
     lspAvailable: true,
     glanceStatus: '○ 空闲',
     glanceError: null,
-    activeSessionId: null,
-    sessionTabs: [],
   }
 }
 
@@ -98,14 +95,17 @@ describe('renderTasksPanel', () => {
     expect(renderTasksPanel({ ...baseSnapshot(), taskPanelVisible: true, taskItems: null })).toEqual([])
   })
 
-  it('后台任务区：taskSnapshots 逐行渲染（running/completed 标记）', () => {
+  it('后台任务区：活区卡语言（running ⠋ / completed › 终态后退）', () => {
     const snap = { ...baseSnapshot(), taskPanelVisible: true, taskSnapshots: [
-      { id: 't1', kind: 'build', label: 'pnpm build', status: 'running' as const, startedAt: 1 },
+      { id: 't1', kind: 'build', label: 'pnpm build', status: 'running' as const, startedAt: 1, detail: 'linking' },
       { id: 't2', kind: 'test', label: 'vitest', status: 'completed' as const, startedAt: 2 },
     ] }
     const text = renderTasksPanel(snap).join('\n')
-    expect(text).toContain('⏳ pnpm build')
-    expect(text).toContain('✓ vitest')
+    expect(text).toContain('⠋ pnpm build')
+    expect(text).toContain('⎿') // running 的 detail 落 ⎿ body 行（前缀带 dim ANSI）
+    expect(text).toContain('linking')
+    expect(text).toContain('›') // 终态后退：title 涂 muted（ANSI 在 › 与标题之间）
+    expect(text).toContain('vitest')
   })
 })
 
@@ -252,35 +252,5 @@ describe('renderGlancePanel', () => {
     expect('glanceMetrics' in snap).toBe(false)
     const rows = renderGlancePanel(snap)
     expect(rows).toEqual(['○ 空闲'])
-  })
-})
-
-describe('renderSessionTabs（chrome 瘦身：单会话不占行）', () => {
-  it('空列表（未 attach）→ 零行', () => {
-    expect(renderSessionTabs(baseSnapshot())).toEqual([])
-  })
-
-  it('单会话 → 零行（tab 只在有切换目标时才有信息量）', () => {
-    const snap = {
-      ...baseSnapshot(),
-      activeSessionId: 'session-aaaabbbbcccc-rest',
-      sessionTabs: [{ id: 'session-aaaabbbbcccc-rest', status: 'idle' as const }],
-    }
-    expect(renderSessionTabs(snap)).toEqual([])
-  })
-
-  it('多会话 → 单行：活跃 ▸ 前缀、其余 · 前缀、运行中 ⏳ 后缀', () => {
-    const snap = {
-      ...baseSnapshot(),
-      activeSessionId: 'session-aaaabbbbcccc-rest',
-      sessionTabs: [
-        { id: 'session-aaaabbbbcccc-rest', status: 'idle' as const },
-        { id: 'session-ddddeeeeffff-rest', status: 'running' as const },
-      ],
-    }
-    const rows = renderSessionTabs(snap)
-    expect(rows).toHaveLength(1)
-    expect(rows[0]).toContain('▸ aaaabbbbcccc')
-    expect(rows[0]).toContain('· ddddeeeeffff ⏳')
   })
 })

@@ -45,14 +45,15 @@ import { ANSI, color, imageProtocol, osc52Clipboard } from '../engine/ansi.js'
 import { LiveEngine, LIVE_TOOL_CARD_MAX, liveMaxRowsFor, nextDynamicBudget, padDynamicRegion, type LiveRegionLine } from '../engine/live-engine.js'
 import { WriteBatcher } from '../engine/write-batcher.js'
 import { InputHandler, type KeyPress, type KeyName } from '../engine/input-handler.js'
-import { InputLine } from '../engine/input-line.js'
+import { InputLine, inputViewportMaxLines } from '../engine/input-line.js'
 import { InputController, type SlashHintEntry } from '../engine/input-controller.js'
 import { ResizeHandler } from '../engine/resize-handler.js'
 import { BlockStreamWriter } from '../block-stream-writer.js'
 import { StreamRenderer } from '../engine/stream-renderer.js'
 import { TuiPerfMonitor, isTuiPerfEnabled } from '../engine/perf-monitor.js'
-import { loadImageAttachment, looksLikeImagePath, MAX_IMAGES } from '../engine/image-attach.js'
+import { loadClipboardImageAttachment, loadImageAttachment, looksLikeImagePath, MAX_IMAGES } from '../engine/image-attach.js'
 import { readImageFromClipboard, readTextFromClipboard, FOCUS_DEBOUNCE_MS } from '../engine/clipboard-image.js'
+import { parseRouteKey } from '../engine/route-key.js'
 import {
   encodeTermImage,
   parseImageDataUrl,
@@ -64,7 +65,7 @@ import { resolveToolViews, type ToolPresenterSource } from '../adapter/tool-view
 import { trackAgent, type LiveAgent } from '../adapter/live.js'
 import { controlsFromHandle, controlsFromRegistry, type AgentControls } from '../adapter/send.js'
 import { listSessions, flushAll, getSession, type SessionSummary } from '../adapter/sessions.js'
-import { updateNoticeText, autoRestartNoticeText, readOwnVersion } from '../self-update.js'
+import { updateNoticeText, autoRestartNoticeText, updateNoticePackage, readOwnVersion } from '../self-update.js'
 import { supportsOsc52 } from '../term-caps.js'
 import { getTheme, getActiveThemeName, listCustomThemes, setTheme, THEME_NAMES, type RivetTheme } from '../theme.js'
 import { displayWidth, ambiguousWideEnabled } from '../width.js'
@@ -106,7 +107,6 @@ import {
   renderWorkflowPanel,
   renderConfigPanel,
   renderSkillsPanel,
-  renderSessionTabs,
   renderLspPanel,
 } from '../render/live-panels.js'
 import type { LiveSnapshot } from '../render/live-snapshot.js'
@@ -226,7 +226,6 @@ import {
   type ModelFacet,
 } from '../commands/registry.js'
 import { PickerController, type PickerItem } from '../picker.js'
-import { formatSessionTabs, type SessionTab } from '../format/session-tabs.js'
 import { shortSessionLabel } from '../session-label.js'
 import { accumulateUsage, formatSessionCostReport, type SessionCostBucket } from '../format/session-cost.js'
 import { renderTranscript, parseToolArguments, toolResultText, type RenderedRow } from './render.js'
@@ -238,7 +237,7 @@ import type { FormatGlanceBarInput } from '../format/glance-bar.js'
 import { formatPermissionDiff } from '../format/permission-diff.js'
 import { formatApprovalCard } from '../format/approval-card.js'
 import { HistorySearchOverlay } from '../format/history-search-overlay.js'
-import { RewindOverlay, type RewindMode, type RewindResult } from '../format/rewind-overlay.js'
+import { RewindOverlay, collectUserRewindCheckpoints, type RewindMode, type RewindResult } from '../format/rewind-overlay.js'
 import { openInEditorDetailed, getEditorCommand } from '../external-editor.js'
 import { FluencyTracker } from '../fluency-hook.js'
 import { expandMentions } from '../mention-expand.js'
@@ -263,7 +262,7 @@ import {
 } from '../controllers/approval-controller.js'
 import { QuestionController } from '../controllers/question-controller.js'
 import { BtwController } from '../controllers/btw-controller.js'
-import { SessionManager } from '../controllers/session-manager.js'
+import { SessionManager, resumeModelSelection } from '../controllers/session-manager.js'
 import { renderBtwPanel } from '../format/btw-panel.js'
 import { CHROME_GUTTER, formatWelcomeHero, type WelcomeEnvCheck, type WelcomeTipItem } from '../format/welcome.js'
 import { formatWhaleLogo, WHALE_MIN_ROWS } from '../format/whale.js'
@@ -518,9 +517,6 @@ export class TuiApp {
   /** 双击 Esc 触发 rewind：第一次 Esc 的时间戳（0 = 无待定；窗口内第二次 Esc
    *  打开 rewind overlay，对齐 Claude Code 的 Esc+Esc 时间回溯）。 */
   private escRewindPendingSince = 0
-  /** 会话 tab 栏缓存（attach/newSession/switchSession 后经 listSessions 刷新；
-   *  >1 会话时在 chrome 段渲染一行；Ctrl+X / Alt+数字 切换）。 */
-  private sessionTabs: SessionTab[] = []
   /** Phase 9d：流利度追踪（tool 事件 → 渲染策略；stale 提示消费于 renderLive）。 */
   private readonly fluency = new FluencyTracker()
   /** Phase 5.3：底部 glance（状态/错误行派生 + 节流；renderLive 消费 current()）。 */
@@ -779,6 +775,19 @@ export class TuiApp {
       // tool call 与新组成不匹配）：无消息且无未结算工具调用。
       isBlankSession: () => this.isBlankSession(),
       clearScrollback: () => {
+        // 命令切换的 live 信息面板（/config /skills /lsp /tasks /status
+        // /subagents /workflow）随清屏一并收起：这些面板渲染在 live 区，
+        // 只清 scrollback 不清可见性标志的话，2J 清屏后的全量重绘会把面板
+        // 内容原样画回来——用户看到的便是「/clear 清不掉命令输出」（如
+        // /config 的配置面板残留）。与既有语义一致：会话切换时 task/status
+        // 面板同样被重置（见 mountSession）。
+        this.configPanelVisible = false
+        this.skillsPanelVisible = false
+        this.lspPanelVisible = false
+        this.taskPanelVisible = false
+        this.statusPanelVisible = false
+        this.subagentsPanelVisible = false
+        this.workflowPanelVisible = false
         this.commit.reset()
         // 真实清屏（对齐 README「清空滚动区视图」）：2J 擦可见屏、3J 清终端
         // 滚动缓冲（不支持的终端无害忽略）、光标回顶；live 区状态复位后从
@@ -949,6 +958,8 @@ export class TuiApp {
       isDisposed: () => this.disposed,
       recordSlashUse: (name) => { this.inputController.recordSlashUse(name) },
       onEvent: (event, cb) => this.ctx.on(event as keyof Events, cb),
+      // #44：技能发现带会话 cwd——项目级 .dsh/skills 与 .agents/skills 可见
+      getSessionCwd: () => this.sessionCwd(),
     })
     // 命令提示数据源投影到 InputController（slash hint / Tab 补全目标）。
     this.skillSurface.refreshEntries()
@@ -1143,6 +1154,10 @@ export class TuiApp {
         // 再同步重绘 live 区（不能只等 120ms ticker——主屏刚恢复时 live 区是旧帧）。
         this.flushDeferredScrollback()
         this.flushLiveRender()
+        // 焦点去抖接线（终端 raw mode 无窗口焦点事件，overlay 关闭为最近似）：
+        // 此后 FOCUS_DEBOUNCE_MS 内的 Ctrl+V 只走文本——刚关掉的对话框里那次
+        // 粘贴不应再把剪贴板图读一次。
+        this.lastInputFocusAt = Date.now()
       },
     })
     this.overlay.register('command-palette', this.palette)
@@ -1226,12 +1241,17 @@ export class TuiApp {
   }
 
   /**
-   * 自更新失败的用户提示（P1-1）：回显一行 warning，附 SKIP 开关提示。
-   * attach 完成前调用则排队，完成后写入 scrollback。
+   * 自更新失败的用户提示（P1-1；文案 #43 反馈优化）：可操作引导优先——
+   * 重试/手动命令/关闭开关，而不是只甩环境变量。attach 完成前调用则排队。
    */
   notifyPluginUpdateFailed(error: string): void {
     if (this.disposed) return
-    const text = `⚠ 自更新失败：${error}（可用 DSH_TUI_SKIP_UPDATE=1 关闭）`
+    const text = [
+      `⚠ 自更新失败：${error}`,
+      '  · 重启 dsh 会自动重试（网络恢复后即可成功）',
+      `  · 手动更新：npx -y @deepseek-ai/dsh plugin --profile tui add ${updateNoticePackage}@latest`,
+      '  · 不想再看到此提示：启动前设 DSH_TUI_SKIP_UPDATE=1',
+    ].join('\n')
     if (!this.attached) {
       this.pendingUpdateFailNotice = text
       return
@@ -1252,17 +1272,21 @@ export class TuiApp {
    */
   private async handlePaste(text: string): Promise<void> {
     // 剪贴板当前是图片 → 附图并吞掉（与 Ctrl+V 互斥：右键粘贴产生 paste
-    // 事件、Ctrl+V 产生 ctrl_v 按键，不会同时触发）。
+    // 事件、Ctrl+V 产生 ctrl_v 按键，不会同时触发）。readImageFromClipboard
+    // 无图/失败时返回 null（自然落入文本粘贴）；此处 catch 只接管线处理
+    // 失败（超限压缩失败等）——回显原因，不把位图乱码插进输入行。
     if (this.inputLine.images.length < MAX_IMAGES) {
-      try {
-        const imgResult = await readImageFromClipboard()
-        if (imgResult) {
-          this.inputLine.addImage(imgResult.dataUrl)
+      const imgResult = await readImageFromClipboard()
+      if (imgResult) {
+        try {
+          await this.attachClipboardImage(imgResult.dataUrl, imgResult.name)
+          return
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          this.commitToScrollback({ text: color(`⚠ 剪贴板图片处理失败: ${message}`, this.theme.warning), trailingNewline: true })
           this.flushLiveRender()
           return
         }
-      } catch {
-        // 剪贴板读图失败（无图/不支持）→ 落入正常文本粘贴
       }
     }
     const trimmed = text.trim()
@@ -1291,8 +1315,9 @@ export class TuiApp {
 
   /**
    * Ctrl+V 处理：优先读剪贴板图片 → 失败则 fallback 到文本粘贴。
-   * 焦点防抖：输入框在最近 FOCUS_DEBOUNCE_MS 内刚获得焦点时跳过读图
-   * （编辑器/overlay 切回后 1s 内的 Ctrl+V 大概率是文本操作）。
+   * 焦点防抖：输入框在最近 FOCUS_DEBOUNCE_MS 内刚「重获焦点」（overlay
+   * 关闭近似——终端 raw mode 下无窗口焦点事件）时跳过读图，避免把粘贴进
+   * 对话框/选择器的那次 Ctrl+V 再当一次读图。
    */
   private async handleCtrlV(): Promise<void> {
     if (Date.now() - this.lastInputFocusAt < FOCUS_DEBOUNCE_MS) {
@@ -1311,12 +1336,16 @@ export class TuiApp {
           this.flushLiveRender()
           return
         }
-        this.inputLine.addImage(result.dataUrl)
-        this.flushLiveRender()
+        await this.attachClipboardImage(result.dataUrl, result.name)
         return
       }
-    } catch {
-      // 剪贴板读图失败，静默 fallback 到文本
+    } catch (err) {
+      // 管线处理失败（超限压缩失败等）——回显原因；剪贴板读图本身失败
+      // （readImageFromClipboard 内部吞掉返回 null）走下方文本 fallback。
+      const message = err instanceof Error ? err.message : String(err)
+      this.commitToScrollback({ text: color(`⚠ 剪贴板图片处理失败: ${message}`, this.theme.warning), trailingNewline: true })
+      this.flushLiveRender()
+      return
     }
     const text = await readTextFromClipboard()
     if (text) {
@@ -1327,6 +1356,21 @@ export class TuiApp {
       // 失败两种情形，不误指为工具链缺失；括号保留读图工具链的诊断信息。
       this.echoWarn('⚠ 剪贴板无内容可粘贴（读图需 osascript / wl-paste / xclip / PowerShell）')
     }
+  }
+
+  /**
+   * 剪贴板位图附件化：dataUrl 解回字节后走与文件路径同一条预算管线
+   * （magic 校验 + 原样直发 + 三级自适应压缩）——超限大图在此被压缩或
+   * 响亮失败，而不是挂上后在提交时被静默丢弃。
+   * @param dataUrl - 剪贴板读图结果（data:image/...;base64,...）。
+   * @param name - 附件显示名。
+   */
+  private async attachClipboardImage(dataUrl: string, name: string): Promise<void> {
+    const comma = dataUrl.indexOf(',')
+    const buf = Buffer.from(comma === -1 ? dataUrl : dataUrl.slice(comma + 1), 'base64')
+    const attachment = await loadClipboardImageAttachment(buf, name.length > 0 ? name : 'clipboard.png')
+    this.inputLine.addImage(attachment.dataUrl)
+    this.flushLiveRender()
   }
 
   /**
@@ -1520,7 +1564,7 @@ export class TuiApp {
     // 调用点为 void 触发（Ctrl+S），无 catch 会成为 unhandled rejection。
     const others = (await listSessions(this.ctx).catch(() => [])).filter(s => s.id !== this.activeSessionId)
     const target = others[0]?.id
-    if (target !== undefined) await this.switchSession(target)
+    if (target !== undefined) this.switchSessionGuarded(target)
   }
 
   /**
@@ -1557,12 +1601,6 @@ export class TuiApp {
     const active = this.activeSessionId
     const summaries = await listSessions(this.ctx)
     const others = summaries.filter(s => s.id !== active)
-    // 会话 tab 栏初始快照(attach 后;后续 newSession/switchSession 刷新)。
-    this.sessionTabs = summaries.map(row => ({
-      id: row.id,
-      label: shortSessionLabel(row.id),
-      current: row.id === active,
-    }))
 
     // 环境检查结果：唯一来源（首启与有会话统一一行，不重复渲染）。
     const env: WelcomeEnvCheck = {
@@ -1636,8 +1674,6 @@ export class TuiApp {
     this.controls = controlsFromHandle(handle)
     this.activeSessionId = id
     this.mountSession(id)
-    // 会话 tab 栏刷新（新会话出现在 tab 栏并成为当前）。
-    void this.refreshSessionTabs()
     return id
   }
 
@@ -1677,17 +1713,16 @@ export class TuiApp {
   }
 
   /**
-   * C3 项 3：打开 rewind overlay（/rewind）。消息快照 = transcript 视图
-   * （seq/turn/text），执行回调做「文件回退 + 会话截断 + 持久化截断」。
-   * @returns 是否已打开（无活跃会话或无消息时 false）。
+   * C3 项 3：打开 rewind overlay（/rewind）。检查点 = transcript 里真人用户
+   * 说过的非空 `user/message`；执行回调做「文件回退 + 会话截断 + 持久化截断」。
+   * @returns 是否已打开（无活跃会话或无可回退用户消息时 false）。
    */
   rewindSession(): boolean {
     const overlay = this.overlay
     const rewind = this.rewindOverlay
-    if (overlay === null || rewind === null) return false
-    if (this.activeSessionId === null) return false
-    const messages = this.transcript?.view.messages ?? []
-    if (messages.length === 0) return false
+    if (overlay === null || rewind === null || this.activeSessionId === null) return false
+    const messages = collectUserRewindCheckpoints(this.transcript?.view.messages ?? [])
+    if (messages.length === 0) { this.echoWarn('没有可回退的用户消息'); return false }
     rewind.setMessages(messages, (mode, atSeq) => this.executeRewind(mode, atSeq))
     overlay.activate('rewind')
     return true
@@ -1796,14 +1831,12 @@ export class TuiApp {
       return
     }
     picker.open('选择模型', items, (item) => {
-      const [provider, model] = item.value.split('/')
-      /* v8 ignore next -- split('/') 恒非空，[0] 必有值；noUncheckedIndexedAccess 防御 */
-      if (provider === undefined || model === undefined) return
-      const selection = { provider, model }
+      const selection = parseRouteKey(item.value)
+      if (selection === undefined) return
       void (this.ctx as unknown as { agentDefaultModel?: ModelFacet }).agentDefaultModel
         ?.saveSelection(selection)
       const hot = this.switchLiveModel(selection)
-      this.commitToScrollback({ text: `模型已切换: ${provider}/${model}${hot ? '（当前会话与默认均生效）' : '（默认生效）'}`, trailingNewline: true })
+      this.commitToScrollback({ text: `模型已切换: ${selection.provider}/${selection.model}${hot ? '（当前会话与默认均生效）' : '（默认生效）'}`, trailingNewline: true })
     }, selectedIndex)
     overlay.activate('picker')
   }
@@ -1895,7 +1928,7 @@ export class TuiApp {
       items.push(item)
     }
     picker.open('选择会话', items, (item) => {
-      void this.switchSession(SessionId(item.value))
+      this.switchSessionGuarded(SessionId(item.value))
     }, selectedIndex)
     overlay.activate('picker')
   }
@@ -1980,68 +2013,45 @@ export class TuiApp {
    * （非自有，不 dispose）；无则 resume 拿 handle（本层持有并 dispose）。
    * resume 的模型定路沿用会话持久化的 request header（跨重启续模），
    * 无 header（从未成功发起请求的会话）才落 agentDefaultModel 当前选择。
-   * @param id - 目标会话 id；必须是 live store 中已存在的会话。
+   * 恢复先于任何切换状态提交：目标不可恢复时在此抛错，应用停留在原会话（不进入半切换态）。
+   * @param id - 目标会话 id；live 会话或可恢复的持久化会话。
    */
   async switchSession(id: SessionId): Promise<void> {
-    // P3 side conversation：切走时保留旧会话 agent（keepHandle 让渡 registry；
-    // 切回时走下方 agents.get 兜底分支——不 create 不 resume，transcript 重放）。
-    await this.detachProjections({ keepHandle: true })
-    this.dynamicRowsHighWater = 0
-    this.activeSessionId = id
     const agent = this.ctx.agents.get(id)
-    if (agent !== undefined) {
-      /* v8 ignore next -- agent 已确认存在（if 分支外），controlsFromRegistry 恒返回非空 */
-      this.controls = controlsFromRegistry(this.ctx, id) ?? null
-      // registry 兜底：ref 由其他装配方持有，本层不可热切
-      this.modelRef = null
-    } else {
-      const persisted = getSession(this.ctx, id)?.requestHeader()?.config
-      const selection: ModelSelection = persisted === undefined
-        ? this.ctx.agentDefaultModel.currentSelection()
-        : {
-          provider: persisted.provider,
-          model: persisted.model,
-          ...persisted.reasoningEffort === undefined ? {} : { reasoningEffort: persisted.reasoningEffort },
-        }
-      // C2 项 4：持有可变 ref（resume 续模的 selection 也进 ref.current）
-      this.modelRef = { current: selection, assembled: undefined }
-      const ref = this.modelRef
-      const handle = await this.ctx.agents.resume({
+    const persisted = agent === undefined ? getSession(this.ctx, id)?.requestHeader()?.config : undefined
+    const selection = resumeModelSelection(persisted, () => this.ctx.agentDefaultModel.currentSelection())
+    // C2 项 4：持有可变 ref（resume 续模的 selection 也进 ref.current）
+    const ref: ModelSelectionRef = { current: selection, assembled: undefined }
+    const handle = agent !== undefined
+      ? undefined
+      : await this.ctx.agents.resume({
         resumeSessionId: id,
         agentOptions: { provider: selection.provider, model: selection.model },
         setup: (agentCtx) => {
           installModelSelection(agentCtx, ref)
         },
       })
+    // P3 side conversation：切走时保留旧会话 agent（keepHandle 让渡 registry；
+    // 切回时走上方 agents.get 兜底分支——不 create 不 resume，transcript 重放）。
+    await this.detachProjections({ keepHandle: true })
+    this.dynamicRowsHighWater = 0
+    this.activeSessionId = id
+    if (agent !== undefined) {
+      /* v8 ignore next -- agent 已确认存在（if 分支外），controlsFromRegistry 恒返回非空 */
+      this.controls = controlsFromRegistry(this.ctx, id) ?? null
+      // registry 兜底：ref 由其他装配方持有，本层不可热切
+      this.modelRef = null
+    } else if (handle !== undefined) {
+      this.modelRef = ref
       this.ownedHandle = handle
       this.controls = controlsFromHandle(handle)
     }
     this.mountSession(id)
-    // 会话 tab 栏刷新（切换后当前标记跟随）。
-    void this.refreshSessionTabs()
   }
 
-  /** 会话 tab 栏缓存刷新：listSessions → 短 id + 当前标记 → 缓存并调度重绘。 */
-  private async refreshSessionTabs(): Promise<void> {
-    const rows = await listSessions(this.ctx).catch(() => [])
-    if (this.disposed) return
-    const active = this.activeSessionId
-    this.sessionTabs = rows.map(row => ({
-      id: row.id,
-      label: shortSessionLabel(row.id),
-      current: row.id === active,
-    }))
-    this.renderBatcher.schedule()
-  }
-
-  /** 会话 tab 栏：Ctrl+X 切到下一个会话（循环；仅一个会话时无操作）。 */
-  private switchToNextTab(): void {
-    const tabs = this.sessionTabs
-    const active = this.activeSessionId
-    if (tabs.length <= 1) return
-    const idx = tabs.findIndex(t => t.id === active)
-    const next = tabs[(idx + 1) % tabs.length]
-    if (next !== undefined && next.id !== active) void this.switchSession(SessionId(next.id))
+  /** 按键面切换：失败回显 ⚠ 并停留原会话（rejection 不逃逸成 unhandled）。 */
+  private switchSessionGuarded(id: SessionId): void {
+    void this.switchSession(id).catch((error: unknown) => { this.echoWarn(`⚠ 会话切换失败: ${error instanceof Error ? error.message : String(error)}`) })
   }
 
   /**
@@ -2839,18 +2849,6 @@ export class TuiApp {
       return
     }
     // 会话 tab 栏：Ctrl+X 循环下一个（Ctrl+Tab 终端编码不可靠，不用）。
-    if (key.name === 'ctrl_x') {
-      this.switchToNextTab()
-      return
-    }
-    // 会话 tab 栏：Alt+1..9 直接跳第 N 个（ESC+digit 解析为 meta+char）。
-    if (key.meta === true && key.char >= '1' && key.char <= '9') {
-      const target = this.sessionTabs[Number(key.char) - 1]
-      if (target !== undefined && target.id !== this.activeSessionId) {
-        void this.switchSession(SessionId(target.id))
-      }
-      return
-    }
     if (key.name === 'ctrl_q') {
       if (this.onExit !== undefined) this.onExit()
       return
@@ -2940,8 +2938,14 @@ export class TuiApp {
       }
       return
     }
-    // C3 项 3：rewind overlay 打开——键转发给 overlay 状态机；done 后任意键关闭。
+    // C3 项 3：rewind overlay——Ctrl+C 与 list/done 阶段的 Esc 立即关闭（对齐
+    // memory，否则首次 Ctrl+C 走不到进程退出）；mode 的 Esc 由状态机收回列表。
     if (this.overlay?.activeId() === 'rewind' && this.rewindOverlay !== null) {
+      if (key.name === 'ctrl_c' ||
+        (key.name === 'escape' && (this.rewindOverlay.isListPhase() || this.rewindOverlay.isDone()))) {
+        this.overlay.deactivate()
+        return
+      }
       if (this.rewindOverlay.handleKey(key.name, key.char)) {
         this.overlay.rerender()
       }
@@ -3059,36 +3063,61 @@ export class TuiApp {
       // 空闲：双击 Esc（窗口内第二次）触发 rewind（CC 的 Esc+Esc 时间回溯）；
       // 第一次只记时间戳并继续流向后续分支（vim 等空闲 Esc 语义保留），
       // 窗口过期后第二次仅刷新时间戳。
-      const now = Date.now()
-      if (this.escRewindPendingSince !== 0 && now - this.escRewindPendingSince < REWIND_DOUBLE_ESC_MS) {
-        this.escRewindPendingSince = 0
-        this.rewindSession()
-        return
+      // vim normal 下 Esc 是空操作：布防/触发都跳过——vim 用户离开 insert 后
+      // 习惯性补按 Esc，不该弹出 rewind overlay（天枢 59d00152 同步）。
+      const vimEscNoop = this.vimEnabled && this.inputLine.vimMode === 'normal'
+      if (!vimEscNoop) {
+        const now = Date.now()
+        if (this.escRewindPendingSince !== 0 && now - this.escRewindPendingSince < REWIND_DOUBLE_ESC_MS) {
+          this.escRewindPendingSince = 0
+          this.rewindSession()
+          return
+        }
+        this.escRewindPendingSince = now
       }
-      this.escRewindPendingSince = now
     }
     if (key.name === 'ctrl_c') {
       // Windows 控制台（PowerShell/conhost）下 Ctrl+C 可能同时产生 0x03 字节
       // 与 SIGINT：记录字节处理时间，供 index.ts 的 SIGINT 防抖（双触发时
       // SIGINT 忽略，避免刚打断的 TUI 被 teardown 拆掉——「输入框消失」）。
-      this.lastCtrlCAt = Date.now()
-      // raw-mode 下 Ctrl+C 是 0x03 数据字节而非 SIGINT。
-      // 在途：打断当前 turn。空闲空输入：连按两次才 onExit（单次 dispose
-      // 会拆掉 TUI 而 dsh 进程仍在，表现为“按 Ctrl+C 后无法继续、只能再按一次退出”）。
-      if (this.liveAgent?.state.status === 'running') {
+      // Kitty flag 1 下 Ctrl+C 是 CSI 99;5u 而非 0x03，同样走此分支。
+      const now = Date.now()
+      this.lastCtrlCAt = now
+      const empty = this.inputLine.value === ''
+      const pending = this.inputController.ctrlCPendingSince
+      const within = pending !== 0 && now - pending < InputController.EXIT_WINDOW_MS
+      // 窗口内第二次 Ctrl+C 恒退出（不要求空输入）：第一次（无论打断、清空还是
+      // 布防提示）已表达退出意图，草稿/在途不再拦路——「连按两次退出」对
+      // 「有草稿想退出」与「打断后立刻退出」同样成立（天枢 59d00152 语义）。
+      if (this.onExit !== undefined && within) {
         this.inputController.ctrlCPendingSince = 0
-        this.handleAbort()
+        this.onExit()
         return
       }
-      if (this.inputLine.value === '' && this.onExit !== undefined) {
-        const now = Date.now()
-        const pending = this.inputController.ctrlCPendingSince
-        if (pending !== 0 && now - pending < InputController.EXIT_WINDOW_MS) {
+      if (this.liveAgent?.state.status === 'running') {
+        this.handleAbort()
+        // 打断同时布防连按窗口（有草稿也布防）：agent 落定前第二次 Ctrl+C
+        // 直接退出，不再要求等 agent 变 idle 后重按。
+        if (this.onExit !== undefined) {
+          this.inputController.ctrlCPendingSince = now
+        } else {
           this.inputController.ctrlCPendingSince = 0
-          this.onExit()
-          return
         }
+        this.flushLiveRender()
+        return
+      }
+      if (empty && this.onExit !== undefined) {
         this.inputController.ctrlCPendingSince = now
+        this.flushLiveRender()
+        return
+      }
+      if (!empty) {
+        // 空闲草稿：清空输入行（shell 语义；setValue 记 undo，Ctrl+Z 可恢复）
+        // 并布防连按窗口——第二次 Ctrl+C 即退出，无「已取消」噪音。
+        this.inputLine.setValue('')
+        if (this.onExit !== undefined) {
+          this.inputController.ctrlCPendingSince = now
+        }
         this.flushLiveRender()
         return
       }
@@ -3167,6 +3196,14 @@ export class TuiApp {
         overlay.activate('command-palette')
         this.flushLiveRender()
       }
+      return
+    }
+    // 空行 Alt+Backspace → 移除末张附件：有文本时 Alt+Backspace 仍是词删除
+    //（空行上词删除本就是空操作，两职责零冲突）；📎 行同步更新。
+    if (key.name === 'backspace' && key.meta
+      && this.inputLine.value === '' && this.inputLine.images.length > 0) {
+      this.inputLine.removeImage(this.inputLine.images.length - 1)
+      this.flushLiveRender()
       return
     }
     if (key.name === 'up' || key.name === 'down') {
@@ -3577,16 +3614,9 @@ export class TuiApp {
       lspPanelVisible: this.lspPanelVisible,
       lspDiagnostics: this.lspDiagnosticsView(),
       lspAvailable: this.lspBridge === null ? true : this.lspBridge.isAvailable(),
-      // P3：会话 tab 栏（多会话 side conversation；快照从 live store 派生）
-      activeSessionId: this.activeSessionId === null ? null : String(this.activeSessionId),
-      sessionTabs: this.sessionManager.list().map(s => ({ id: String(s.id), status: s.status })),
     }
 
     // ── 面板段（7 面板纯函数；组合器负责 { text } 包装与 theme 着色）。──
-    // P3：会话 tab 栏（多会话 side conversation；单行，secondary 色）。
-    for (const line of renderSessionTabs(snapshot)) {
-      lines.push({ text: color(line, theme.secondary) })
-    }
     // glance 段：状态行 + 错误行（metrics 已并入输入轨下方 footer，避免双份）。
     for (const line of renderGlancePanel(snapshot)) lines.push({ text: line })
     // T4 + T2.3：任务窗格 + 后台任务区（/tasks 面板内；taskPanelVisible 门控
@@ -3739,15 +3769,9 @@ export class TuiApp {
     }
 
     // chrome 起点：提问/审批贴输入轨（列入 chrome，小窗口也不会被从顶裁掉），
-    // 其后是 slash / vim / 图片 / 输入轨 / footer。溢出裁剪只作用在动态段。
+    // 其后是 slash / vim / 图片 / 输入轨 / footer。溢出裁剪只作用在动态段；
+    // slash 菜单行数另计入动态段高水位记账（见下方预算段），高度变化由垫高吸收。
     const chromeStart = lines.length
-
-    // 会话 tab 栏(chrome 段:不参与动态裁剪;>1 会话时显示;Ctrl+X/Alt+数字切换)。
-    if (this.sessionTabs.length > 1) {
-      for (const line of formatSessionTabs(this.sessionTabs, cols, this.theme)) {
-        lines.push(line)
-      }
-    }
 
     // 提问 / 审批紧挨输入轨。
     const questionPeek = this.question.peek()
@@ -3781,19 +3805,24 @@ export class TuiApp {
 
     // slash 命令菜单（grok slash_dropdown 移植）：输入以 / 开头且有匹配时
     // 在输入行上方渲染可滚动命令列表；无匹配时退回一行内联提示（旧行为）。
+    // 菜单/hint 行是可变高度 chrome 行：行数随行内过滤实时变化，其 display
+    // rows（slashRows）计入下方动态段高水位记账，由垫高吸收高度差，输入框
+    // 不随菜单开合/过滤上下漂移（首次打开落定一次，见动态段预算注释）。
     const inputValue = this.inputLine.value
+    const slashLines: string[] = []
     if (this.inputController.slashMenu.open) {
       for (const line of formatSlashMenu({
         width: cols,
         items: this.inputController.slashMenu.matches,
         selected: this.inputController.slashMenu.selected,
       }, theme)) {
-        lines.push({ text: line })
+        slashLines.push(line)
       }
     } else {
       const hint = this.slash.hint(inputValue)
-      if (hint !== null) lines.push({ text: hint })
+      if (hint !== null) slashLines.push(hint)
     }
+    for (const line of slashLines) lines.push({ text: line })
 
     // 输入行；vim 模式标签（Phase 6.5：normal/visual 态可见，insert 态隐藏）
     if (this.vimEnabled && this.inputLine.vimMode !== 'insert') {
@@ -3817,7 +3846,11 @@ export class TuiApp {
       ? theme.warning
       : this.approval.alwaysApprove ? theme.error : theme.secondary
     const promptColor = this.liveAgent?.state.status === 'running' ? theme.dim : modeColor
-    const inputView = this.inputLine.displayLinesWithCaret({ maxWidth: cols })
+    const inputView = this.inputLine.displayLinesWithCaret({
+      maxWidth: cols,
+      // 长草稿视窗裁剪（3..16 行随终端高度；超出折叠为「… 上/下 N 行」）
+      maxLines: inputViewportMaxLines(this.stdout.rows),
+    })
     const framedLines = inputView.lines.map((line) => (
       line.startsWith('❯ ') ? `${color('❯', promptColor)}${line.slice(1)}` : line
     ))
@@ -3878,17 +3911,28 @@ export class TuiApp {
     const terminalRows = this.stdout.rows || 24
     const raw = terminalRows - chromeRows - 2
     const ceiling = Math.max(0, Math.min(raw, liveMaxRowsFor(terminalRows) - chromeRows))
+    let slashRows = 0
+    for (const line of slashLines) slashRows += rowsForLine(line)
+    // 定高视口：动态段按高水位垫到恰好 budget，live region 只涨不缩 →
+    // 输入框钉住、回缩黑洞与旧轨线重影一并消除。欢迎首帧（无消息且非运行、
+    // 未开过 slash 菜单）不垫，避免凭空空白。
+    // slash 菜单/hint 虽在 chrome 段（小窗不被裁剪），其行数计入被跟踪总量：
+    // ceiling 已含 chromeRows（含 slashRows），传 ceiling + slashRows 使上限与
+    // 菜单高度无关 → 菜单开合/过滤只改垫高行数，输入框行位恒定。首次打开时
+    // 高水位尚无余量，输入框向下落定一次；此后（含关闭）由垫高吸收，不再漂移。
     const skipPad = (this.transcript?.view.messages ?? []).length === 0
       && this.liveAgent?.state.status !== 'running'
+      && slashRows === 0
+      && this.dynamicRowsHighWater === 0
     const next = nextDynamicBudget(
       this.dynamicRowsHighWater,
-      dynamicRows,
-      ceiling,
+      dynamicRows + slashRows,
+      ceiling + slashRows,
       skipPad,
       this.reasoningExpanded,
     )
     this.dynamicRowsHighWater = next.highWater
-    const padded = padDynamicRegion(lines, chromeStart, next.budget, rowsForLine)
+    const padded = padDynamicRegion(lines, chromeStart, Math.max(0, next.budget - slashRows), rowsForLine)
     const chromeTail = padded.lines.length - padded.chromeStart
     this.live.render(padded.lines, chromeTail > 0 ? { reservedTail: chromeTail } : undefined)
     this.perfMonitor.record('renderLive', performance.now() - renderStart)

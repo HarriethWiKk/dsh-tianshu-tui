@@ -24,12 +24,13 @@ import { projectWorkflow, type WorkflowRunView } from '../workflow-panel.js'
 import { projectConfigPanel } from '../config-panel.js'
 import { projectSkillPanel } from '../skill-panel.js'
 import { projectLspPanel, groupLspDiagnostics } from '../format/lsp-diagnostics.js'
+import { formatLiveCard, liveCardGlyph, type LiveCardStatus } from '../format/live-card.js'
 
-/** 后台任务区状态标记（与 renderLive 现状一致：running ⏳ / completed ✓ / 其余 ✗）。 */
-function taskSnapshotMark(status: string): string {
-  if (status === 'running') return '⏳'
-  if (status === 'completed') return '✓'
-  return '✗'
+/** 后台任务快照 → 活区卡状态形（running ⠋ / completed › / 其余 ✗）。 */
+function taskSnapshotStatus(status: 'running' | 'stopping' | 'completed' | 'killed' | 'failed'): LiveCardStatus {
+  if (status === 'running') return 'running'
+  if (status === 'completed') return 'success'
+  return 'error'
 }
 
 /**
@@ -48,25 +49,6 @@ export function renderGlancePanel(snapshot: LiveSnapshot): string[] {
 }
 
 /**
- * 渲染会话 tab 栏（P3 side conversation）：状态栏上方单行，全部 live 会话
- * 的缩略 tab。活跃会话 ▸ 前缀；运行中会话 ⏳ 后缀。单会话不渲染——tab 只在
- * 有多个目标可切换时才有信息量，单会话的随机短 id 白占一行（chrome 瘦身）。
- * @param snapshot - 当前帧快照。
- * @returns tab 栏行（0 或 1 行；纯文本，着色由组合器按整行处理）。
- */
-export function renderSessionTabs(snapshot: LiveSnapshot): string[] {
-  if (snapshot.sessionTabs.length <= 1) return []
-  const tabs = snapshot.sessionTabs.map((tab) => {
-    // 缩略 id：session-<uuid> 取 uuid 前 12 位；其他形状取前 16 位。
-    const short = tab.id.startsWith('session-') ? tab.id.slice(8, 20) : tab.id.slice(0, 16)
-    const running = tab.status === 'running' ? ' ⏳' : ''
-    const active = tab.id === snapshot.activeSessionId
-    return active ? `▸ ${short}${running}` : ` · ${short}${running}`
-  })
-  return [tabs.join('')]
-}
-
-/**
  * 渲染任务面板：任务窗格（projectTaskPanel） + 后台任务区（taskSnapshots
  * 逐行）。面板隐藏 → 空数组；taskItems 为 null（服务缺失/未写入）→ 窗格不
  * 渲染，后台任务区独立渲染（与 renderLive 现状同语义）。
@@ -78,8 +60,20 @@ export function renderTasksPanel(snapshot: LiveSnapshot): string[] {
   const rows: string[] = []
   rows.push(...projectTaskPanel(snapshot.taskItems, snapshot.cols))
   for (const t of snapshot.taskSnapshots) {
-    const detail = t.detail === undefined ? '' : ` · ${t.detail}`
-    rows.push(`${taskSnapshotMark(t.status)} ${t.label}${detail}`)
+    // 后台任务快照走活区卡（天枢 f636eb0e 卡片语言统一）：running ⠋ +
+    // 可选 ⎿ detail；completed ›（终态后退 muted）；其余状态（stopping/
+    // killed/failed）✗。
+    const running = t.status === 'running'
+    const detail = t.detail
+    rows.push(...formatLiveCard({
+      glyph: liveCardGlyph(taskSnapshotStatus(t.status)),
+      title: t.label,
+      ...(running || detail === undefined ? {} : { suffixes: [detail] }),
+      ...(running && detail !== undefined ? { body: [detail] } : {}),
+      width: snapshot.cols,
+      dim: !running,
+      theme: snapshot.theme,
+    }))
   }
   return rows
 }

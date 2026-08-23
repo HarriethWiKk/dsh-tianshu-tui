@@ -125,9 +125,6 @@ export declare class TuiApp {
     /** 双击 Esc 触发 rewind：第一次 Esc 的时间戳（0 = 无待定；窗口内第二次 Esc
      *  打开 rewind overlay，对齐 Claude Code 的 Esc+Esc 时间回溯）。 */
     private escRewindPendingSince;
-    /** 会话 tab 栏缓存（attach/newSession/switchSession 后经 listSessions 刷新；
-     *  >1 会话时在 chrome 段渲染一行；Ctrl+X / Alt+数字 切换）。 */
-    private sessionTabs;
     /** Phase 9d：流利度追踪（tool 事件 → 渲染策略；stale 提示消费于 renderLive）。 */
     private readonly fluency;
     /** Phase 5.3：底部 glance（状态/错误行派生 + 节流；renderLive 消费 current()）。 */
@@ -332,8 +329,8 @@ export declare class TuiApp {
     /** 更新提示落盘：attach 完成前排队（pendingUpdateNotice），完成后写 scrollback。 */
     private notifyUpdateLine;
     /**
-     * 自更新失败的用户提示（P1-1）：回显一行 warning，附 SKIP 开关提示。
-     * attach 完成前调用则排队，完成后写入 scrollback。
+     * 自更新失败的用户提示（P1-1；文案 #43 反馈优化）：可操作引导优先——
+     * 重试/手动命令/关闭开关，而不是只甩环境变量。attach 完成前调用则排队。
      */
     notifyPluginUpdateFailed(error: string): void;
     /** T3.1：结构化提问 answerer——薄转发 QuestionController（渲染/ESC/重绘由控制器回调承担）。 */
@@ -347,10 +344,19 @@ export declare class TuiApp {
     private handlePaste;
     /**
      * Ctrl+V 处理：优先读剪贴板图片 → 失败则 fallback 到文本粘贴。
-     * 焦点防抖：输入框在最近 FOCUS_DEBOUNCE_MS 内刚获得焦点时跳过读图
-     * （编辑器/overlay 切回后 1s 内的 Ctrl+V 大概率是文本操作）。
+     * 焦点防抖：输入框在最近 FOCUS_DEBOUNCE_MS 内刚「重获焦点」（overlay
+     * 关闭近似——终端 raw mode 下无窗口焦点事件）时跳过读图，避免把粘贴进
+     * 对话框/选择器的那次 Ctrl+V 再当一次读图。
      */
     private handleCtrlV;
+    /**
+     * 剪贴板位图附件化：dataUrl 解回字节后走与文件路径同一条预算管线
+     * （magic 校验 + 原样直发 + 三级自适应压缩）——超限大图在此被压缩或
+     * 响亮失败，而不是挂上后在提交时被静默丢弃。
+     * @param dataUrl - 剪贴板读图结果（data:image/...;base64,...）。
+     * @param name - 附件显示名。
+     */
+    private attachClipboardImage;
     /**
      * 设置当前主控模型的识图能力与桥接状态（图片附件气泡提示数据源）。
      * 由装配方按 agent 配置注入；TUI 是纯表现层，不自行查询模型能力。
@@ -446,9 +452,9 @@ export declare class TuiApp {
         directive?: string;
     }): Promise<SessionId>;
     /**
-     * C3 项 3：打开 rewind overlay（/rewind）。消息快照 = transcript 视图
-     * （seq/turn/text），执行回调做「文件回退 + 会话截断 + 持久化截断」。
-     * @returns 是否已打开（无活跃会话或无消息时 false）。
+     * C3 项 3：打开 rewind overlay（/rewind）。检查点 = transcript 里真人用户
+     * 说过的非空 `user/message`；执行回调做「文件回退 + 会话截断 + 持久化截断」。
+     * @returns 是否已打开（无活跃会话或无可回退用户消息时 false）。
      */
     rewindSession(): boolean;
     /**
@@ -520,13 +526,12 @@ export declare class TuiApp {
      * （非自有，不 dispose）；无则 resume 拿 handle（本层持有并 dispose）。
      * resume 的模型定路沿用会话持久化的 request header（跨重启续模），
      * 无 header（从未成功发起请求的会话）才落 agentDefaultModel 当前选择。
-     * @param id - 目标会话 id；必须是 live store 中已存在的会话。
+     * 恢复先于任何切换状态提交：目标不可恢复时在此抛错，应用停留在原会话（不进入半切换态）。
+     * @param id - 目标会话 id；live 会话或可恢复的持久化会话。
      */
     switchSession(id: SessionId): Promise<void>;
-    /** 会话 tab 栏缓存刷新：listSessions → 短 id + 当前标记 → 缓存并调度重绘。 */
-    private refreshSessionTabs;
-    /** 会话 tab 栏：Ctrl+X 切到下一个会话（循环；仅一个会话时无操作）。 */
-    private switchToNextTab;
+    /** 按键面切换：失败回显 ⚠ 并停留原会话（rejection 不逃逸成 unhandled）。 */
+    private switchSessionGuarded;
     /**
      * 挂载当前会话的投影与控制面：transcript/live/controls 就位后，
      * 将已提交的历史渲染进 scrollback。

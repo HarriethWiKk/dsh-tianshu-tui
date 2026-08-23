@@ -31,6 +31,7 @@
 | src/braille-spinner.ts | braille-spinner.ts | modified |
 | src/command-palette.ts | command-palette.ts | modified |
 | src/commands/registry.ts | — | new |
+| src/commands/model-validate.ts | — | new（回流 tianshu 8cc0cbe589：/model 目录分级校验（advisory 契约：provider 硬拒 / 目录外就近建议 / 空目录放行 / 未装配跳过）+ SPARK_ALIASES 一键别名表，自 registry 提取） |
 | src/completion/file-completer.ts | file-completer.ts | modified（目录重排 src/tui/ → src/completion/；`resolveFileCompletion` Tab 协调入口为 dsh 新增） |
 | src/config-panel.ts | — | new |
 | src/controllers/approval-controller.ts | — | new |
@@ -38,15 +39,16 @@
 | src/controllers/question-controller.ts | — | new |
 | src/controllers/session-manager.ts | — | new |
 | src/controllers/skill-surface.ts | — | new（#39 技能展示面：快照缓存 + userInvocable 过滤 + slash 菜单投影 + 手势 MRU + skills/change 订阅，从 ui/app.ts 提取） |
-| src/delegation-panel.ts | — | new |
+| src/delegation-panel.ts | — | new（activity 状态形对齐活区卡语言：running ⠋ / inactive ›；截断走 live-card truncateToLiveWidth） |
 | src/engine/ansi.ts | engine/ansi.ts | modified（新增 DECSCUSR 光标形状常量：稳态竖条 + 默认恢复，overlay 输入光标用） |
 | src/engine/clipboard-image.ts | engine/clipboard-image.ts | modified（移除未声明的 @mariozechner/clipboard native 路径，保留 shell 链 + 注入点；readText 注入测试密封化） |
 | src/engine/commit-engine.ts | engine/commit-engine.ts | modified |
 | src/engine/image-attach.ts | engine/image-attach.ts | modified（三级自适应压缩：1568px 保透明 PNG / JPEG 0.82 → JPEG 0.55 → 1024px+0.55，语义对齐上游 desktop 子树 image-compress.ts 的 compressImageSafe；probeImageSize 头部解析为 dsh 新增） |
 | src/engine/image-tool.ts | engine/image-tool.ts | modified（新增 resizeJpegCandidates——长边缩放 + JPEG 质量候选链，win32 脚本含 EncoderParameter 质量参数；语义对齐上游 desktop 子树 image-compress.ts；resize 链 sips 显式 -s format png） |
 | src/engine/input-controller.ts | engine/input-controller.ts | modified（类型内联；`tabComplete` Tab 补全状态机驱动） |
-| src/engine/input-handler.ts | engine/input-handler.ts | modified |
-| src/engine/input-line.ts | engine/input-line.ts | modified（多行 ↑↓ 导航 grapheme 列保持——CJK/emoji 跨行不拆簇，上游 dfe8b6f41 同步） |
+| src/engine/route-key.ts | — | new（回流 tianshu e289f6d980：parseRouteKey 首斜杠分割 provider/model 路由键——模型 id 自身可含 /，picker 行与 /model 实参同一文法） |
+| src/engine/input-handler.ts | engine/input-handler.ts | modified（+Kitty CSI u / xterm modifyOtherKeys 完整解码：Ctrl+字母映射 ctrl_* 名、release 事件只消费、冒号修饰段解析、带修饰可打印键保留 char——天枢 59d00152 同步） |
+| src/engine/input-line.ts | engine/input-line.ts | modified（多行 ↑↓ 导航 grapheme 列保持——CJK/emoji 跨行不拆簇；2026-08 天枢长文本优化整文件同步：charDisplayWidth 折行缓存（10 万字符草稿按键 ~1.3s→~10ms）+ 粘贴折叠阈值 100 行/10000 字 + 输入视窗 16 行上限（… 上/下 N 行）+ Home/End/Ctrl+U/K 逻辑行域 + PageUp/Down 翻页 + ↑↓ 软折行视觉导航 + 换行模式粘贴并入草稿） |
 | src/engine/live-engine.ts | engine/live-engine.ts | modified |
 | src/engine/metrics-glance-controller.ts | engine/metrics-glance-controller.ts | modified |
 | src/engine/overlay-controller.ts | engine/overlay-controller.ts | modified |
@@ -74,6 +76,7 @@
 | src/format/history-search-overlay.ts | — | new |
 | src/format/input-frame.ts | — | new（输入轨：上下圆角横线 ╭─╮/╰─╯，左右不封，纯渲染） |
 | src/format/keymap-panel.ts | — | new |
+| src/format/live-card.ts | — | new（活区共享卡片 chrome：›/⠋/✗/? 状态形 + ⎿ body + suffix 右起丢弃——工具卡/委派树/后台任务统一语言，天枢 f636eb0e 同步） |
 | src/format/markdown.ts | format/markdown.ts | modified |
 | src/format/memory-overlay.ts | — | new |
 | src/format/permission-diff.ts | format/permission-diff.ts | modified |
@@ -83,14 +86,13 @@
 | src/format/rewind-overlay.ts | — | new |
 | src/format/separator.ts | separator.ts | modified（目录重排：上游根 → src/format/） |
 | src/format/session-cost.ts | — | new（/cost 会话成本汇总：usage 按模型分桶累计 + 报告渲染，纯函数） |
-| src/format/session-tabs.ts | — | new（会话 tab 栏：短 id + 当前 ●，窄宽丢旧 +N 折叠，纯渲染） |
 | src/format/shimmer.ts | — | new（光带扫过动画：tick 驱动逐字符插值，样式源用户提供的 deep-diving.gif） |
 | src/format/slash-menu.ts | — | new（grok slash_dropdown 移植：slash 命令下拉菜单，纯渲染） |
 | src/format/subagent-line.ts | — | new（grok SubagentBlock 移植：subagent 对话流状态行，纯渲染） |
 | src/format/spinner-status.ts | format/spinner-status.ts | modified |
 | src/format/steer-message.ts | — | new |
-| src/format/task-panel.ts | — | new |
-| src/format/tool-card.ts | format/tool-card.ts | modified |
+| src/format/task-panel.ts | — | new（todo checklist 保持 [ ]/⏳/[x]——清单不是进程卡；截断复用 live-card） |
+| src/format/tool-card.ts | format/tool-card.ts | modified（消费 live-card 共享常量与 liveCardGlyph——去重本地 ⎿ 前缀/spinner 分支；live 无 tick 进行中形 ●→⠋） |
 | src/format/tool-family.ts | tool-family.ts | modified（目录重排：上游根 → src/format/） |
 | src/format/tool-group.ts | — | new |
 | src/format/tool-view-card.ts | — | new（presenter 结算卡：diff/terminal 结构化渲染 + generic 回落；renderFileDiff 与审批预览共用） |
@@ -125,7 +127,7 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 | src/port.ts | — | new |
 | src/preset-surface.ts | — | new（agent 预设展示面纯投影：preset 名 = header 创建值 + agent-preset/selected 切换值 fold（官方 resolveSessionPreset 等价）；wire 工具面 = 最近 request/header 的 tools 集合（foldRequestHeader）；只消费日志事实，不重放 preset 插件私有晋升逻辑） |
 | src/question-panel.ts | — | new |
-| src/render/live-panels.ts | — | new |
+| src/render/live-panels.ts | — | new（后台任务快照走 formatLiveCard：running ⠋+⎿ detail / completed › 终态后退 / 其余 ✗） |
 | src/render/live-snapshot.ts | — | new |
 | src/restore-session.ts | restore-session.ts | modified |
 | src/ring-buffer.ts | ring-buffer.ts | modified |
@@ -150,7 +152,7 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 | src/ui-glyphs.ts | ui-glyphs.ts | ported |
 | src/ui/app.ts | — | new（角色对应上游 engine/app.ts，为面向 dsh cordis 服务的独立装配实现，非逐行移植） |
 | src/ui/render.ts | — | new |
-| src/width.ts | width.ts | modified |
+| src/width.ts | width.ts | modified（+charDisplayWidth：单字符宽度两档有界缓存，输入框折行热路径专用，与 displayWidth 恒等） |
 | src/workflow-panel.ts | — | new |
 
 验证命令（映射覆盖护栏，随 tui 包测试执行）：

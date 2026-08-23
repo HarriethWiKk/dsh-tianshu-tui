@@ -33,6 +33,8 @@ declare module '@deepseek-ai/dsh-session/types' {
 import { getActiveThemeName, setTheme, THEME_NAMES } from '../theme.js'
 import { listSessions, loadHistory } from '../adapter/sessions.js'
 import { sessionTitleFor } from '../adapter/session-title.js'
+import { parseRouteKey } from '../engine/route-key.js'
+import { SPARK_ALIASES, validateModelSelection, type LlmCatalogFacet } from './model-validate.js'
 import { collectDoctorReport, getDoctorFixGuidance } from '../format/doctor-report.js'
 import { formatWireSurface, wirePhaseLabel, wireToolNames } from '../preset-surface.js'
 
@@ -144,16 +146,6 @@ interface MemoryFacet {
  * TuiApp 的显隐切换）；/status 保持 TuiApp 内注册。
  */
 export const BUILTIN_COMMAND_NAMES = ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'glance', 'goal', 'status', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'restart', 'yolo', 'help', 'cost'] as const
-
-/**
- * /model 一键切换别名（TUI 便捷层）：展开为已注册的 deepseek-official
- * 路由 + 官方 wire 模型 id。官方 API 没有 spark 模型名，也没有
- * deepseek-spark provider；别名只是 flash/pro 的快捷写法。
- */
-const SPARK_ALIASES: Readonly<Record<string, { provider: string; model: string }>> = {
-  'spark-flash': { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
-  'spark-pro': { provider: 'deepseek-official', model: 'deepseek-v4-pro' },
-}
 
 /**
  * 最小唯一前缀解析：`/` 前缀 + 命令名 `startsWith` 匹配。
@@ -276,7 +268,7 @@ export interface BuiltinCommandDeps {
   toggleSubagentsPanel(): void
   /** /workflow：切换 workflow 运行中面板显隐（T2.2；数据源为运行中缓存）。 */
   toggleWorkflowPanel(): void
-  /** /rewind（C3 项 3）：打开 rewind overlay；返回是否已打开（无会话时 false）。 */
+  /** /rewind（C3 项 3）：打开 rewind overlay；返回是否已打开（无会话或无可回退用户消息时 false）。 */
   rewindSession(): boolean
   /** /btw（P1）：发起侧问；返回是否已发起（无会话/已有挂起侧问时 false）。 */
   askBtw(question: string): Promise<boolean>
@@ -413,7 +405,7 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
     },
     {
       name: 'rewind',
-      description: '回退到指定消息（C3 项 3：会话截断 + 可选文件回退）',
+      description: '回退到一条用户消息（C3 项 3：会话截断 + 可选文件回退）',
       argsHint: '',
       run: ({ echo }) => {
         if (!deps.rewindSession()) {
@@ -459,12 +451,15 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
         // 非别名输入原样解析。
         const aliased = SPARK_ALIASES[target]
         const input = aliased === undefined ? target : `${aliased.provider}/${aliased.model}`
-        const parts = input.split('/')
-        // noUncheckedIndexedAccess：parts 元素可能 undefined，空串回退无害
-        /* v8 ignore next 2 -- split 恒返回非空数组且元素恒为 string；noUncheckedIndexedAccess 收窄防御 */
-        const next = parts.length === 2
-          ? { provider: parts[0] ?? '', model: parts[1] ?? '' }
-          : { provider: current.provider, model: parts[0] ?? '' }
+        // 首个斜杠分割：模型 id 可自身含 '/'（openrouter 风格）；无斜杠裸输入沿当前 provider 只换模型。
+        const routed = parseRouteKey(input)
+        const next = routed === undefined
+          ? { provider: current.provider, model: input }
+          : routed
+        // 目录校验（advisory 契约：目录空放行、llm 未装配跳过）；拒绝不切换并点名当前选择。
+        const llm = ctx.reflect.get('llm', false) as LlmCatalogFacet | undefined
+        const invalid = await validateModelSelection(llm, next, current)
+        if (invalid !== null) { echo(invalid); return }
         // effort 显式传入（含清除：省略 = 回 provider 默认——与 installModelSelection
         // 的 "absent effort clears inherited" 语义一致）。
         const selection = effortRaw === undefined
@@ -593,7 +588,7 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
     },
     {
       name: 'clear',
-      description: '清空当前会话滚动区',
+      description: '清空当前会话滚动区并收起命令面板',
       run: ({ echo }) => {
         deps.clearScrollback()
         echo('已清空当前会话滚动区')

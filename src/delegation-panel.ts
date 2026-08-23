@@ -15,7 +15,7 @@
  */
 
 import { shortSessionLabel } from './session-label.js'
-import { displayWidth } from './width.js'
+import { liveCardGlyph, truncateToLiveWidth } from './format/live-card.js'
 
 /** activity 状态：running 在 store 中存活，inactive 仅存在于持久化。 */
 export type DelegationActivity = 'running' | 'inactive'
@@ -81,9 +81,9 @@ export interface DelegationPanelOptions {
 /** 面板标题行。 */
 const TITLE = '🌳 委派'
 
-/** activity → 状态标记。 */
+/** activity → 状态形（活区卡片语言统一：进行中 ⠋ / 已结束 ›，天枢 f636eb0e）。 */
 function activityMark(activity: DelegationActivity): string {
-  return activity === 'running' ? '●' : '○'
+  return liveCardGlyph(activity === 'running' ? 'running' : 'success')
 }
 
 /** mode → 模式标记。 */
@@ -123,7 +123,7 @@ export function projectDelegationTree(
   opts: DelegationPanelOptions,
 ): string[] {
   if (entries.length === 0) return []
-  const rows = [truncateByWidth(TITLE, opts.width)]
+  const rows = [truncateToLiveWidth(TITLE, opts.width)]
   for (const entry of entries) {
     rows.push(renderEntry(entry, identities, timings, opts.width))
   }
@@ -139,26 +139,12 @@ function renderEntry(
 ): string {
   const indent = '  '.repeat(Math.max(0, entry.depth))
   if (entry.kind === 'diagnostic') {
-    return truncateByWidth(`${indent}⚠ ${reasonLabel(entry.reason)} ${shortHash(entry.id)}`, width)
+    return truncateToLiveWidth(`${indent}⚠ ${reasonLabel(entry.reason)} ${shortHash(entry.id)}`, width)
   }
   const identity = identities.get(entry.id)
   const mode = identity?.mode ?? entry.mode
   const label = identity?.label ?? entry.label ?? shortHash(entry.id)
   const timing = timings.get(entry.id)
   const timingSuffix = timing === undefined ? '' : ` ${formatSettled(timing.settledMs)}`
-  return truncateByWidth(`${indent}${activityMark(entry.activity)} ${modeMark(mode)} ${label}${timingSuffix}`, width)
-}
-
-/** 按显示宽度截断字符串（仅发生截断时尾部补 …；极端窄宽退化为 …）。 */
-function truncateByWidth(text: string, max: number): string {
-  if (max <= 1) return '…'
-  let out = ''
-  let w = 0
-  for (const ch of text) {
-    const cw = displayWidth(ch)
-    if (w + cw > max - 1) break
-    out += ch
-    w += cw
-  }
-  return w < displayWidth(text) ? `${out}…` : out
+  return truncateToLiveWidth(`${indent}${activityMark(entry.activity)} ${modeMark(mode)} ${label}${timingSuffix}`, width)
 }

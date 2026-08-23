@@ -1,7 +1,7 @@
 /**
  * delegation-panel.spec.ts — 委派树面板纯函数（grok-build tasks_pane 分组行移植）。
  *
- * 覆盖：标题行与空输入、depth 层级缩进、activity 状态标记（running ● /
+ * 覆盖：标题行与空输入、depth 层级缩进、activity 状态形（running ⠋（卡片语言统一）/
  * inactive ○）、mode 标记（one-shot ▶ / continuable ↻）、label 渲染与缺失
  * 回退 id 短哈希、耗时（subagentTiming settledMs）、diagnostic 警示行、
  * 窄宽截断、极端窄宽不抛错、identities/timings 投影覆盖。
@@ -63,21 +63,21 @@ describe('projectDelegationTree 层级缩进（depth 驱动）', () => {
     )
     const line1 = rows.find(r => r.includes('主探索'))
     const line2 = rows.find(r => r.includes('aaaaaaaa'))
-    expect(line1).toMatch(/^  ● /)
-    expect(line2).toMatch(/^    ○ /)
+    expect(line1).toMatch(/^  ⠋ /)
+    expect(line2).toMatch(/^    › /)
   })
 })
 
 describe('projectDelegationTree activity/mode 标记', () => {
-  it('running → ●，continuable → ↻', () => {
+  it('running → ⠋，continuable → ↻', () => {
     const rows = projectDelegationTree([childRunningContinuable], new Map(), new Map(), { width: 80 })
-    expect(rows).toContain('  ● ↻ 主探索')
+    expect(rows).toContain('  ⠋ ↻ 主探索')
   })
 
-  it('inactive → ○，one-shot → ▶', () => {
+  it('inactive → ›，one-shot → ▶', () => {
     const rows = projectDelegationTree([childInactiveOneShotNoLabel], new Map(), new Map(), { width: 80 })
     const line = rows.find(r => r.includes('aaaaaaaa'))
-    expect(line).toMatch(/^    ○ ▶ /)
+    expect(line).toMatch(/^    › ▶ /)
   })
 })
 
@@ -136,7 +136,7 @@ describe('projectDelegationTree 耗时（subagentTiming settledMs）', () => {
   it('无 timing 投影时不渲染耗时', () => {
     const rows = projectDelegationTree([childRunningContinuable], new Map(), new Map(), { width: 80 })
     const line = rows.find(r => r.includes('主探索'))
-    expect(line).toBe('  ● ↻ 主探索')
+    expect(line).toBe('  ⠋ ↻ 主探索')
   })
 
   it('settledMs 为 0 时渲染 0.0s', () => {
@@ -153,7 +153,7 @@ describe('projectDelegationTree diagnostic 警示行', () => {
     const rows = projectDelegationTree([diagnosticEntry], new Map(), new Map(), { width: 80 })
     const line = rows.find(r => r.includes('dddddddd'))
     expect(line).toMatch(/⚠/)
-    expect(line).not.toMatch(/[●○]/)
+    expect(line).not.toMatch(/[●○⠋]/)
   })
 
   it('unavailable reason → 不可用 警示文本', () => {
@@ -201,6 +201,6 @@ describe('projectDelegationTree 窄宽截断', () => {
 
   it('宽幅下不截断', () => {
     const rows = projectDelegationTree([childRunningContinuable], new Map(), new Map(), { width: 80 })
-    expect(rows).toContain('  ● ↻ 主探索')
+    expect(rows).toContain('  ⠋ ↻ 主探索')
   })
 })
