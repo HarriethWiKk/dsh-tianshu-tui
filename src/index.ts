@@ -64,6 +64,8 @@ export interface TuiRunnerConfig {
   prefsPath?: string | null
   /** 输入历史文件路径；null 显式禁用。 */
   inputHistoryPath?: string | null
+  /** 禁用 /key 首启自动弹窗（attach 尾缺 key 引导；缺省 false=启用）。 */
+  disableKeyAutoPrompt?: boolean
 }
 
 /**
@@ -140,6 +142,7 @@ export function apply(ctx: Context, config: TuiRunnerConfig = {}): void {
       ...(config.theme === undefined ? {} : { theme: config.theme }),
       ...(config.prefsPath === undefined ? {} : { prefsPath: config.prefsPath }),
       ...(config.inputHistoryPath === undefined ? {} : { inputHistoryPath: config.inputHistoryPath }),
+      ...(config.disableKeyAutoPrompt === undefined ? {} : { disableKeyAutoPrompt: config.disableKeyAutoPrompt }),
     })
     // Windows 控制台（PowerShell/conhost）下 Ctrl+C 可能同时产生 0x03 字节
     // 与 SIGINT 信号：0x03 已走 handleAbort（打断），紧随的 SIGINT 若直接

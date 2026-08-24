@@ -346,6 +346,11 @@ export interface TuiAppOptions {
   /** 是否启用 Vim 键位（Phase 6.5）；缺省 false。 */
   vimEnabled?: boolean
   /**
+   * 禁用 /key 首启自动弹窗（attach 尾缺 key 引导；缺省 false=启用）。
+   * 宿主/测试装配可显式关闭——TTY 替身与真实终端无法从 stdin 区分。
+   */
+  disableKeyAutoPrompt?: boolean
+  /**
    * 主控模型的识图能力与视觉桥状态（图片附件的用户气泡提示数据源；
    * 由装配方按 agent 配置注入——TUI 是纯表现层，不自行查询模型能力）。
    */
@@ -521,6 +526,8 @@ export class TuiApp {
   private keyDialog: KeyDialogController | null = null
   /** /key 供应商密钥配置装配层（key-wizard/key-dialog 之上；deps 注入 openKeyDialog）。 */
   private keyFlow!: KeyFlow
+  /** /key 首启自动弹窗禁用（宿主/测试装配显式关闭；缺省 false=启用）。 */
+  private readonly disableKeyAutoPrompt: boolean
   private overlay: OverlayController | null = null
   /**
    * overlay 激活期间暂存的 scrollback 条目（文本条目或原始字节序列）。
@@ -714,6 +721,7 @@ export class TuiApp {
   private sessionSummary: SummaryState = emptySummaryState(SessionId(''))
 
   constructor(options: TuiAppOptions) {
+    this.disableKeyAutoPrompt = options.disableKeyAutoPrompt === true
     this.ctx = options.ctx
     this.stdout = options.stdout
     this.stdin = options.stdin
@@ -1256,6 +1264,7 @@ export class TuiApp {
       isDisposed: () => this.disposed,
       stdinIsTTY: () => this.stdin.isTTY,
       apiKeyReady: () => this.apiKeyReady,
+      ...(this.disableKeyAutoPrompt ? { autoPrompt: false } : {}),
       agentDefaultModel: (this.ctx as unknown as { agentDefaultModel?: { currentSelection?: () => { provider: string } } }).agentDefaultModel,
     })
     this.input.setMode('input')

@@ -44,6 +44,8 @@ export interface KeyFlowDeps {
   stdinIsTTY: () => boolean
   /** 首启引导：当前 API key 就绪标志（欢迎行已刷新）。 */
   apiKeyReady: () => boolean
+  /** 首启引导开关：false 时 maybeAutoOpenKeyDialog 恒不弹（测试替身/宿主显式禁用）。 */
+  autoPrompt?: boolean
   /** agent-default-model 面（缺省无默认供应商）。 */
   agentDefaultModel?: { currentSelection?: () => { provider: string } }
   /** /config 凭据字段编辑入口 miss 时的回调（上游 finishConfigReturn）。 */
@@ -165,6 +167,7 @@ export class KeyFlow {
    * restore/重进等后续流程不再重复弹；非 TTY（测试/管道）不弹交互对话框。
    */
   maybeAutoOpenKeyDialog(): void {
+    if (this.deps.autoPrompt === false) return
     if (this.deps.isDisposed() || this.keyPromptShown || this.deps.apiKeyReady()) return
     if (!this.deps.stdinIsTTY()) return
     this.keyPromptShown = true

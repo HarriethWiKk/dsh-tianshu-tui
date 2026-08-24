@@ -158,7 +158,7 @@ async function boot(): Promise<Booted> {
   const wrappedTui: typeof Tui = {
     ...Tui,
     apply: (ctx, config) => {
-      Tui.apply(ctx, { ...config, stdin: stdin.stream, stdout: stdout.stream })
+      Tui.apply(ctx, { ...config, disableKeyAutoPrompt: true, stdin: stdin.stream, stdout: stdout.stream })
     },
   }
   const modules = new Map<string, unknown>([

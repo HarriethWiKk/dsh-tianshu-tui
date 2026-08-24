@@ -172,7 +172,7 @@ async function boot(opts?: { withGoalSubagent?: boolean }): Promise<Booted> {
     ...Tui,
     apply: (ctx, config) => {
       tuiCtx = ctx
-      Tui.apply(ctx, { ...config, stdin: stdin.stream, stdout: stdout.stream })
+      Tui.apply(ctx, { ...config, disableKeyAutoPrompt: true, stdin: stdin.stream, stdout: stdout.stream })
     },
   }
   const modules = new Map<string, unknown>([
