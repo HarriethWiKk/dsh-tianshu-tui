@@ -68,6 +68,8 @@
 | src/format/collapsed-bash.ts | format/collapsed-bash.ts | modified |
 | src/format/diff.ts | format/diff.ts | modified |
 | src/format/doctor-report.ts | — | new |
+| src/format/activity-band.ts | format/activity-band.ts | ported（2026-08 回流：统一活动带——subagent/workflow/task 折叠 + 封顶渲染；纯函数层并入，live 接线待 owner 决策） |
+| src/format/bg-block.ts | format/bg-block.ts | ported（2026-08 回流：消息面底色垫宽 withBgFill/withBgFillLines；纯函数层并入，气泡接线待 owner 决策） |
 | src/format/export.ts | — | new（/export 会话导出：事件日志 → Markdown 转录，纯渲染） |
 | src/format/fluency-policy.ts | fluency-policy.ts | modified（目录重排：上游根 → src/format/） |
 | src/format/glance-bar.ts | format/glance-bar.ts | modified（hideSegments 段过滤：prefs.glance.hideSegments 透传，model/stalled 永不可隐藏） |
