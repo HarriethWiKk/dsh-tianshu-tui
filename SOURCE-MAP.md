@@ -44,6 +44,7 @@
 | src/engine/clipboard-image.ts | engine/clipboard-image.ts | modified（移除未声明的 @mariozechner/clipboard native 路径，保留 shell 链 + 注入点；readText 注入测试密封化） |
 | src/engine/commit-engine.ts | engine/commit-engine.ts | modified |
 | src/engine/image-attach.ts | engine/image-attach.ts | modified（三级自适应压缩：1568px 保透明 PNG / JPEG 0.82 → JPEG 0.55 → 1024px+0.55，语义对齐上游 desktop 子树 image-compress.ts 的 compressImageSafe；probeImageSize 头部解析为 dsh 新增） |
+| src/engine/image-preview.ts | engine/image-preview.ts | ported（2026-08 回流：半块字符图片预览——sharp 懒加载降级、游程合并；消费：commitUserPrompt 气泡回退 + composer 缩略图） |
 | src/engine/image-tool.ts | engine/image-tool.ts | modified（新增 resizeJpegCandidates——长边缩放 + JPEG 质量候选链，win32 脚本含 EncoderParameter 质量参数；语义对齐上游 desktop 子树 image-compress.ts；resize 链 sips 显式 -s format png） |
 | src/engine/input-controller.ts | engine/input-controller.ts | modified（类型内联；`tabComplete` Tab 补全状态机驱动） |
 | src/engine/route-key.ts | — | new（回流 tianshu e289f6d980：parseRouteKey 首斜杠分割 provider/model 路由键——模型 id 自身可含 /，picker 行与 /model 实参同一文法） |

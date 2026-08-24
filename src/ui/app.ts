@@ -53,6 +53,14 @@ import { StreamRenderer } from '../engine/stream-renderer.js'
 import { TuiPerfMonitor, isTuiPerfEnabled } from '../engine/perf-monitor.js'
 import { loadClipboardImageAttachment, loadImageAttachment, looksLikeImagePath, MAX_IMAGES } from '../engine/image-attach.js'
 import { readImageFromClipboard, readTextFromClipboard, FOCUS_DEBOUNCE_MS } from '../engine/clipboard-image.js'
+import {
+  hexToRgb,
+  NEUTRAL_PREVIEW_BACKGROUND,
+  PREVIEW_MAX_COLS,
+  PREVIEW_MAX_ROWS,
+  FALLBACK_MAX_ROWS,
+  renderHalfBlockPreview,
+} from '../engine/image-preview.js'
 import { parseRouteKey } from '../engine/route-key.js'
 import {
   encodeTermImage,
@@ -505,6 +513,10 @@ export class TuiApp {
   private palette: CommandPalette | null = null
   /** API key 就绪标志（footer 右侧段；attach 时经 credentials.describe 刷新）。 */
   private apiKeyReady = Boolean(process.env.DEEPSEEK_API_KEY)
+  /** composer 附件缩略图（半块预览；null = 无附件或渲染失败——计数行仍在）。 */
+  private attachmentPreview: { dataUrl: string; lines: string[] } | null = null
+  /** 附件缩略图代际号：丢弃迟到的异步解码结果（快速增删/提交清空后不挂过期图）。 */
+  private attachmentPreviewEpoch = 0
   /** /key、/login：API Key 设置对话框（掩码输入 + 联网验证 + 落盘）。 */
   private keyDialog: KeyDialogController | null = null
   /** /key 供应商密钥配置装配层（key-wizard/key-dialog 之上；deps 注入 openKeyDialog）。 */
@@ -742,6 +754,8 @@ export class TuiApp {
       vimEnabled: this.vimEnabled,
       onSubmit: (text, images) => { this.handleSubmit(text, images) },
       onTabComplete: () => this.handleTabComplete(),
+      // 附件列表变化 → 重算 composer 缩略图（半块预览；装饰性增强，失败静默）。
+      onImagesChange: (images) => { void this.refreshAttachmentPreview(images) },
       // slash 菜单状态随输入变化刷新（键入/粘贴/外部 setValue 统一入口；
       // 渲染由各调用路径 flushLiveRender 承担，此处不触发重绘）。输入变化前
       // 先重投影提示快照：注册表可被外部插件经 tui.commands 服务在构造后
@@ -1442,6 +1456,62 @@ export class TuiApp {
     const attachment = await loadClipboardImageAttachment(buf, name.length > 0 ? name : 'clipboard.png')
     this.inputLine.addImage(attachment.dataUrl)
     this.flushLiveRender()
+  }
+
+  /**
+   * 无图形协议终端的气泡图片回退：半块字符预览写进 scrollback（与图形路径
+   * 同编舞——先清 live 区再 writeRaw，写完立即重绘）。解码失败返回 null 已在
+   * 渲染器内吞并，此处无需再兜——静默降级为纯文本气泡（📎 行已随正文写入）。
+   * @param images - 图片 data URL 列表（与气泡一致，封顶 MAX_IMAGES）
+   */
+  private async commitHalfBlockImages(images: string[]): Promise<void> {
+    const cols = Math.max(10, this.stdout.columns - 4)
+    const blocks: string[] = []
+    for (const dataUrl of images.slice(0, MAX_IMAGES)) {
+      const preview = await renderHalfBlockPreview(dataUrl, {
+        maxCols: cols,
+        maxRows: FALLBACK_MAX_ROWS,
+        background: this.previewBackground(),
+      })
+      if (preview) blocks.push(preview.lines.join('\r\n'))
+    }
+    if (blocks.length === 0) return
+    this.live.clearForCommit()
+    this.commit.writeRaw(blocks.join('\r\n') + '\r\n')
+    this.flushLiveRender()
+  }
+
+  /**
+   * composer 附件缩略图维护：附件列表变化时重算最后一张的半块预览。
+   * sharp 异步解码毫秒级，完成后触发一次重绘；代际号丢弃迟到结果
+   * （快速增删/提交清空后不再挂出过期图片）。渲染失败置 null——计数行
+   * 仍在，预览是装饰性增强。
+   * @param images - 变化后的附件 data URL 列表
+   */
+  private async refreshAttachmentPreview(images: string[]): Promise<void> {
+    const last = images[images.length - 1]
+    if (last === undefined) {
+      this.attachmentPreview = null
+      return
+    }
+    if (this.attachmentPreview?.dataUrl === last) return
+    const epoch = ++this.attachmentPreviewEpoch
+    const cols = Math.max(8, Math.min(PREVIEW_MAX_COLS, this.stdout.columns - 6))
+    const preview = await renderHalfBlockPreview(last, {
+      maxCols: cols,
+      maxRows: PREVIEW_MAX_ROWS,
+      background: this.previewBackground(),
+    })
+    if (epoch !== this.attachmentPreviewEpoch) return
+    this.attachmentPreview = preview === null ? null : { dataUrl: last, lines: preview.lines }
+    this.flushLiveRender()
+  }
+
+  /** 预览合成底色：本仓主题无气泡底色键（userMsgBg），统一用中性暗色（明暗终端都可读）。 */
+  private previewBackground(): { r: number; g: number; b: number } {
+    const bg = (this.theme as { userMsgBg?: string }).userMsgBg
+    if (bg === undefined) return NEUTRAL_PREVIEW_BACKGROUND
+    return hexToRgb(bg) ?? NEUTRAL_PREVIEW_BACKGROUND
   }
 
   /**
@@ -2537,6 +2607,11 @@ export class TuiApp {
     const protocol = imageProtocol()
     const withImages = images !== undefined && images.length > 0 && protocol !== 'none'
     this.commitToScrollback({ text: this.writeUserBubbleLines(content, images), trailingNewline: true })
+    // 无图形协议终端的图片回退：半块字符预览写进 scrollback（有图但协议 none；
+    // 与图形路径同编舞——异步解码完成后同一写窗口协议追加）。
+    if (images !== undefined && images.length > 0 && protocol === 'none') {
+      void this.commitHalfBlockImages(images)
+    }
     if (!withImages) return
     void (async () => {
       let prepared: PreparedTermImage[] = []
@@ -3956,6 +4031,13 @@ export class TuiApp {
     // 图片附件标记（📎 N images）显示在输入行上方；dim 色弱化不干扰输入。
     for (const summary of this.inputLine.imageSummary(cols)) {
       lines.push({ text: color(summary, theme.muted) })
+    }
+    // 附件半块预览（composer 缩略图）：最后一张附件的降采样真彩行（装饰性
+    // 增强——解码失败/无附件时 attachmentPreview 为 null 不占位，计数行仍在）。
+    if (this.attachmentPreview !== null) {
+      for (const line of this.attachmentPreview.lines) {
+        lines.push({ text: line })
+      }
     }
     // 阶段 2：slash 菜单选中命令 → 输入行 ghost 预览（补全剩余/参数占位）。
     this.inputLine.setGhost(this.slashGhostText())
