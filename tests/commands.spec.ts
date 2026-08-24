@@ -83,6 +83,7 @@ function commandByName(name: string) {
     applyThemeAuto: vi.fn(),
     exportTheme: vi.fn((): string => 'exported'),
     openSessionPicker: vi.fn(),
+    openKeyDialog: vi.fn(),
     sessionCostReport: vi.fn<() => string[]>(() => []),
   }
   const commands = createBuiltinCommands(deps)
@@ -1529,6 +1530,7 @@ describe('内置命令 — /effort', () => {
       applyThemeAuto: vi.fn(),
       exportTheme: vi.fn((): string => 'exported'),
       openSessionPicker: vi.fn(),
+    openKeyDialog: vi.fn(),
       sessionCostReport: vi.fn<() => string[]>(() => []),
     }
     const cmd = createBuiltinCommands(deps).find(c => c.name === 'effort')

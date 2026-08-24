@@ -146,7 +146,7 @@ interface MemoryFacet {
  * TuiApp 的显隐切换）；/status、/todos 保持 TuiApp 内注册（/todos：无参显隐 +
  * all 明细展开，数据源为 todos 投影保留快照）。
  */
-export const BUILTIN_COMMAND_NAMES = ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'glance', 'goal', 'status', 'todos', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'restart', 'yolo', 'help', 'cost'] as const
+export const BUILTIN_COMMAND_NAMES = ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'key', 'login', 'preset', 'tasks', 'density', 'glance', 'goal', 'status', 'todos', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'restart', 'yolo', 'help', 'cost'] as const
 
 /**
  * 最小唯一前缀解析：`/` 前缀 + 命令名 `startsWith` 匹配。
@@ -303,6 +303,8 @@ export interface BuiltinCommandDeps {
   exportTheme(name?: string): string
   /** #31：打开会话选择器。 */
   openSessionPicker(): void
+  /** /key、/login：打开 API Key 设置对话框（掩码输入 + 联网验证 + 落盘）。 */
+  openKeyDialog(): void
   /** /cost：当前会话累计用量与成本报告行（app 侧汇总；无数据时返回占位行）。 */
   sessionCostReport(): string[]
 }
@@ -474,6 +476,16 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
           ? `模型已切换: ${selection.provider}/${selection.model}${effortPart}（当前会话与默认均生效）`
           : `模型已切换: ${selection.provider}/${selection.model}${effortPart}（默认生效；当前会话不可热切）`)
       },
+    },
+    {
+      name: 'key',
+      description: '配置模型供应商 API 密钥（选择供应商 → 掩码输入 + 联网验证；保存即生效）',
+      run: () => { deps.openKeyDialog() },
+    },
+    {
+      name: 'login',
+      description: '配置模型供应商 API 密钥（/key 别名）',
+      run: () => { deps.openKeyDialog() },
     },
     {
       name: 'effort',

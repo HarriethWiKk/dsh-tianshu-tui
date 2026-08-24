@@ -94,6 +94,8 @@ import type {
   DelegationTimingProjection,
 } from '../delegation-panel.js'
 import type { WorkflowRunView, WorkflowResultInfoInput } from '../workflow-panel.js'
+import { KeyDialogController } from './key-dialog.js'
+import { KeyFlow } from './key-flow.js'
 import {
   projectQuestionPanel,
 } from '../question-panel.js'
@@ -503,6 +505,10 @@ export class TuiApp {
   private palette: CommandPalette | null = null
   /** API key 就绪标志（footer 右侧段；attach 时经 credentials.describe 刷新）。 */
   private apiKeyReady = Boolean(process.env.DEEPSEEK_API_KEY)
+  /** /key、/login：API Key 设置对话框（掩码输入 + 联网验证 + 落盘）。 */
+  private keyDialog: KeyDialogController | null = null
+  /** /key 供应商密钥配置装配层（key-wizard/key-dialog 之上；deps 注入 openKeyDialog）。 */
+  private keyFlow!: KeyFlow
   private overlay: OverlayController | null = null
   /**
    * overlay 激活期间暂存的 scrollback 条目（文本条目或原始字节序列）。
@@ -859,6 +865,8 @@ export class TuiApp {
       applyThemeAuto: () => { void this.applyThemeAuto() },
       exportTheme: (name) => this.exportTheme(name),
       openSessionPicker: () => { void this.openSessionPicker() },
+      // /key、/login：API Key 设置对话框（key-flow 装配层；onSaved 已接刷新就绪标志）。
+      openKeyDialog: () => { void this.keyFlow.openKeyDialog() },
       // /cost：当前会话累计用量与成本报告（Map 保持首次出现序）。
       sessionCostReport: () => formatSessionCostReport([...this.sessionCosts.values()]),
     })) {
@@ -1220,6 +1228,22 @@ export class TuiApp {
     // #31：交互式选择器 overlay（/model /theme /session 无参打开；上下键选择）。
     this.picker = new PickerController({ getTheme: () => this.theme })
     this.overlay.register('picker', this.picker)
+    // /key、/login：API Key 设置对话框 + 供应商配置装配层（保存成功刷新就绪标志）。
+    this.keyDialog = new KeyDialogController({
+      getTheme: () => this.theme,
+      onSaved: () => { void this.refreshApiKeyReady() },
+    })
+    this.overlay.register('key-dialog', this.keyDialog)
+    this.keyFlow = new KeyFlow({
+      overlay: this.overlay,
+      picker: this.picker,
+      keyDialog: this.keyDialog,
+      reflect: this.ctx.reflect,
+      isDisposed: () => this.disposed,
+      stdinIsTTY: () => this.stdin.isTTY,
+      apiKeyReady: () => this.apiKeyReady,
+      agentDefaultModel: (this.ctx as unknown as { agentDefaultModel?: { currentSelection?: () => { provider: string } } }).agentDefaultModel,
+    })
     this.input.setMode('input')
     this.ticker = setInterval(() => { this.tick++ ; this.renderLive() }, 120)
     this.ticker.unref()
