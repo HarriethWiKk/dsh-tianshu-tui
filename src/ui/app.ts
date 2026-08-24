@@ -1270,6 +1270,10 @@ export class TuiApp {
     // A3：纯位置参数作为初始 prompt（`dsh --profile tui "修复这个 bug"`）。
     if (initialPrompt !== '') {
       this.handleSubmit(initialPrompt)
+    } else {
+      // /key 首启引导：TTY 缺 API key 时自动打开一次设置对话框（key-flow
+      // 内部 run 级守护；非 TTY/已配置自动跳过；带 prompt 启动不打扰）。
+      this.keyFlow.maybeAutoOpenKeyDialog()
     }
   }
 
@@ -2896,6 +2900,14 @@ export class TuiApp {
     planMode.set(agent, active)
   }
 
+  /** /key：Ctrl+V 读剪贴板文本进 Key 字段（空文本忽略；readTextFromClipboard 平台缺失时返回 null）。 */
+  private async pasteClipboardIntoKeyDialog(dialog: KeyDialogController): Promise<void> {
+    const text = await readTextFromClipboard()
+    if (text === undefined || text === null || text === '') return
+    dialog.pasteText(text)
+    this.overlay?.rerender()
+  }
+
   /** 键路由：Enter 提交 / Ctrl-C 取消或退出 / 上下键历史 / 其余交给 InputLine。 */
   private handleKey(key: KeyPress): void {
     if (key.name !== 'ctrl_c' && this.inputController.ctrlCPendingSince !== 0) {
@@ -2978,6 +2990,23 @@ export class TuiApp {
           search.setMessages(this.transcript?.view.messages ?? [])
           overlay.activate('search')
         }
+      }
+      return
+    }
+    // /key：API Key 对话框打开——Ctrl+V 读剪贴板文本进 Key 字段；其余键交给
+    // 对话框状态机（输入态收字符/退格/Enter/Esc，confirm-unknown 强存），
+    // wantsClose 后 deactivate（Esc/Ctrl+C 由对话框状态机置关闭请求）。
+    if (this.overlay?.activeId() === 'key-dialog' && this.keyDialog !== null) {
+      const dialog = this.keyDialog
+      if (key.name === 'ctrl_v') {
+        void this.pasteClipboardIntoKeyDialog(dialog)
+        return
+      }
+      dialog.handleKey(key.name, key.char)
+      if (dialog.wantsClose()) {
+        this.overlay.deactivate()
+      } else {
+        this.overlay.rerender()
       }
       return
     }

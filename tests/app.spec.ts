@@ -7337,3 +7337,28 @@ describe('技能发现携带会话 cwd（#44：项目级技能可见）', () => 
     await app.dispose()
   })
 })
+
+describe('/key 键路由（审查修复）', () => {
+  it('key-dialog overlay 激活后 Esc 可达对话框状态机并关闭', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('fresh-1')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+    const stdin = makeStdin()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    const state = app as unknown as { overlay: { activeId(): string | null } }
+    // /key：reflect 无 llm/credentials → 降级 DeepSeek 直开（降级指引态）
+    app.handleSubmit('/key')
+    await new Promise(resolve => setTimeout(resolve, 30))
+    expect(state.overlay.activeId()).toBe('key-dialog')
+    // 降级指引态 Esc 应关闭（键路由把 escape 交给对话框状态机；Esc 单字节
+    // 需等 InputHandler CSI 超时才派发，等待要大于 partialSequenceTimeout）。
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 200))
+    expect(state.overlay.activeId()).toBeNull()
+    await app.dispose()
+  })
+})

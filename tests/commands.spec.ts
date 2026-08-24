@@ -878,6 +878,27 @@ describe('内置命令 — /cost', () => {
   })
 })
 
+describe('/key 与 /login（审查修复 — 命令行为）', () => {
+  it('/key 无参：经 deps.openKeyDialog 打开 API Key 设置对话框', async () => {
+    const { cmd, deps } = commandByName('key')
+    const { args } = makeArgs()
+    await cmd.run(args)
+    expect(deps.openKeyDialog).toHaveBeenCalledTimes(1)
+  })
+
+  it('/login 是 /key 别名：同样经 deps.openKeyDialog', async () => {
+    const { cmd, deps } = commandByName('login')
+    const { args } = makeArgs()
+    await cmd.run(args)
+    expect(deps.openKeyDialog).toHaveBeenCalledTimes(1)
+  })
+
+  it('BUILTIN_COMMAND_NAMES 含 key 与 login（/help 列表可见）', () => {
+    expect(BUILTIN_COMMAND_NAMES).toContain('key')
+    expect(BUILTIN_COMMAND_NAMES).toContain('login')
+  })
+})
+
 describe('内置命令 — /help', () => {
   it('内置命令集含 /help', () => {
     expect(BUILTIN_COMMAND_NAMES).toContain('help')

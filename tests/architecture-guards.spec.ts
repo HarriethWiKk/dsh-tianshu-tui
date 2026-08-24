@@ -128,9 +128,11 @@ function findIoImportsIn(corpus: SourceFile[], prefixes: string[]): Array<{ path
  *  ui/app.ts 4169 / registry 1001 = 回流 tianshu /key 供应商配置（key-dialog/
  *  key-flow 装配提取后 app 仍 +24：构造接线/字段/deps 注入；registry +8：
  *  /key /login 命令 + deps 声明 + BUILTIN_COMMAND_NAMES）五度重置；此后继续
- *  只降不升。 */
+ *  只降不升。
+ *  ui/app.ts 4198 = 审查修复（/key 键路由分支 + pasteClipboardIntoKeyDialog +
+ *  首启引导挂载）净 +29 六度重置；此后继续只降不升。 */
 const MAX_LINES_BASELINE: Readonly<Record<string, number>> = {
-  'ui/app.ts': 4169, // C4 拆分目标：只降不升；2026-08-22 两度重置（d860ff5f8e 剪贴板管线 +28 / ba1d1bc942 slash 高水位记账 +17）；回流 bc5cec1359 syncSlashHints +12、3037e91c71+a7b8f63392 /todos 面板 +56 再两度重置；回流 /key（key-flow 装配提取后仍 +24）五度重置——回流 UI 接线无再提取面
+  'ui/app.ts': 4198, // C4 拆分目标：只降不升；2026-08-22 两度重置（d860ff5f8e 剪贴板管线 +28 / ba1d1bc942 slash 高水位记账 +17）；回流 bc5cec1359 syncSlashHints +12、3037e91c71+a7b8f63392 /todos 面板 +56 再两度重置；回流 /key（key-flow 装配提取后仍 +24）五度重置；审查修复（键路由/粘贴/首启）六度重置——回流 UI 接线无再提取面
   'pi/latex-to-unicode.ts': 2076, // 数据表 port，实质不拆
   'engine/input-line.ts': 1561, // 天枢长文本优化整文件同步（146 行：视觉行导航/翻页/逻辑行域/阈值），2026-08-20 重置；回流 tianshu 85c17784a4 imageSummary 空行键位提示 +3，2026-08-22 再重置
   'commands/registry.ts': 1001, // P1 /theme auto|export 988 → #40 onThemeChanged 993 → 回流 /key（/key /login 命令 + deps 声明）1001
