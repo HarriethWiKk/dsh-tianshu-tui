@@ -97,7 +97,16 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 
 ## 更新说明
 
-当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.13`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.13)）。
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.14`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.14)）。
+
+### 0.1.2-rc.14（2026-08-25）
+
+tianshu-public 交互面回流版本：/key 模型供应商密钥配置 + 图片发送预览 + 交互面增量（三波全量落地）。
+
+- **`/key` `/login` 配置模型供应商 API 密钥** — 选择供应商（默认置首、已配置 ✓）→ 掩码输入（≤8 全显 •，>8 露末 4 位）→ 联网验证三分类（ok 直接落盘 / invalid 拒存回输入 / unknown 可强存）→ 落盘即生效（无需重启，欢迎行与 footer API ✓ 实时翻转）；`llm-deepseek` 段走官方端点探测，pi-ai 路由保存后自动补写 profile 让路由即刻注册；进程环境遮蔽（writable=false）与凭据存储缺席都有对应说明态；首启缺 key 时 TTY 自动弹一次（Esc 可跳过）
+- **图片发送预览（半块字符缩略图）** — 附件挂上后输入轨显示最后一张图的降采样真彩预览（游程合并，毫秒级异步解码）；无图形协议终端发送图片后 scrollback 以半块字符回退渲染（每行都是真实滚动行，无残影）；sharp 懒加载、解码失败静默降级纯文本
+- **交互面增量** — 统一活动带（`format/activity-band`：subagent/workflow/后台任务三来源折叠、分组计数头、⎿ 子行、封顶折叠）与消息面底色垫宽（`format/bg-block`）纯函数层入库，供后续接线
+- **上游回流基准** — 相对 8-22 截止点后 22 个新提交经侦察判定无可回流 tui 内容（intent-bridge 出厂关闭=本仓现状）；宿主 seam（llm 目录/discoverModels/credentials.set/settings.mutate）四件套实测对齐
 
 ### 0.1.2-rc.13（2026-08-22）
 

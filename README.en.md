@@ -98,7 +98,16 @@ The companion vision plugin lives in `vision-ask/` if you need image re-interrog
 
 ## Release notes
 
-Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.10`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.10)).
+Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.14`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.14)).
+
+### 0.1.2-rc.14 (2026-08-25)
+
+tianshu-public interaction-surface backport: provider API-key configuration + image send preview + format-layer additions (three waves).
+
+- **`/key` `/login` configure model-provider API keys** — supplier picker (default first, `✓` when configured) → masked input (≤8 shown as `•`, longer reveals last 4) → online probe (ok persists / invalid rejected back to input / unknown may force-save) → effective immediately (no restart; welcome line and footer API badge refresh live); `llm-deepseek` routes probe the official endpoint, pi-ai routes auto-write their profile after save so the route registers instantly; env-shadowed (`writable=false`) and missing-credentials deployments get dedicated explainer states; first launch without a key auto-opens once on TTY (Esc to skip)
+- **Image send preview (half-block thumbnails)** — attaching an image shows a downsampled truecolor preview of the last one above the input rail (run-length merged, async decoding); terminals without a graphics protocol get a half-block fallback in scrollback after sending (every line is a real scrollback row, no ghosting); sharp is lazy-loaded and failures degrade silently to text
+- **Format-layer additions** — unified activity band (`format/activity-band`: folds subagent/workflow/background-task sources, group counts, `⎿` subline, capped folding) and message-surface background fill (`format/bg-block`) land as pure functions, ready for wiring
+- **Backport baseline** — the 22 upstream commits after the 8-22 cutoff hold no portable tui content (intent-bridge ships disabled = matches this repo); the four host seams (llm directory / discoverModels / credentials.set / settings.mutate) verified against the installed host
 
 ### 0.1.2-rc.10 (2026-08-16)
 

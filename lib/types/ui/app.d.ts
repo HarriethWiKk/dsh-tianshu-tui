@@ -49,6 +49,11 @@ export interface TuiAppOptions {
     /** 是否启用 Vim 键位（Phase 6.5）；缺省 false。 */
     vimEnabled?: boolean;
     /**
+     * 禁用 /key 首启自动弹窗（attach 尾缺 key 引导；缺省 false=启用）。
+     * 宿主/测试装配可显式关闭——TTY 替身与真实终端无法从 stdin 区分。
+     */
+    disableKeyAutoPrompt?: boolean;
+    /**
      * 主控模型的识图能力与视觉桥状态（图片附件的用户气泡提示数据源；
      * 由装配方按 agent 配置注入——TUI 是纯表现层，不自行查询模型能力）。
      */
@@ -110,6 +115,16 @@ export declare class TuiApp {
     private palette;
     /** API key 就绪标志（footer 右侧段；attach 时经 credentials.describe 刷新）。 */
     private apiKeyReady;
+    /** composer 附件缩略图（半块预览；null = 无附件或渲染失败——计数行仍在）。 */
+    private attachmentPreview;
+    /** 附件缩略图代际号：丢弃迟到的异步解码结果（快速增删/提交清空后不挂过期图）。 */
+    private attachmentPreviewEpoch;
+    /** /key、/login：API Key 设置对话框（掩码输入 + 联网验证 + 落盘）。 */
+    private keyDialog;
+    /** /key 供应商密钥配置装配层（key-wizard/key-dialog 之上；deps 注入 openKeyDialog）。 */
+    private keyFlow;
+    /** /key 首启自动弹窗禁用（宿主/测试装配显式关闭；缺省 false=启用）。 */
+    private readonly disableKeyAutoPrompt;
     private overlay;
     /**
      * overlay 激活期间暂存的 scrollback 条目（文本条目或原始字节序列）。
@@ -368,6 +383,23 @@ export declare class TuiApp {
      * @param name - 附件显示名。
      */
     private attachClipboardImage;
+    /**
+     * 无图形协议终端的气泡图片回退：半块字符预览写进 scrollback（与图形路径
+     * 同编舞——先清 live 区再 writeRaw，写完立即重绘）。解码失败返回 null 已在
+     * 渲染器内吞并，此处无需再兜——静默降级为纯文本气泡（📎 行已随正文写入）。
+     * @param images - 图片 data URL 列表（与气泡一致，封顶 MAX_IMAGES）
+     */
+    private commitHalfBlockImages;
+    /**
+     * composer 附件缩略图维护：附件列表变化时重算最后一张的半块预览。
+     * sharp 异步解码毫秒级，完成后触发一次重绘；代际号丢弃迟到结果
+     * （快速增删/提交清空后不再挂出过期图片）。渲染失败置 null——计数行
+     * 仍在，预览是装饰性增强。
+     * @param images - 变化后的附件 data URL 列表
+     */
+    private refreshAttachmentPreview;
+    /** 预览合成底色：本仓主题无气泡底色键（userMsgBg），统一用中性暗色（明暗终端都可读）。 */
+    private previewBackground;
     /**
      * 设置当前主控模型的识图能力与桥接状态（图片附件气泡提示数据源）。
      * 由装配方按 agent 配置注入；TUI 是纯表现层，不自行查询模型能力。
@@ -700,6 +732,8 @@ export declare class TuiApp {
     private setYoloMode;
     /** C3 项 4：经 planMode 服务切换 plan 状态（服务缺失时回显警告，不再静默）。 */
     private setPlanMode;
+    /** /key：Ctrl+V 读剪贴板文本进 Key 字段（空文本忽略；readTextFromClipboard 平台缺失时返回 null）。 */
+    private pasteClipboardIntoKeyDialog;
     /** 键路由：Enter 提交 / Ctrl-C 取消或退出 / 上下键历史 / 其余交给 InputLine。 */
     private handleKey;
     /**

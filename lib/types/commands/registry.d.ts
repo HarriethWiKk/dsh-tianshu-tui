@@ -80,7 +80,7 @@ export interface ModelFacet {
  * TuiApp 的显隐切换）；/status、/todos 保持 TuiApp 内注册（/todos：无参显隐 +
  * all 明细展开，数据源为 todos 投影保留快照）。
  */
-export declare const BUILTIN_COMMAND_NAMES: readonly ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'preset', 'tasks', 'density', 'glance', 'goal', 'status', 'todos', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'restart', 'yolo', 'help', 'cost'];
+export declare const BUILTIN_COMMAND_NAMES: readonly ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'key', 'login', 'preset', 'tasks', 'density', 'glance', 'goal', 'status', 'todos', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'restart', 'yolo', 'help', 'cost'];
 /**
  * 最小唯一前缀解析：`/` 前缀 + 命令名 `startsWith` 匹配。
  * 歧义（多命令同前缀）或未知名返回 null——不猜命令。
@@ -197,6 +197,8 @@ export interface BuiltinCommandDeps {
     exportTheme(name?: string): string;
     /** #31：打开会话选择器。 */
     openSessionPicker(): void;
+    /** /key、/login：打开 API Key 设置对话框（掩码输入 + 联网验证 + 落盘）。 */
+    openKeyDialog(): void;
     /** /cost：当前会话累计用量与成本报告行（app 侧汇总；无数据时返回占位行）。 */
     sessionCostReport(): string[];
 }

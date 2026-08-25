@@ -56,6 +56,8 @@ export interface TuiRunnerConfig {
     prefsPath?: string | null;
     /** 输入历史文件路径；null 显式禁用。 */
     inputHistoryPath?: string | null;
+    /** 禁用 /key 首启自动弹窗（attach 尾缺 key 引导；缺省 false=启用）。 */
+    disableKeyAutoPrompt?: boolean;
 }
 /**
  * Mount the terminal UI runner.
