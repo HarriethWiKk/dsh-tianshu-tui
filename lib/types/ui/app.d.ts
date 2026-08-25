@@ -253,7 +253,7 @@ export declare class TuiApp {
     private statusPanelVisible;
     /** /todos 紧凑待办面板显隐（/todos 切换；数据源为 todos 投影的保留快照）。 */
     private todosPanelVisible;
-    /** /todos 明细展开（false = 单行摘要卡）。 */
+    /** /todos all 看全表（false = 默认最多 5 条）。 */
     private todosExpanded;
     /**
      * todos 保留快照：只吸收非空投影值。todos 投影在 turn/start 时被 fold 重置

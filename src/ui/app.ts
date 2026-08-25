@@ -675,7 +675,7 @@ export class TuiApp {
   private statusPanelVisible = false
   /** /todos 紧凑待办面板显隐（/todos 切换；数据源为 todos 投影的保留快照）。 */
   private todosPanelVisible = false
-  /** /todos 明细展开（false = 单行摘要卡）。 */
+  /** /todos all 看全表（false = 默认最多 5 条）。 */
   private todosExpanded = false
   /**
    * todos 保留快照：只吸收非空投影值。todos 投影在 turn/start 时被 fold 重置
@@ -949,7 +949,7 @@ export class TuiApp {
     // 明细行只封顶展示，完整清单仍在 /status。
     this.slash.register({
       name: 'todos',
-      description: '切换待办紧凑面板（无参显隐；all 展开明细）',
+      description: '切换待办面板（无参显隐；all 看全表）',
       argsHint: '[all]',
       run: ({ text }) => {
         const sub = text.trim()
@@ -3857,9 +3857,6 @@ export class TuiApp {
     // ── 面板段（8 面板纯函数；组合器负责 { text } 包装与 theme 着色）。──
     // glance 段：状态行 + 错误行（metrics 已并入输入轨下方 footer，避免双份）。
     for (const line of renderGlancePanel(snapshot)) lines.push({ text: line })
-    // /todos 紧凑待办卡（todosPanelVisible 门控在 renderTodosPanel 内）——放在
-    // glance 之后、任务窗格之前：摘要卡服务「一眼当前进度」，优先级高于窗格。
-    for (const line of renderTodosPanel(snapshot)) lines.push({ text: line })
     // T4 + T2.3：任务窗格 + 后台任务区（/tasks 面板内；taskPanelVisible 门控
     // 在 renderTasksPanel 内，窗格行在前、后台任务区行在后）。
     for (const line of renderTasksPanel(snapshot)) lines.push({ text: line })
@@ -4008,6 +4005,9 @@ export class TuiApp {
     // 其后是 slash / vim / 图片 / 输入轨 / footer。溢出裁剪只作用在动态段；
     // slash 菜单行数另计入动态段高水位记账（见下方预算段），高度变化由垫高吸收。
     const chromeStart = lines.length
+
+    // 待办卡贴输入轨上方（活动带之下）：不跟思考抢 live 上半，小窗口也不被裁掉。
+    for (const line of renderTodosPanel(snapshot)) lines.push({ text: line })
 
     // 提问 / 审批紧挨输入轨。
     const questionPeek = this.question.peek()

@@ -111,9 +111,9 @@ export function renderConfigPanel(snapshot: LiveSnapshot): string[] {
 }
 
 /**
- * 渲染 todos 紧凑待办面板（/todos）：一行摘要卡（三态计数 + 当前进行项）或
- * 封顶明细。面板隐藏 → 空数组；数据源是保留快照（只吸收非空投影值，
- * turn/start 清空不回退显示——黏滞语义在 app.ts，本函数保持纯呈现）。
+ * 渲染 todos 紧凑待办面板（/todos）：有未完成项时列出条目（进行中置顶，
+ * 默认最多 5 条）；全完成仍一行。面板隐藏 → 空数组。数据源是保留快照
+ * （turn/start 清空不回退——黏滞语义在 app.ts，本函数保持纯呈现）。
  * @param snapshot - 当前帧快照。
  * @returns 面板行数组。
  */

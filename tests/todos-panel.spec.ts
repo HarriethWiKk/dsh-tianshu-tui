@@ -18,16 +18,22 @@ describe('projectTodosPanel 空态与完成态（null 与 [] 语义区分）', (
   })
 })
 
-describe('projectTodosPanel 摘要态', () => {
-  it('摘要行 = 三态计数 + 当前进行项；无进行项省略当前段', () => {
+describe('projectTodosPanel 默认列表（进行中置顶、封 5 条）', () => {
+  it('有进行中/待办 → 计数头（无 · 当前项）+ 进行中置顶的条目', () => {
     const todos = [
       { content: 'a', status: 'completed' as const },
       { content: 'b', status: 'in_progress' as const },
       { content: 'c', status: 'pending' as const },
     ]
     expect(projectTodosPanel(todos, { width: WIDE, expanded: false })).toEqual([
-      '📋 待办 ✓1 ⏳1 □1 · b',
+      '📋 待办 ✓1 ⏳1 □1',
+      ' ⏳ b',
+      ' [ ] c',
+      ' [x] a',
     ])
+  })
+
+  it('全完成 → 仍只一行计数头，不铺条目', () => {
     const done = [
       { content: 'a', status: 'completed' as const },
       { content: 'b', status: 'completed' as const },
@@ -37,30 +43,62 @@ describe('projectTodosPanel 摘要态', () => {
     ])
   })
 
-  it('超宽摘要行按终端列数截断（… 收尾）', () => {
+  it('条目超过 5 → 前 4 条 + 折叠尾行', () => {
+    const todos = [
+      { content: 'p1', status: 'pending' as const },
+      { content: 'p2', status: 'pending' as const },
+      { content: 'p3', status: 'pending' as const },
+      { content: 'p4', status: 'pending' as const },
+      { content: 'p5', status: 'pending' as const },
+      { content: 'p6', status: 'pending' as const },
+    ]
+    const rows = projectTodosPanel(todos, { width: WIDE, expanded: false })
+    expect(rows).toEqual([
+      '📋 待办 ✓0 ⏳0 □6',
+      ' [ ] p1',
+      ' [ ] p2',
+      ' [ ] p3',
+      ' [ ] p4',
+      '└ …(+2)',
+    ])
+  })
+
+  it('恰好 5 条待办 → 全部列出、无折叠行', () => {
+    const todos = [
+      { content: 'a', status: 'pending' as const },
+      { content: 'b', status: 'pending' as const },
+      { content: 'c', status: 'pending' as const },
+      { content: 'd', status: 'pending' as const },
+      { content: 'e', status: 'pending' as const },
+    ]
+    const rows = projectTodosPanel(todos, { width: WIDE, expanded: false })
+    expect(rows).toHaveLength(6)
+    expect(rows.at(-1)).toBe(' [ ] e')
+  })
+
+  it('超宽条目按终端列数截断（… 收尾）', () => {
     const todos = [{ content: '很'.repeat(60), status: 'in_progress' as const }]
-    const [line] = projectTodosPanel(todos, { width: 20, expanded: false })
-    expect(line!.endsWith('…')).toBe(true)
-    expect(line!.length).toBeLessThanOrEqual(20 * 4)
+    const rows = projectTodosPanel(todos, { width: 20, expanded: false })
+    expect(rows[1]!.endsWith('…')).toBe(true)
   })
 })
 
-describe('projectTodosPanel 明细态', () => {
-  it('展开渲染摘要行 + 全部条目明细（未超上限不折叠）', () => {
+describe('projectTodosPanel /todos all（不封 5 条、同样排序）', () => {
+  it('展开渲染计数头 + 全部条目（进行中置顶）', () => {
     const todos = [
       { content: 'a', status: 'completed' as const },
       { content: 'b', status: 'in_progress' as const },
       { content: 'c', status: 'pending' as const },
     ]
     expect(projectTodosPanel(todos, { width: WIDE, expanded: true })).toEqual([
-      '📋 待办 ✓1 ⏳1 □1 · b',
-      ' [x] a',
+      '📋 待办 ✓1 ⏳1 □1',
       ' ⏳ b',
       ' [ ] c',
+      ' [x] a',
     ])
   })
 
-  it('超出 maxRows 封顶：少渲染一行给折叠尾行', () => {
+  it('all 看全表：6 条不折叠', () => {
     const todos = [
       { content: 'a', status: 'pending' as const },
       { content: 'b', status: 'pending' as const },
@@ -69,32 +107,8 @@ describe('projectTodosPanel 明细态', () => {
       { content: 'e', status: 'pending' as const },
       { content: 'f', status: 'pending' as const },
     ]
-    const rows = projectTodosPanel(todos, { width: WIDE, expanded: true, maxRows: 4 })
-    expect(rows).toHaveLength(4)
-    expect(rows[0]).toBe('📋 待办 ✓0 ⏳0 □6')
-    expect(rows[1]).toBe(' [ ] a')
-    expect(rows[2]).toBe(' [ ] b')
-    expect(rows[3]).toBe('└ …(+4)')
-  })
-
-  it('条目数恰好等于容量时全部渲染、无折叠尾行', () => {
-    const todos = [
-      { content: 'a', status: 'pending' as const },
-      { content: 'b', status: 'pending' as const },
-      { content: 'c', status: 'pending' as const },
-    ]
-    const rows = projectTodosPanel(todos, { width: WIDE, expanded: true, maxRows: 4 })
-    expect(rows).toHaveLength(4)
-    expect(rows.at(-1)).toBe(' [ ] c')
-  })
-
-  it('maxRows 缺省 6；过小的 maxRows 收窄到至少折叠尾行的下限', () => {
-    const todos = [
-      { content: 'a', status: 'pending' as const },
-      { content: 'b', status: 'pending' as const },
-    ]
-    const rows = projectTodosPanel(todos, { width: WIDE, expanded: true, maxRows: 1 })
-    expect(rows).toHaveLength(2)
-    expect(rows[1]).toBe('└ …(+2)')
+    const rows = projectTodosPanel(todos, { width: WIDE, expanded: true })
+    expect(rows).toHaveLength(7)
+    expect(rows.at(-1)).toBe(' [ ] f')
   })
 })

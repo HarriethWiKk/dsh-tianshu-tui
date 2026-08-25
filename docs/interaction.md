@@ -84,7 +84,7 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
 | 命令 | 作用 |
 |---|---|
 | `/status` | 状态面板(goal/todos/plan 投影 + 会话汇总) |
-| `/todos [all]` | 待办紧凑卡(无参显隐; `all` 展开明细)。模型首次写入非空待办会自动出现;关掉或 `/clear` 后本会话不再自动开 |
+| `/todos [all]` | 待办卡画在输入轨上方(无参显隐; `all` 看全表)。默认列出进行中置顶的最多 5 条;全完成缩回一行。模型首次写入非空待办会自动出现;关掉或 `/clear` 后本会话不再自动开 |
 | `/config` | 设置面板(settings / permission / credentials) |
 | `/skills` | 技能浏览面板 |
 | `/tasks [kill <id>]` | 任务窗格 |

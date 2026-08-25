@@ -2747,17 +2747,13 @@ describe('TuiApp /todos 紧凑待办面板（保留快照 + 显隐切换）', ()
     t.stdin.emit('data', '\r')
   }
 
-  it('恢复会话快照已有非空待办 → 不打 /todos 也弹出摘要卡；/todos all 展开明细', async () => {
+  it('恢复会话快照已有非空待办 → 不打 /todos 也列出条目', async () => {
     const t = await mountWithProjections()
     await new Promise(resolve => setImmediate(resolve))
-    expect(writtenOf(t.stdout)).toContain('📋 待办 ✓1 ⏳1 □0 · 写实现')
-
-    // all → 展开：摘要行 + 封顶明细条目
-    submitSlash(t, '/todos all')
-    await new Promise(resolve => setImmediate(resolve))
     const text = writtenOf(t.stdout)
-    expect(text).toContain('[x] 理解问题')
+    expect(text).toContain('📋 待办 ✓1 ⏳1 □0')
     expect(text).toContain('⏳ 写实现')
+    expect(text).toContain('[x] 理解问题')
     await t.app.dispose()
   })
 
@@ -2771,7 +2767,8 @@ describe('TuiApp /todos 紧凑待办面板（保留快照 + 显隐切换）', ()
     // turn/start fold 重置 → null 推送：面板保持显示上一份非空清单
     listener!({ id: mounted.session.id }, 'todos', null)
     await new Promise(resolve => setTimeout(resolve, 200))
-    expect(writtenOf(t.stdout)).toContain('📋 待办 ✓1 ⏳1 □0 · 写实现')
+    expect(writtenOf(t.stdout)).toContain('📋 待办 ✓1 ⏳1 □0')
+    expect(writtenOf(t.stdout)).toContain('⏳ 写实现')
 
     // 新一轮写入非空清单 → 保留快照吸收更新（摘要行刷新为新的三态计数）
     listener!({ id: mounted.session.id }, 'todos', [{ content: '新任务', status: 'pending' }])
@@ -2802,7 +2799,8 @@ describe('TuiApp /todos 紧凑待办面板（保留快照 + 显隐切换）', ()
       { content: '写实现', status: 'in_progress' },
     ])
     await new Promise(resolve => setTimeout(resolve, 200))
-    expect(writtenOf(t.stdout)).toContain('📋 待办 ✓0 ⏳1 □0 · 写实现')
+    expect(writtenOf(t.stdout)).toContain('📋 待办 ✓0 ⏳1 □0')
+    expect(writtenOf(t.stdout)).toContain('⏳ 写实现')
     await t.app.dispose()
   })
 

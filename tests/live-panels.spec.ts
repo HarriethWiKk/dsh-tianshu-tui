@@ -120,16 +120,20 @@ describe('renderTodosPanel', () => {
     expect(renderTodosPanel(baseSnapshot())).toEqual([])
   })
 
-  it('面板打开 → 委派 projectTodosPanel：摘要卡（计数 + 当前进行项）', () => {
+  it('面板打开 → 计数头 + 进行中置顶的条目（默认列出）', () => {
     const snap = { ...baseSnapshot(), todosPanelVisible: true, todosItems: [
       { content: '理解问题', status: 'completed' as const },
       { content: '写测试', status: 'in_progress' as const },
     ] }
     const rows = renderTodosPanel(snap)
-    expect(rows).toEqual(['📋 待办 ✓1 ⏳1 □0 · 写测试'])
+    expect(rows).toEqual([
+      '📋 待办 ✓1 ⏳1 □0',
+      ' ⏳ 写测试',
+      ' [x] 理解问题',
+    ])
   })
 
-  it('面板打开 + 明细展开 → 摘要行 + 条目明细', () => {
+  it('面板打开 + all 展开 → 计数头 + 全表', () => {
     const snap = { ...baseSnapshot(), todosPanelVisible: true, todosExpanded: true, todosItems: [
       { content: '任务一', status: 'pending' as const },
     ] }

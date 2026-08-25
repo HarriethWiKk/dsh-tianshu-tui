@@ -63,7 +63,7 @@ export interface LiveSnapshot {
     sessionTotals: SessionTotalsInput;
     /** /todos 面板显隐。 */
     todosPanelVisible: boolean;
-    /** /todos 明细展开（false = 单行摘要卡）。 */
+    /** /todos all 看全表（false = 默认最多 5 条）。 */
     todosExpanded: boolean;
     /** todos 保留快照（只吸收非空投影值：turn/start 清成 null 不回退显示）。 */
     todosItems: TaskItem[] | null;
