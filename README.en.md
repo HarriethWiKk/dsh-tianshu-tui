@@ -98,7 +98,17 @@ The companion vision plugin lives in `vision-ask/` if you need image re-interrog
 
 ## Release notes
 
-Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.14`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.14)).
+Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.15`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.15)).
+
+### 0.1.2-rc.15 (2026-08-25)
+
+Manual update + startup session reuse.
+
+- **`/update` manual update check** — checks npm `latest` without installing: shows the version pair and a manual update command when newer (or restart for the startup self-update), reports the current version when up to date, and surfaces the failure reason on network errors (never throws). Bypasses `DSH_TUI_SKIP_UPDATE` (an explicit check request overrides "do not phone home") and reuses the startup self-update's 1h cache pipeline
+- **Startup empty-session reuse (community PR #45)** — when the live store is empty the plugin reuses the most recent content-less session id instead of minting a new one each launch, rebinding `header.cwd` to the launch directory; stale artifacts are cleared before rebuild (cross- or same-directory) to dodge the backend adopt prefix check
+- **`/session` picker summaries (community PR #45)** — the no-arg picker shows summary rows (`#short-id · title · relative age`; title = title-event fold → first human message → 「新对话」); `/session list` keeps the old plain printout
+- **Real-machine e2e assets (community PR #45)** — `scripts/e2e-tui.{sh,exp}` + `npm run e2e:tui`: expect drives the official dsh CLI in a pty (isolated DSH_HOME), covering startup reuse (incl. the adopt-error regression) and both /session forms
+- **README install-section fix** — install commands no longer pin the host CLI to `@0.1.0-rc.8` (npm `latest` is now `0.1.1-rc.2`); commands use no version (peer deps `^0.1.0-rc.8` are compatible)
 
 ### 0.1.2-rc.14 (2026-08-25)
 

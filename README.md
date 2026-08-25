@@ -97,7 +97,17 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 
 ## 更新说明
 
-当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.14`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.14)）。
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.15`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.15)）。
+
+### 0.1.2-rc.15（2026-08-25）
+
+手动更新 + 启动会话复用版本。
+
+- **`/update` 手动更新检查** — 对照 npm `latest` 只查不装：发现新版本回显版本对与手动更新命令（`npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui@latest`，或重启走启动自更新）；已最新回显当前版本；网络失败回显原因不抛。绕过 `DSH_TUI_SKIP_UPDATE`（显式要求检查时不尊重"不想联网"开关），复用启动自更新的 1h 缓存管线
+- **启动复用空会话 id（社区 PR #45）** — 插件启动且 live store 为空时复用最近一个无内容会话的 id（不再每次铸造新 id），header.cwd 重绑启动目录；跨/同目录先清旧 artifact 再重建（规避后端 adopt 前缀校验拒绝）
+- **`/session` 选择器摘要（社区 PR #45）** — 无参选择器展示会话摘要行（#短id · 标题 · 相对年龄；标题 = title 事件 fold → 首条真人消息 → 「新对话」），`/session list` 保持旧版直接打印
+- **真机 e2e 资产（社区 PR #45）** — `scripts/e2e-tui.{sh,exp}` + `npm run e2e:tui`：expect 驱动 pty 里的官方 dsh CLI（独立 DSH_HOME），覆盖启动复用（含 adopt 错误回归）与 /session 两种形态
+- **README 安装段修复** — 安装命令不再固定宿主 CLI `@0.1.0-rc.8`（npm latest 已到 `0.1.1-rc.2`），统一无版本（peer 依赖 `^0.1.0-rc.8` 兼容）
 
 ### 0.1.2-rc.14（2026-08-25）
 
