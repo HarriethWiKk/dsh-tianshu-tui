@@ -77,7 +77,7 @@ import {
   findMostRecentEmptySession, clearEmptySessionArtifact, type SessionSummary,
 } from '../adapter/sessions.js'
 import { sessionTitleFor } from '../adapter/session-title.js'
-import { updateNoticeText, autoRestartNoticeText, updateNoticePackage, readOwnVersion } from '../self-update.js'
+import { updateNoticeText, autoRestartNoticeText, updateNoticePackage, readOwnVersion, checkForUpdate as runUpdateCheck, defaultUpdateCachePath, type UpdateCheckResult } from '../self-update.js'
 import { supportsOsc52 } from '../term-caps.js'
 import { getTheme, getActiveThemeName, listCustomThemes, setTheme, THEME_NAMES, type RivetTheme } from '../theme.js'
 import { displayWidth, ambiguousWideEnabled } from '../width.js'
@@ -893,6 +893,8 @@ export class TuiApp {
       openSessionPicker: () => { void this.openSessionPicker() },
       // /key、/login：API Key 设置对话框（key-flow 装配层；onSaved 已接刷新就绪标志）。
       openKeyDialog: () => { void this.keyFlow.openKeyDialog() },
+      // /update：对照 npm latest 的只查不装检查（结果回显在命令层）。
+      checkForUpdate: () => this.runUpdateCheck(),
       // /cost：当前会话累计用量与成本报告（Map 保持首次出现序）。
       sessionCostReport: () => formatSessionCostReport([...this.sessionCosts.values()]),
     })) {
@@ -3017,6 +3019,11 @@ export class TuiApp {
     if (text === undefined || text === null || text === '') return
     dialog.pasteText(text)
     this.overlay?.rerender()
+  }
+
+  /** /update：对照 npm latest 的只查不装检查（用户看到提示后手动更新；失败不抛）。 */
+  private async runUpdateCheck(): Promise<UpdateCheckResult> {
+    return runUpdateCheck({ cachePath: defaultUpdateCachePath() })
   }
 
   /** 键路由：Enter 提交 / Ctrl-C 取消或退出 / 上下键历史 / 其余交给 InputLine。 */

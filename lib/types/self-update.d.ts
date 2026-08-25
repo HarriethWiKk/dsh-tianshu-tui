@@ -134,3 +134,31 @@ export declare function updateNoticeText(version: string): string;
 export declare const updateNoticePackage = "@huiliyi37/dsh-tianshu-tui";
 /** 更新后将自动重启（autoRestartOnUpdate）时的提示。 */
 export declare function autoRestartNoticeText(version: string): string;
+/** /update 检查结果（只查不装——用户看到提示后手动更新）。 */
+export type UpdateCheckResult = {
+    kind: 'latest';
+    latest: string;
+    current: string;
+} | {
+    kind: 'current';
+    current: string;
+} | {
+    kind: 'failed';
+    error: string;
+};
+export interface CheckForUpdateOptions {
+    env?: NodeJS.ProcessEnv;
+    /** 当前版本（缺省 readOwnVersion(process.cwd())）。 */
+    currentVersion?: string;
+    /** 更新检查缓存路径（缺省 defaultUpdateCachePath()）。 */
+    cachePath?: string;
+    now?: number;
+    /** 网络获取函数（测试注入）；缺省真实 fetchNpmLatest。 */
+    fetchNet?: () => Promise<string | null>;
+}
+/**
+ * 只查不装的更新检查（/update 命令数据源）。绕过 DSH_TUI_SKIP_UPDATE——
+ * 用户显式要求检查时不尊重"不想联网"开关；CI/vitest 环境防御性跳过
+ * （测试隔离靠 fetchNet 注入，此守卫只兜底误配置）。失败不抛（回显用）。
+ */
+export declare function checkForUpdate(opts?: CheckForUpdateOptions): Promise<UpdateCheckResult>;

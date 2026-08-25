@@ -27,6 +27,7 @@ declare module '@deepseek-ai/dsh-session/types' {
     }
 }
 import { getActiveThemeName } from '../theme.js';
+import { type UpdateCheckResult } from '../self-update.js';
 /**
  * Slash 命令执行上下文——TuiApp 在分发时注入。
  */
@@ -80,7 +81,7 @@ export interface ModelFacet {
  * TuiApp 的显隐切换）；/status、/todos 保持 TuiApp 内注册（/todos：无参显隐 +
  * all 明细展开，数据源为 todos 投影保留快照）。
  */
-export declare const BUILTIN_COMMAND_NAMES: readonly ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'key', 'login', 'preset', 'tasks', 'density', 'glance', 'goal', 'status', 'todos', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'restart', 'yolo', 'help', 'cost'];
+export declare const BUILTIN_COMMAND_NAMES: readonly ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'key', 'login', 'preset', 'tasks', 'density', 'glance', 'goal', 'status', 'todos', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'restart', 'update', 'yolo', 'help', 'cost'];
 /**
  * 最小唯一前缀解析：`/` 前缀 + 命令名 `startsWith` 匹配。
  * 歧义（多命令同前缀）或未知名返回 null——不猜命令。
@@ -201,6 +202,8 @@ export interface BuiltinCommandDeps {
     openKeyDialog(): void;
     /** /cost：当前会话累计用量与成本报告行（app 侧汇总；无数据时返回占位行）。 */
     sessionCostReport(): string[];
+    /** /update：对照 npm latest 的只查不装更新检查（结果回显用；失败不抛）。 */
+    checkForUpdate(): Promise<UpdateCheckResult>;
 }
 /**
  * 装配内置命令（/theme /session /clear /compact）。

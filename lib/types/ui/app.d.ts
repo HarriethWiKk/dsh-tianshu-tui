@@ -737,6 +737,8 @@ export declare class TuiApp {
     private setPlanMode;
     /** /key：Ctrl+V 读剪贴板文本进 Key 字段（空文本忽略；readTextFromClipboard 平台缺失时返回 null）。 */
     private pasteClipboardIntoKeyDialog;
+    /** /update：对照 npm latest 的只查不装检查（用户看到提示后手动更新；失败不抛）。 */
+    private runUpdateCheck;
     /** 键路由：Enter 提交 / Ctrl-C 取消或退出 / 上下键历史 / 其余交给 InputLine。 */
     private handleKey;
     /**

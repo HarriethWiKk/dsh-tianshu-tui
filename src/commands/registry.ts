@@ -37,6 +37,7 @@ import { parseRouteKey } from '../engine/route-key.js'
 import { SPARK_ALIASES, validateModelSelection, type LlmCatalogFacet } from './model-validate.js'
 import { collectDoctorReport, getDoctorFixGuidance } from '../format/doctor-report.js'
 import { formatWireSurface, wirePhaseLabel, wireToolNames } from '../preset-surface.js'
+import { TUI_PACKAGE, type UpdateCheckResult } from '../self-update.js'
 
 /**
  * Slash 命令执行上下文——TuiApp 在分发时注入。
@@ -146,7 +147,7 @@ interface MemoryFacet {
  * TuiApp 的显隐切换）；/status、/todos 保持 TuiApp 内注册（/todos：无参显隐 +
  * all 明细展开，数据源为 todos 投影保留快照）。
  */
-export const BUILTIN_COMMAND_NAMES = ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'key', 'login', 'preset', 'tasks', 'density', 'glance', 'goal', 'status', 'todos', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'restart', 'yolo', 'help', 'cost'] as const
+export const BUILTIN_COMMAND_NAMES = ['theme', 'session', 'fork', 'branch', 'clear', 'compact', 'steer', 'model', 'effort', 'key', 'login', 'preset', 'tasks', 'density', 'glance', 'goal', 'status', 'todos', 'subagents', 'workflow', 'config', 'skills', 'rewind', 'btw', 'doctor', 'mcp', 'remember', 'memory', 'export', 'exit', 'restart', 'update', 'yolo', 'help', 'cost'] as const
 
 /**
  * 最小唯一前缀解析：`/` 前缀 + 命令名 `startsWith` 匹配。
@@ -307,6 +308,8 @@ export interface BuiltinCommandDeps {
   openKeyDialog(): void
   /** /cost：当前会话累计用量与成本报告行（app 侧汇总；无数据时返回占位行）。 */
   sessionCostReport(): string[]
+  /** /update：对照 npm latest 的只查不装更新检查（结果回显用；失败不抛）。 */
+  checkForUpdate(): Promise<UpdateCheckResult>
 }
 
 /**
@@ -487,6 +490,20 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
       name: 'login',
       description: '配置模型供应商 API 密钥（/key 别名）',
       run: () => { deps.openKeyDialog() },
+    },
+    {
+      name: 'update',
+      description: '检查插件更新（对照 npm latest；发现新版提示手动更新命令）',
+      run: async ({ echo }) => {
+        const result = await deps.checkForUpdate()
+        if (result.kind === 'latest') {
+          echo(`发现新版本 ${result.latest}（当前 ${result.current}）。手动更新：npx -y @deepseek-ai/dsh plugin --profile tui add ${TUI_PACKAGE}@latest；或重启后自动更新`)
+        } else if (result.kind === 'current') {
+          echo(`已是最新版本（${result.current}）`)
+        } else {
+          echo(`⚠ 更新检查失败：${result.error}`)
+        }
+      },
     },
     {
       name: 'effort',

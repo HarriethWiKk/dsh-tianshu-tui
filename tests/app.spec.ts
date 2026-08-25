@@ -6247,18 +6247,43 @@ describe('slash 命令菜单接线（grok slash_dropdown 移植）', () => {
 
   it('PageUp/PageDown：菜单选择翻页（clamp）', async () => {
     const { stdin, stdout, app } = boot()
-    await app.attach()
-    stdin.emit('data', '/')
-    await writtenOf(stdout)
-    stdout.write.mockClear()
-    stdin.emit('data', '\x1b[6~') // PageDown → 菜单翻页（MRU 序命令集，落点随命令集变化——/key /login 加入后实测 /effort，preset/命令增删都会移动分页边界）
-    let written = await writtenOf(stdout)
-    expect(written).toMatch(/❯ \/effort/)
-    stdout.write.mockClear()
-    stdin.emit('data', '\x1b[5~') // PageUp → 回顶部
-    written = await writtenOf(stdout)
-    expect(written).toMatch(/❯ \/theme/)
-    await app.dispose()
+    // 断言不绑定具体命令名：MRU 命令集随增删漂移（/key /update 加入都移动过分页
+    // 边界），只验证相对行为——翻页后选中项移动、PageUp 回顶部原位。经
+    // LiveEngine.render spy 拿结构化行（无 ANSI 干扰），模式同「输入轨行位钉住」。
+    const spy = vi.spyOn(LiveEngine.prototype, 'render')
+    try {
+      await app.attach()
+      const selected = (lines: readonly { text: string }[]): string | null => {
+        const row = lines.find(line => line.text.includes('❯'))
+        if (row === undefined) return null
+        const m = /\/[a-z-]+/.exec(row.text)
+        return m?.[0] ?? null
+      }
+      const awaitMenuFrame = async (): Promise<string | null> => {
+        for (let i = 0; i < 200; i++) {
+          const call = spy.mock.calls.at(-1)
+          if (call !== undefined) {
+            const sel = selected(call[0])
+            if (sel !== null) return sel
+          }
+          await new Promise(resolve => setTimeout(resolve, 10))
+        }
+        return null
+      }
+      stdin.emit('data', '/')
+      const initial = await awaitMenuFrame()
+      expect(initial).not.toBeNull()
+      stdin.emit('data', '\x1b[6~') // PageDown → 菜单翻页（选中项后移）
+      const afterDown = await awaitMenuFrame()
+      expect(afterDown).not.toBeNull()
+      expect(afterDown).not.toBe(initial)
+      stdin.emit('data', '\x1b[5~') // PageUp → 回顶部（clamp：回到翻页前原位）
+      const afterUp = await awaitMenuFrame()
+      expect(afterUp).toBe(initial)
+      await app.dispose()
+    } finally {
+      spy.mockRestore()
+    }
   })
 
   it('菜单过滤/关闭时输入轨行位钉住（slash 行计入高水位垫高）', async () => {

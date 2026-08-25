@@ -293,3 +293,71 @@ describe('registry 镜像回退链（#43：官方源直连超时）', () => {
     expect(await fetchNpmLatest(TUI_PACKAGE, 50, { fetchImpl: empty })).toBeNull()
   })
 })
+
+describe('checkForUpdate（/update 只查不装）', () => {
+  it('有新版 → latest 分类（latest/current 对）', async () => {
+    const { checkForUpdate } = await import('../src/self-update.js')
+    const result = await checkForUpdate({
+      env: {},
+      currentVersion: '0.1.2-rc.14',
+      cachePath: '/tmp/nonexistent-cache-update.json',
+      now: 0,
+      fetchNet: async () => '0.1.2-rc.15',
+    })
+    expect(result).toEqual({ kind: 'latest', latest: '0.1.2-rc.15', current: '0.1.2-rc.14' })
+  })
+
+  it('已是最新 → current 分类', async () => {
+    const { checkForUpdate } = await import('../src/self-update.js')
+    const result = await checkForUpdate({
+      env: {},
+      currentVersion: '0.1.2-rc.14',
+      cachePath: '/tmp/nonexistent-cache-update2.json',
+      now: 0,
+      fetchNet: async () => '0.1.2-rc.14',
+    })
+    expect(result).toEqual({ kind: 'current', current: '0.1.2-rc.14' })
+  })
+
+  it('网络失败（latest 为 null）→ failed 分类', async () => {
+    const { checkForUpdate } = await import('../src/self-update.js')
+    const result = await checkForUpdate({
+      env: {},
+      currentVersion: '0.1.2-rc.14',
+      cachePath: '/tmp/nonexistent-cache-update3.json',
+      now: 0,
+      fetchNet: async () => null,
+    })
+    expect(result.kind).toBe('failed')
+  })
+
+  it('fetchNet 抛错 → failed 带错误信息', async () => {
+    const { checkForUpdate } = await import('../src/self-update.js')
+    const result = await checkForUpdate({
+      env: {},
+      currentVersion: '0.1.2-rc.14',
+      cachePath: '/tmp/nonexistent-cache-update4.json',
+      now: 0,
+      fetchNet: async () => { throw new Error('registry timeout') },
+    })
+    expect(result).toEqual({ kind: 'failed', error: 'registry timeout' })
+  })
+
+  it('缓存新鲜时零联网（fetchNet 不被调用）', async () => {
+    const { checkForUpdate } = await import('../src/self-update.js')
+    const p = join(tmpdir(), `dsh-update-cache-${Date.now()}-${Math.random()}`)
+    mkdirSync(p, { recursive: true })
+    const cacheFile = join(p, 'cache.json')
+    writeFileSync(cacheFile, JSON.stringify({ timestamp: Date.now(), latest: '0.1.2-rc.15' }))
+    const fetchNet = vi.fn(async () => { throw new Error('不该联网') })
+    const result = await checkForUpdate({
+      env: {},
+      currentVersion: '0.1.2-rc.14',
+      cachePath: cacheFile,
+      now: Date.now() + 1_000,
+      fetchNet,
+    })
+    expect(fetchNet).not.toHaveBeenCalled()
+    expect(result).toEqual({ kind: 'latest', latest: '0.1.2-rc.15', current: '0.1.2-rc.14' })
+  })
+})

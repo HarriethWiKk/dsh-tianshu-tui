@@ -360,3 +360,54 @@ export const updateNoticePackage = TUI_PACKAGE
 export function autoRestartNoticeText(version: string): string {
   return `插件已更新到 ${version}，正在自动重启…`
 }
+
+/** /update 检查结果（只查不装——用户看到提示后手动更新）。 */
+export type UpdateCheckResult =
+  | { kind: 'latest'; latest: string; current: string }
+  | { kind: 'current'; current: string }
+  | { kind: 'failed'; error: string }
+
+export interface CheckForUpdateOptions {
+  env?: NodeJS.ProcessEnv
+  /** 当前版本（缺省 readOwnVersion(process.cwd())）。 */
+  currentVersion?: string
+  /** 更新检查缓存路径（缺省 defaultUpdateCachePath()）。 */
+  cachePath?: string
+  now?: number
+  /** 网络获取函数（测试注入）；缺省真实 fetchNpmLatest。 */
+  fetchNet?: () => Promise<string | null>
+}
+
+/**
+ * 只查不装的更新检查（/update 命令数据源）。绕过 DSH_TUI_SKIP_UPDATE——
+ * 用户显式要求检查时不尊重"不想联网"开关；CI/vitest 环境防御性跳过
+ * （测试隔离靠 fetchNet 注入，此守卫只兜底误配置）。失败不抛（回显用）。
+ */
+export async function checkForUpdate(opts: CheckForUpdateOptions = {}): Promise<UpdateCheckResult> {
+  const env = opts.env ?? process.env
+  if (env.CI === 'true' || env.CI === '1' || env.VITEST === 'true') {
+    return { kind: 'failed', error: 'CI/测试环境跳过更新检查' }
+  }
+  let current: string
+  try {
+    const own = opts.currentVersion ?? readOwnVersion(process.cwd())
+    if (own === undefined) return { kind: 'failed', error: '无法读取本包版本' }
+    current = own
+  } catch (err) {
+    return { kind: 'failed', error: err instanceof Error ? err.message : String(err) }
+  }
+  try {
+    const latest = await fetchLatestWithCache({
+      cachePath: opts.cachePath ?? defaultUpdateCachePath(),
+      now: opts.now ?? Date.now(),
+      ...(opts.fetchNet === undefined ? {} : { fetchNet: opts.fetchNet }),
+    })
+    if (latest === null) {
+      return { kind: 'failed', error: '无法获取 npm latest（网络失败或注册表无响应）' }
+    }
+    if (latest === current) return { kind: 'current', current }
+    return { kind: 'latest', latest, current }
+  } catch (err) {
+    return { kind: 'failed', error: err instanceof Error ? err.message : String(err) }
+  }
+}

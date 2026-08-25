@@ -84,6 +84,7 @@ function commandByName(name: string) {
     exportTheme: vi.fn((): string => 'exported'),
     openSessionPicker: vi.fn(),
     openKeyDialog: vi.fn(),
+    checkForUpdate: vi.fn(),
     sessionCostReport: vi.fn<() => string[]>(() => []),
   }
   const commands = createBuiltinCommands(deps)
@@ -901,6 +902,42 @@ describe('/key 与 /login（审查修复 — 命令行为）', () => {
   })
 })
 
+describe('/update（审查修复 — 命令行为）', () => {
+  it('/update 发现新版：回显版本对 + 手动更新命令', async () => {
+    const { cmd, deps } = commandByName('update')
+    const { args, echo } = makeArgs()
+    vi.mocked(deps.checkForUpdate).mockResolvedValue({
+      kind: 'latest',
+      latest: '0.1.2-rc.15',
+      current: '0.1.2-rc.14',
+    })
+    await cmd.run(args)
+    expect(deps.checkForUpdate).toHaveBeenCalledTimes(1)
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('发现新版本 0.1.2-rc.15（当前 0.1.2-rc.14）'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('@huiliyi37/dsh-tianshu-tui@latest'))
+  })
+
+  it('/update 已最新：回显当前版本', async () => {
+    const { cmd, deps } = commandByName('update')
+    const { args, echo } = makeArgs()
+    vi.mocked(deps.checkForUpdate).mockResolvedValue({ kind: 'current', current: '0.1.2-rc.14' })
+    await cmd.run(args)
+    expect(echo).toHaveBeenCalledWith('已是最新版本（0.1.2-rc.14）')
+  })
+
+  it('/update 检查失败：回显失败原因（不抛）', async () => {
+    const { cmd, deps } = commandByName('update')
+    const { args, echo } = makeArgs()
+    vi.mocked(deps.checkForUpdate).mockResolvedValue({ kind: 'failed', error: 'registry timeout' })
+    await cmd.run(args)
+    expect(echo).toHaveBeenCalledWith('⚠ 更新检查失败：registry timeout')
+  })
+
+  it('BUILTIN_COMMAND_NAMES 含 update（/help 列表可见）', () => {
+    expect(BUILTIN_COMMAND_NAMES).toContain('update')
+  })
+})
+
 describe('内置命令 — /help', () => {
   it('内置命令集含 /help', () => {
     expect(BUILTIN_COMMAND_NAMES).toContain('help')
@@ -1554,6 +1591,7 @@ describe('内置命令 — /effort', () => {
       exportTheme: vi.fn((): string => 'exported'),
       openSessionPicker: vi.fn(),
     openKeyDialog: vi.fn(),
+    checkForUpdate: vi.fn(),
       sessionCostReport: vi.fn<() => string[]>(() => []),
     }
     const cmd = createBuiltinCommands(deps).find(c => c.name === 'effort')
