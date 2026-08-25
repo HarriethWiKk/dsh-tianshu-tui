@@ -32,42 +32,42 @@
 
 ## Install
 
-This package is not a standalone app. You need the official CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh) (`0.1.0-rc.8`). `npm i` of this package alone will not run.
+This package is not a standalone app. You need the official CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh) (npm `latest`, currently `0.1.1-rc.2`; needs ≥ `0.1.0-rc.8`, aligned with the peer deps). `npm i` of this package alone will not run.
 
 ### 1. Prerequisites
 
 - [Node.js](https://nodejs.org/) `^22.19 || >=24`
 - [`pnpm`](https://pnpm.io/installation) on PATH (`dsh plugin` forwards to it)
 
-**Do not type `dsh` by itself.** An older `dsh` on PATH (for example `~/.local/bin/dsh`, where `dsh --version` is not `0.1.0-rc.8`) will hit a local staging tree and fail with `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`. Always use the `npx` commands below.
+**Do not type `dsh` by itself.** An older `dsh` on PATH (for example `~/.local/bin/dsh`, where `dsh --version` is below `0.1.0-rc.8`) will hit a local staging tree and fail with `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`. Always use the `npx` commands below.
 
 ### 2. Add this plugin to the tui profile
 
 ```sh
-npx -y @deepseek-ai/dsh@0.1.0-rc.8 plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
 ```
 
 pnpm may warn about missing peers; ignore that. Peers come from the official `dsh` host.
 
 After an npm install, each launch checks npm `latest` and writes a newer version into the profile, then asks you to restart. Set `DSH_TUI_SKIP_UPDATE=1` to skip the check. `github:` / `link:` installs are left alone.
 
-You can also install from Git: `npx -y @deepseek-ai/dsh@0.1.0-rc.8 plugin --profile tui add github:huiliyi37/dsh-tianshu-tui` (the repository ships `lib/index.js`; no rebuild).
+You can also install from Git: `npx -y @deepseek-ai/dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui` (the repository ships `lib/index.js`; no rebuild).
 
 ### 3. Start
 
 ```sh
-npx -y @deepseek-ai/dsh@0.1.0-rc.8 --profile tui
+npx -y @deepseek-ai/dsh --profile tui
 ```
 
 Success looks like a welcome screen branded **dsh-tianshu-tui**. Quit with `Ctrl+Q` or `/exit`.
 
-If the official CLI is installed globally and `dsh --version` is `0.1.0-rc.8`, you can use `dsh` in place of `npx -y @deepseek-ai/dsh`.
+If the official CLI is installed globally and `dsh --version` is at least `0.1.0-rc.8`, you can use `dsh` in place of `npx -y @deepseek-ai/dsh`.
 
 If `npx` still raises `ERR_FS_EISDIR`, stale install fallbacks under `~/.dsh/profiles/node_modules` are colliding with the official CLI. Use a clean home:
 
 ```sh
-DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh@0.1.0-rc.8 plugin --profile tui add @huiliyi37/dsh-tianshu-tui
-DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh@0.1.0-rc.8 --profile tui
+DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh --profile tui
 ```
 
 Do not run tsdown for this package from the DeepSeek Harness workspace root: it rewrites imports to unpublished `@deepseek-ai/dsh-root`, and loading fails.
@@ -184,8 +184,8 @@ On launch the plugin checks npm `latest`, writes a newer version into the profil
 **Upgrading from `0.1.0-rc.8`:** that build has no self-update. Add the plugin once more to pick up the new logic:
 
 ```sh
-npx -y @deepseek-ai/dsh@0.1.0-rc.8 plugin --profile tui add @huiliyi37/dsh-tianshu-tui
-npx -y @deepseek-ai/dsh@0.1.0-rc.8 --profile tui
+npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+npx -y @deepseek-ai/dsh --profile tui
 ```
 
 Later releases write themselves into the profile on launch. Restart after you see `插件已更新到 …，请重启 dsh 后生效`. Set `DSH_TUI_SKIP_UPDATE=1` to skip the check. `github:` / `link:` installs are left alone.
