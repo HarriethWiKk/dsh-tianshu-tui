@@ -20,6 +20,7 @@
 |---|---|---|
 | src/activity-status.ts | activity-status.ts | modified |
 | src/activity-store.ts | activity-store.ts | modified |
+| src/adapter/fork-agent.ts | — | new（/fork /branch：agents.create({ seed, meta }) 铸 child，避免 sessions.fork 后再 resume live 会话） |
 | src/adapter/live.ts | — | new |
 | src/adapter/send.ts | — | new |
 | src/adapter/session-title.ts | — | new（/session list 会话标题展示：官方 log-backed session/title 事件 fold → 确定性 fallback → 「新对话」；纯函数只读，不调 API、不写 sidecar） |

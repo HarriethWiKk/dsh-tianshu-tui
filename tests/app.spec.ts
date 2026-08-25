@@ -3469,28 +3469,82 @@ describe('TuiApp 会话交互 UX 对齐（显示层 = 实际能力）', () => {
 })
 
 describe('TuiApp forkSession（A3 会话分叉）', () => {
-  it('fork 当前会话并切换：sessions.fork 被调、resume 到 child、返回新 id', async () => {
+  it('fork 不 resume live 子会话：resume 抛 while-it-is-live 时仍经 create 成功', async () => {
     const ctx = makeCtx()
-    const parent = makeAgent('parent-1')
+    const parent = makeAgent('parent-live')
     const parentHandle = makeHandle(parent)
-    ctx.agents.create.mockResolvedValue(parentHandle)
-    ctx.sessions.get.mockReturnValue(parent.session)
-    const child = makeAgent('child-1')
+    const child = makeAgent('child-live')
     const childHandle = makeHandle(child)
-    ctx.sessions.fork.mockReturnValue(child.session)
-    ctx.agents.resume.mockResolvedValue(childHandle)
+    ctx.agents.create
+      .mockResolvedValueOnce(parentHandle)
+      .mockResolvedValueOnce(childHandle)
+    ctx.sessions.get.mockReturnValue(parent.session)
+    ctx.agents.resume.mockImplementation(async (opts: { resumeSessionId: SessionId }) => {
+      throw new Error(`cannot prepare session "${opts.resumeSessionId}" while it is live`)
+    })
 
     const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
     const parentId = await app.newSession()
     const id = await app.forkSession()
 
-    // 分叉源 = 当前会话 id（newSession 铸造的 id）
-    expect(ctx.sessions.fork).toHaveBeenCalledWith(parentId)
-    // 切换路径：child 无 live agent → resume
-    expect(ctx.agents.resume).toHaveBeenCalledWith(expect.objectContaining({
-      resumeSessionId: child.session.id,
+    expect(ctx.sessions.fork).not.toHaveBeenCalled()
+    expect(ctx.agents.resume).not.toHaveBeenCalled()
+    expect(ctx.agents.create).toHaveBeenLastCalledWith(expect.objectContaining({
+      seed: [],
+      meta: expect.objectContaining({
+        parentSession: parentId,
+        cwd: process.cwd(),
+        seedLength: 0,
+      }),
     }))
-    expect(id).toBe(child.session.id)
+    expect(id).not.toBe(parentId)
+    expect(String(id)).toMatch(/^session-/)
+    const forkCreate = ctx.agents.create.mock.calls[1]?.[0] as { sessionId: SessionId }
+    expect(forkCreate.sessionId).toBe(id)
+    await app.dispose()
+  })
+
+  it('fork 当前会话并切换：agents.create 带 seed/血缘，不 fork+resume', async () => {
+    const ctx = makeCtx()
+    const parent = makeAgent('parent-1')
+    const parentHandle = makeHandle(parent)
+    const child = makeAgent('child-1')
+    const childHandle = makeHandle(child)
+    ctx.agents.create
+      .mockResolvedValueOnce(parentHandle)
+      .mockResolvedValueOnce(childHandle)
+    ctx.sessions.get.mockReturnValue(parent.session)
+
+    const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
+    const parentId = await app.newSession()
+    const id = await app.forkSession()
+
+    expect(ctx.sessions.fork).not.toHaveBeenCalled()
+    expect(ctx.agents.resume).not.toHaveBeenCalled()
+    expect(ctx.agents.create).toHaveBeenLastCalledWith(expect.objectContaining({
+      sessionId: id,
+      seed: [],
+      meta: expect.objectContaining({ parentSession: parentId }),
+    }))
+    await app.dispose()
+  })
+
+  it('源会话处于 open turn → 抛回合未结束，不 create child', async () => {
+    const ctx = makeCtx()
+    const parent = makeAgent('parent-open')
+    ctx.agents.create.mockResolvedValue(makeHandle(parent))
+    ctx.sessions.get.mockReturnValue(parent.session)
+
+    const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
+    await app.newSession()
+    Object.assign(parent.session, {
+      events: [
+        { seq: 0, time: 0, type: 'turn/start' },
+        { seq: 1, time: 1, type: 'user/message' },
+      ],
+    })
+    await expect(app.forkSession()).rejects.toThrow('回合未结束')
+    expect(ctx.agents.create).toHaveBeenCalledTimes(1)
     await app.dispose()
   })
 
@@ -3502,24 +3556,22 @@ describe('TuiApp forkSession（A3 会话分叉）', () => {
     await app.dispose()
   })
 
-  it('forkSession 带 directive → fork + 切换后 followup 提交 directive 为首条消息', async () => {
+  it('forkSession 带 directive → create 后 followup 提交 directive 为首条消息', async () => {
     const ctx = makeCtx()
     const parent = makeAgent('parent-2')
     const parentHandle = makeHandle(parent)
-    ctx.agents.create.mockResolvedValue(parentHandle)
-    ctx.sessions.get.mockReturnValue(parent.session)
     const child = makeAgent('child-2')
     const childHandle = makeHandle(child)
-    ctx.sessions.fork.mockReturnValue(child.session)
-    ctx.agents.resume.mockResolvedValue(childHandle)
+    ctx.agents.create
+      .mockResolvedValueOnce(parentHandle)
+      .mockResolvedValueOnce(childHandle)
+    ctx.sessions.get.mockReturnValue(parent.session)
 
     const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
-    const parentId = await app.newSession()
-    const id = await app.forkSession({ directive: '探索另一种方案' })
+    await app.newSession()
+    await app.forkSession({ directive: '探索另一种方案' })
 
-    expect(ctx.sessions.fork).toHaveBeenCalledWith(parentId)
-    expect(id).toBe(child.session.id)
-    // followup 首条消息 = directive（转 user message 走 controls）
+    expect(ctx.sessions.fork).not.toHaveBeenCalled()
     expect(child.followup).toHaveBeenCalledTimes(1)
     expect(firstCallText(child.followup)).toBe('探索另一种方案')
     await app.dispose()

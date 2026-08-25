@@ -126,6 +126,48 @@ export function getSession(ctx: Context, id: SessionId): Session | undefined {
  * @param childSessionId - optional child identity; the store generates one when absent.
  * @returns the created live child session.
  */
+/**
+ * /fork /branch 的 create seed：官方 persistence.prepare 禁止对 live 会话
+ * resume，所以分叉必须走 agents.create({ seed, meta })，不能 sessions.fork 后再
+ * resume。seed 必须是不落在 open turn 里的完整前缀（SessionStore.fork 同款）；
+ * 回合未结束时响亮失败，不静默裁剪（与 /btw 的 completedTurnSeed 不同）。
+ * @param events - 源会话事件日志。
+ * @returns 可直接交给 agents.create 的 seed。
+ */
+export function liveForkSeed(events: readonly SessionEvent[]): readonly SessionEvent[] {
+  let open = false
+  for (const event of events) {
+    if (event.type === 'turn/start') open = true
+    else if (event.type === 'turn/end') open = false
+  }
+  if (open) throw new Error('当前会话回合未结束，无法分叉')
+  return events
+}
+
+/**
+ * 组装 agents.create 的 fork 参数（seed + 血缘 meta）。
+ * @param parent - 源 live 会话。
+ * @param fallbackCwd - header.cwd 缺失时的工作区（启动目录）。
+ */
+export function forkAgentSpec(
+  parent: Session,
+  fallbackCwd: string,
+  parentSessionId: SessionId = parent.id,
+): {
+  seed: readonly SessionEvent[]
+  meta: { cwd: string; parentSession: SessionId; seedLength: number }
+} {
+  const seed = liveForkSeed(parent.events)
+  return {
+    seed,
+    meta: {
+      cwd: parent.header.cwd ?? fallbackCwd,
+      parentSession: parentSessionId,
+      seedLength: seed.length,
+    },
+  }
+}
+
 export function forkSession(
   ctx: Context,
   source: SessionForkSource,

@@ -487,13 +487,7 @@ export declare class TuiApp {
      * @returns 是否已热切（modelRef 存在）。
      */
     switchLiveModel(selection: ModelSelection): boolean;
-    /**
-     * A3：分叉当前会话（SessionStore.fork 复制历史到新 child session，带
-     * parentSession 血缘）并切换到分叉（agent-ensure 走 switchSession 的
-     * resume/registry 兜底路径）。无活跃会话时抛错（命令分发层回显失败）。
-     * @param opts - 可选 directive：fork 后作为首条消息提交给新会话（分叉探索方向）。
-     * @returns 分叉会话 id。
-     */
+    /** A3：create({ seed }) 铸 child；禁止 fork 后再 resume live 会话。 */
     forkSession(opts?: {
         directive?: string;
     }): Promise<SessionId>;

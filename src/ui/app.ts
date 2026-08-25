@@ -76,6 +76,7 @@ import {
   listSessions, loadHistory, flushAll, getSession,
   findMostRecentEmptySession, clearEmptySessionArtifact, type SessionSummary,
 } from '../adapter/sessions.js'
+import { createForkedAgent } from '../adapter/fork-agent.js'
 import { sessionTitleFor } from '../adapter/session-title.js'
 import { updateNoticeText, autoRestartNoticeText, updateNoticePackage, readOwnVersion, checkForUpdate as runUpdateCheck, defaultUpdateCachePath, type UpdateCheckResult } from '../self-update.js'
 import { supportsOsc52 } from '../term-caps.js'
@@ -809,7 +810,7 @@ export class TuiApp {
       // #40：/theme 生效后按新主题重放当前会话历史（reset 滚动区重提交）。
       onThemeChanged: () => { this.rerenderHistory() },
       newSession: () => this.newSession(),
-      forkSession: () => this.forkSession(),
+      forkSession: opts => this.forkSession(opts),
       switchLiveModel: selection => this.switchLiveModel(selection),
       // /preset：当前会话 agent（recompose/composedPreset 的 agentCtx 来源）；
       // activeSessionId 为 null（未 attach）时返回 null，命令层拒绝切换。
@@ -1866,23 +1867,21 @@ export class TuiApp {
     return true
   }
 
-  /**
-   * A3：分叉当前会话（SessionStore.fork 复制历史到新 child session，带
-   * parentSession 血缘）并切换到分叉（agent-ensure 走 switchSession 的
-   * resume/registry 兜底路径）。无活跃会话时抛错（命令分发层回显失败）。
-   * @param opts - 可选 directive：fork 后作为首条消息提交给新会话（分叉探索方向）。
-   * @returns 分叉会话 id。
-   */
+  /** A3：create({ seed }) 铸 child；禁止 fork 后再 resume live 会话。 */
   async forkSession(opts?: { directive?: string }): Promise<SessionId> {
-    if (this.activeSessionId === null) {
-      throw new Error('当前无会话可分叉')
-    }
-    const child = this.ctx.sessions.fork(this.activeSessionId)
-    await this.switchSession(child.id)
-    if (opts?.directive !== undefined && opts.directive !== '') {
-      await this.controls?.followup(opts.directive)
-    }
-    return child.id
+    if (this.activeSessionId === null) throw new Error('当前无会话可分叉')
+    const parent = this.ctx.sessions.get(this.activeSessionId)
+    if (parent === undefined) throw new Error('当前无会话可分叉')
+    const forked = await createForkedAgent(this.ctx, parent, this.activeSessionId, process.cwd())
+    await this.detachProjections({ keepHandle: true })
+    this.dynamicRowsHighWater = 0
+    this.modelRef = forked.ref
+    this.ownedHandle = forked.handle
+    this.controls = controlsFromHandle(forked.handle)
+    this.activeSessionId = forked.childId
+    this.mountSession(forked.childId)
+    if (opts?.directive) await this.controls?.followup(opts.directive)
+    return forked.childId
   }
 
   /**
