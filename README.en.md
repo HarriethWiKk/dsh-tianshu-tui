@@ -129,7 +129,16 @@ The companion vision plugin lives in `vision-ask/` if you need image re-interrog
 
 ## Release notes
 
-Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.16`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.16)).
+Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.17`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.17)).
+
+### 0.1.2-rc.17 (2026-08-25)
+
+Activity band + startup-default semantics: subagents/workflows move to a unified activity band, startup items split into "this session" vs "write default", todos auto-pop on first write, `/fork` `/branch` fixed.
+
+- **Unified activity band for subagents/workflows** — the area above the input rail defaults to a single activity band (`◐ N subagents · M workflows`): one stats line per running item (capped at `activityBandMaxRows`, default 5, folded to `+N`), a subagent collapses to `✓ {label} · N tools · X tok · 12s` on finish, a workflow submits a summary line when done; `activityBand: false` falls back to one spinner line per running subagent. The `/subagents` live card shows the second running line and failure state, appending "⤷ external subagent" when the host has external runs; the `/workflow` roster appends the child-session label / run state when a childId hits the delegation tree
+- **Startup items split into "this session" vs "write default"** — picker Enter / argument commands only hot-switch the current session; pressing `S` in a picker or appending `default` to a command writes `prefs.json` as the startup default for new sessions (`/theme` `/model` `/effort` `/density` `/preset`); echoes spell out the difference so defaults and session-scoped changes are no longer confused
+- **First todo write auto-opens the compact card** — live no longer draws the todos projection by default; the first non-empty todo write by the model auto-opens the compact card, and closing it or `/clear` disarms auto-open for the rest of the session
+- **`/fork` `/branch` fix** — they now mint a child once via `agents.create({ seed })` instead of resuming a live child session (official `persistence.prepare` throws `cannot prepare while it is live` for in-memory sessions; fork previously blew up)
 
 ### 0.1.2-rc.16 (2026-08-25)
 

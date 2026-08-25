@@ -128,7 +128,16 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 
 ## 更新说明
 
-当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.16`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.16)）。
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.17`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.17)）。
+
+### 0.1.2-rc.17（2026-08-25）
+
+活动带与启动默认语义版本：子代理/工作流改走统一活动带，启动项区分「仅本会话」与「写默认」，待办首写自动弹卡，`/fork` `/branch` 修复。
+
+- **子代理/工作流统一活动带** — 输入轨上方默认收敛为活动带（`◐ N 子代理 · M 工作流`）：进行中每项一行统计（封顶 `activityBandMaxRows`，默认 5，超限折叠为 `+N`），子代理结束塌成 `✓ {label} · N 工具 · X tok · 12s`，工作流结束再提交一行摘要；`activityBand: false` 回退为每条运行中子代理一行 spinner。`/subagents` 活区卡显示进行中第二行与失败态，宿主有外部 run 时追加「⤷ 外部子代理」；`/workflow` roster 在 childId 命中委派树时追加子会话 label / 运行态
+- **启动项拆成「仅本会话」与「写默认」** — 选择器 Enter / 带参命令只热切当前会话；选择器按 `S` 或命令末尾 `default` 才写入 `prefs.json` 作为新会话启动默认（`/theme` `/model` `/effort` `/density` `/preset`）；回显点名差异，不再分不清默认与本会话
+- **模型首次写入待办自动弹紧凑卡** — live 默认不画 todos 投影；模型第一次写入非空待办时自动弹出紧凑卡，手动关掉或 `/clear` 后本会话不再自动开
+- **`/fork` `/branch` 修复** — 改用 `agents.create({ seed })` 一次铸 child，不再 resume live 子会话（官方 `persistence.prepare` 对已在内存的会话抛 `cannot prepare while it is live`，此前 fork 后必炸）
 
 ### 0.1.2-rc.16（2026-08-25）
 
