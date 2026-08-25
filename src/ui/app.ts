@@ -684,6 +684,8 @@ export class TuiApp {
    * 会话首次写入前出现（渲染「尚无待办」空态）。
    */
   private todosRetained: TaskItem[] | null = null
+  /** 本会话仍允许首次非空 todos 自动开面板；关掉或 /clear 后解除。 */
+  private todosAutoArmed = true
   /** T4：任务投影变更订阅 disposer；随会话卸载释放。 */
   private projectionDisposer: (() => void) | null = null
   /** T5：紧凑渲染模式（/density 切换）——工具卡仅标题行。 */
@@ -851,6 +853,7 @@ export class TuiApp {
         this.taskPanelVisible = false
         this.statusPanelVisible = false
         this.todosPanelVisible = false
+        this.todosAutoArmed = false
         this.subagentsPanelVisible = false
         this.workflowPanelVisible = false
         this.commit.reset()
@@ -959,7 +962,7 @@ export class TuiApp {
           this.todosPanelVisible = this.todosPanelVisible || this.todosExpanded
         } else {
           this.todosPanelVisible = !this.todosPanelVisible
-          if (!this.todosPanelVisible) this.todosExpanded = false
+          if (!this.todosPanelVisible) { this.todosExpanded = false; this.todosAutoArmed = false }
         }
         if (this.todosPanelVisible && this.ctx.reflect.get('sessionProjections', false) === undefined) {
           this.echoWarn('⚠ sessionProjections 服务不可用（未装配 session-projection 插件），待办面板无数据')
@@ -2241,6 +2244,13 @@ export class TuiApp {
     void this.switchSession(id).catch((error: unknown) => { this.echoWarn(`⚠ 会话切换失败: ${error instanceof Error ? error.message : String(error)}`) })
   }
 
+  /** 首次非空 todos 打开紧凑卡；关掉或 /clear 后本会话不再自动开。 */
+  private tryAutoOpenTodos(items: TaskItem[] | null): void {
+    if (!this.todosAutoArmed || items === null || items.length === 0) return
+    this.todosPanelVisible = true
+    this.todosAutoArmed = false
+  }
+
   /**
    * 挂载当前会话的投影与控制面：transcript/live/controls 就位后，
    * 将已提交的历史渲染进 scrollback。
@@ -2293,6 +2303,7 @@ export class TuiApp {
     this.taskPanelVisible = false
     this.statusPanelVisible = false
     this.todosPanelVisible = false
+    this.todosAutoArmed = true
     this.taskItems = null
     this.planState = { active: false, pending: false }
     this.projectionCache = null
@@ -2304,6 +2315,7 @@ export class TuiApp {
       const snapTodos = snap.values.todos as TaskItem[] | null | undefined
       this.taskItems = snapTodos ?? null
       this.todosRetained = snapTodos ?? null
+      this.tryAutoOpenTodos(this.todosRetained)
       const plan = snap.values.plan as PlanProjectionWire | undefined
       this.planState = { active: plan?.active ?? false, pending: plan?.pending ?? false }
       const statusLine = this.statusLine as WorkflowStatusLine | null
@@ -2326,7 +2338,7 @@ export class TuiApp {
           // 黏滞保留快照：turn/start 会把 todos 投影 fold 重置为 null，面板
           // 若直接跟随投影每回合开头都会闪烁消失——只吸收非空值（null 不回
           // 退显示；黏滞语义见 todosRetained 字段注释）。
-          if (items !== null) this.todosRetained = items
+          if (items !== null) { this.todosRetained = items; this.tryAutoOpenTodos(items) }
           this.renderBatcher.schedule()
         } else if (key === 'plan') {
           const plan = value as PlanProjectionWire | null

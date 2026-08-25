@@ -2700,8 +2700,13 @@ describe('TuiApp T4 任务窗格（/tasks + sessionProjections）', () => {
 })
 
 describe('TuiApp /todos 紧凑待办面板（保留快照 + 显隐切换）', () => {
+  const seedTodos = [
+    { content: '理解问题', status: 'completed' as const },
+    { content: '写实现', status: 'in_progress' as const },
+  ]
+
   /** 装配带 sessionProjections 替身的 app（快照/onChanged 捕获，供用例推送）。 */
-  async function mountWithProjections() {
+  async function mountWithProjections(initialTodos: typeof seedTodos | null = seedTodos) {
     const ctx = makeCtx()
     let changeListener: ((s: { id: string }, key: string, value: unknown) => void) | null = null
     let mountedAgent: { session: { id: string } } | null = null
@@ -2715,10 +2720,7 @@ describe('TuiApp /todos 紧凑待办面板（保留快照 + 显隐切换）', ()
       changeListener = l
       return () => { }
     })
-    const snapshot = vi.fn(() => ({ values: { todos: [
-      { content: '理解问题', status: 'completed' },
-      { content: '写实现', status: 'in_progress' },
-    ] } }))
+    const snapshot = vi.fn(() => ({ values: { todos: initialTodos } }))
     ctx.reflect.get.mockImplementation((name: string) => {
       if (name === 'sessionProjections') return { snapshot, onChanged }
       return undefined
@@ -2740,16 +2742,18 @@ describe('TuiApp /todos 紧凑待办面板（保留快照 + 显隐切换）', ()
     return stdout.write.mock.calls.map(c => `${c[0]}`).join('')
   }
 
-  it('/todos 打开渲染摘要卡；/todos all 展开明细', async () => {
-    const t = await mountWithProjections()
-    for (const ch of '/todos') t.stdin.emit('data', ch)
+  function submitSlash(t: Awaited<ReturnType<typeof mountWithProjections>>, text: string): void {
+    for (const ch of text) t.stdin.emit('data', ch)
     t.stdin.emit('data', '\r')
+  }
+
+  it('恢复会话快照已有非空待办 → 不打 /todos 也弹出摘要卡；/todos all 展开明细', async () => {
+    const t = await mountWithProjections()
     await new Promise(resolve => setImmediate(resolve))
     expect(writtenOf(t.stdout)).toContain('📋 待办 ✓1 ⏳1 □0 · 写实现')
 
     // all → 展开：摘要行 + 封顶明细条目
-    for (const ch of '/todos all') t.stdin.emit('data', ch)
-    t.stdin.emit('data', '\r')
+    submitSlash(t, '/todos all')
     await new Promise(resolve => setImmediate(resolve))
     const text = writtenOf(t.stdout)
     expect(text).toContain('[x] 理解问题')
@@ -2759,8 +2763,6 @@ describe('TuiApp /todos 紧凑待办面板（保留快照 + 显隐切换）', ()
 
   it('黏滞保留：turn/start 把投影清成 null 不回退显示已打开的面板', async () => {
     const t = await mountWithProjections()
-    for (const ch of '/todos') t.stdin.emit('data', ch)
-    t.stdin.emit('data', '\r')
     await new Promise(resolve => setImmediate(resolve))
 
     const listener = t.listener()
@@ -2780,8 +2782,6 @@ describe('TuiApp /todos 紧凑待办面板（保留快照 + 显隐切换）', ()
 
   it('/clear 一并收起 /todos 面板', async () => {
     const t = await mountWithProjections()
-    for (const ch of '/todos') t.stdin.emit('data', ch)
-    t.stdin.emit('data', '\r')
     await new Promise(resolve => setImmediate(resolve))
     expect(writtenOf(t.stdout)).toContain('📋 待办')
 
@@ -2789,6 +2789,49 @@ describe('TuiApp /todos 紧凑待办面板（保留快照 + 显隐切换）', ()
     t.stdout.write.mockClear()
     t.app.handleSubmit('/clear')
     await new Promise(resolve => setImmediate(resolve))
+    expect(writtenOf(t.stdout)).not.toContain('📋 待办')
+    await t.app.dispose()
+  })
+
+  it('首次非空写入自动弹出；不打 /todos', async () => {
+    const t = await mountWithProjections(null)
+    await new Promise(resolve => setImmediate(resolve))
+    expect(writtenOf(t.stdout)).not.toContain('📋 待办')
+    t.stdout.write.mockClear()
+    t.listener()!({ id: t.mounted().session.id }, 'todos', [
+      { content: '写实现', status: 'in_progress' },
+    ])
+    await new Promise(resolve => setTimeout(resolve, 200))
+    expect(writtenOf(t.stdout)).toContain('📋 待办 ✓0 ⏳1 □0 · 写实现')
+    await t.app.dispose()
+  })
+
+  it('/todos 关掉后再写入不再自动开', async () => {
+    const t = await mountWithProjections()
+    await new Promise(resolve => setImmediate(resolve))
+    expect(writtenOf(t.stdout)).toContain('📋 待办')
+    submitSlash(t, '/todos')
+    await new Promise(resolve => setImmediate(resolve))
+    t.stdout.write.mockClear()
+    t.listener()!({ id: t.mounted().session.id }, 'todos', [
+      { content: '又一项', status: 'pending' },
+    ])
+    await new Promise(resolve => setTimeout(resolve, 200))
+    expect(writtenOf(t.stdout)).not.toContain('📋 待办')
+    await t.app.dispose()
+  })
+
+  it('/clear 后再写入不再自动开', async () => {
+    const t = await mountWithProjections()
+    await new Promise(resolve => setImmediate(resolve))
+    t.stdout.write.mockClear()
+    t.app.handleSubmit('/clear')
+    await new Promise(resolve => setImmediate(resolve))
+    t.stdout.write.mockClear()
+    t.listener()!({ id: t.mounted().session.id }, 'todos', [
+      { content: '清屏后写入', status: 'pending' },
+    ])
+    await new Promise(resolve => setTimeout(resolve, 200))
     expect(writtenOf(t.stdout)).not.toContain('📋 待办')
     await t.app.dispose()
   })

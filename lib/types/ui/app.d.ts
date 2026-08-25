@@ -262,6 +262,8 @@ export declare class TuiApp {
      * 会话首次写入前出现（渲染「尚无待办」空态）。
      */
     private todosRetained;
+    /** 本会话仍允许首次非空 todos 自动开面板；关掉或 /clear 后解除。 */
+    private todosAutoArmed;
     /** T4：任务投影变更订阅 disposer；随会话卸载释放。 */
     private projectionDisposer;
     /** T5：紧凑渲染模式（/density 切换）——工具卡仅标题行。 */
@@ -576,6 +578,8 @@ export declare class TuiApp {
     switchSession(id: SessionId): Promise<void>;
     /** 按键面切换：失败回显 ⚠ 并停留原会话（rejection 不逃逸成 unhandled）。 */
     private switchSessionGuarded;
+    /** 首次非空 todos 打开紧凑卡；关掉或 /clear 后本会话不再自动开。 */
+    private tryAutoOpenTodos;
     /**
      * 挂载当前会话的投影与控制面：transcript/live/controls 就位后，
      * 将已提交的历史渲染进 scrollback。

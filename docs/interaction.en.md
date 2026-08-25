@@ -85,6 +85,7 @@ Above the input track, running work folds into one activity band (`◐ N subagen
 | Command | Effect |
 |---|---|
 | `/status` | Status panel (goal/todos/plan projection + session totals) |
+| `/todos [all]` | Compact todo card (no-arg toggles; `all` expands). First non-empty model write auto-opens it; closing or `/clear` disables auto-open for the rest of the session |
 | `/config` | Settings panel (settings / permission / credentials) |
 | `/skills` | Skill browser panel |
 | `/tasks [kill <id>]` | Task panel |
