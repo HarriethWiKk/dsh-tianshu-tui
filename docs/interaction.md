@@ -41,6 +41,8 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
 | `Enter`(空输入) | 切换最后一张进行中工具卡的展开(显示参数 JSON) |
 | `Shift+Tab` | 模式循环:normal → plan → always-approve |
 
+输入轨上方默认是统一活动带(`◐ N 子代理 · M 工作流` + 每项一行统计,封顶 `activityBandMaxRows`):子代理结束塌成 `✓ {label} · N 工具 · X tok · 12s`,工作流结束再提交一行摘要。`activityBand: false` 回退为每条运行中子代理一行 spinner。
+
 ### 交互面板
 
 | 按键 | 作用 |
@@ -86,8 +88,8 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
 | `/skills` | 技能浏览面板 |
 | `/tasks [kill <id>]` | 任务窗格 |
 | `/goal` | 目标管理(创建/暂停/恢复/完成/阻塞) |
-| `/subagents` | 委派树面板 |
-| `/workflow` | workflow 运行面板 |
+| `/subagents` | 委派树活区卡(进行中第二行、失败态;宿主有外部 run 时追加「⤷ 外部子代理」) |
+| `/workflow` | workflow 运行面板(roster 在 childId 命中委派树时追加子会话 label / 运行态) |
 | `/lsp` | LSP 诊断面板 |
 
 ### 记忆与诊断

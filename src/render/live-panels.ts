@@ -21,8 +21,15 @@ import type { LiveSnapshot } from './live-snapshot.js'
 import { projectTaskPanel } from '../format/task-panel.js'
 import { projectTodosPanel } from '../format/todos-panel.js'
 import { projectStatusPanel } from '../status-panel.js'
-import { projectDelegationTree } from '../delegation-panel.js'
-import { projectWorkflow, type WorkflowRunView } from '../workflow-panel.js'
+import {
+  projectDelegationTree,
+  projectExternalRunSection,
+  type DelegationIdentityProjection,
+  type DelegationTimingProjection,
+  type DelegationTreeEntry,
+} from '../delegation-panel.js'
+import { projectWorkflow, type WorkflowChildState, type WorkflowRunView } from '../workflow-panel.js'
+import { shortSessionLabel } from '../session-label.js'
 import { projectConfigPanel } from '../config-panel.js'
 import { projectSkillPanel } from '../skill-panel.js'
 import { projectLspPanel, groupLspDiagnostics } from '../format/lsp-diagnostics.js'
@@ -138,12 +145,58 @@ export function renderSkillsPanel(snapshot: LiveSnapshot): string[] {
 export function renderDelegationPanel(snapshot: LiveSnapshot): string[] {
   if (!snapshot.subagentsPanelVisible) return []
   if (snapshot.delegationEntries === null) return []
-  return projectDelegationTree(
-    snapshot.delegationEntries,
-    snapshot.subagentIdentities,
-    snapshot.subagentTimings,
-    { width: snapshot.cols },
+  const opts = {
+    width: snapshot.cols,
+    ...(snapshot.now === undefined ? {} : { now: snapshot.now }),
+    theme: snapshot.theme,
+  }
+  const rows = projectDelegationTree(
+    mergeDelegationProjections(
+      snapshot.delegationEntries,
+      snapshot.subagentIdentities,
+      snapshot.subagentTimings,
+    ),
+    opts,
   )
+  rows.push(...projectExternalRunSection(snapshot.externalRuns, opts))
+  return rows
+}
+
+/** 旧宿主旁路 Map 合并进条目；条目自带 progress/timing 不覆盖。 */
+export function mergeDelegationProjections(
+  entries: DelegationTreeEntry[],
+  identities: ReadonlyMap<string, DelegationIdentityProjection>,
+  timings: ReadonlyMap<string, DelegationTimingProjection>,
+): DelegationTreeEntry[] {
+  return entries.map((entry) => {
+    if (entry.kind !== 'child') return entry
+    const identity = identities.get(entry.id)
+    const timing = entry.timing ?? timings.get(entry.id)
+    const label = identity?.label ?? entry.label
+    return {
+      ...entry,
+      mode: identity?.mode ?? entry.mode,
+      ...(label === undefined ? {} : { label }),
+      ...(timing === undefined ? {} : { timing }),
+    }
+  })
+}
+
+/** 委派树 → workflow roster childState。 */
+export function childStateFromEntries(
+  entries: DelegationTreeEntry[] | null,
+): ReadonlyMap<string, WorkflowChildState> | undefined {
+  if (entries === null) return undefined
+  const map = new Map<string, WorkflowChildState>()
+  for (const entry of entries) {
+    if (entry.kind === 'child') {
+      map.set(entry.id, {
+        label: entry.label ?? shortSessionLabel(entry.id),
+        running: entry.activity === 'running',
+      })
+    }
+  }
+  return map
 }
 
 /**
@@ -162,6 +215,7 @@ export function renderWorkflowPanel(snapshot: LiveSnapshot): string[] {
   return projectWorkflow(runs, {
     width: snapshot.cols,
     expanded: runs.filter(run => run.result === undefined).map(run => run.info.id),
+    childState: childStateFromEntries(snapshot.delegationEntries),
   })
 }
 

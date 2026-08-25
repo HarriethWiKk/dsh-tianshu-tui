@@ -66,6 +66,7 @@ function baseSnapshot(): LiveSnapshot {
     delegationEntries: null,
     subagentIdentities: new Map(),
     subagentTimings: new Map(),
+    externalRuns: [],
     workflowPanelVisible: false,
     workflowRuns: [],
     configPanelVisible: false,
@@ -215,6 +216,41 @@ describe('renderDelegationPanel', () => {
   it('面板打开 + entries null（未预取）→ 零行（降级）', () => {
     expect(renderDelegationPanel({ ...baseSnapshot(), subagentsPanelVisible: true })).toEqual([])
   })
+
+  it('旁路 identities/timings 合并进条目；条目自带 timing 不覆盖', () => {
+    const rows = renderDelegationPanel({
+      ...baseSnapshot(),
+      subagentsPanelVisible: true,
+      delegationEntries: [
+        { kind: 'child', id: 's1', parentId: 'root', depth: 1, activity: 'inactive', hasChildren: false, mode: 'one-shot', label: '主探索' },
+      ],
+      subagentIdentities: new Map([['s1', { mode: 'continuable', label: '投影名', seq: 1 }]]),
+      subagentTimings: new Map([['s1', { settledMs: 2300 }]]),
+    })
+    expect(rows.join('\n')).toContain('投影名')
+    expect(rows.join('\n')).toContain('2.3s')
+    const kept = renderDelegationPanel({
+      ...baseSnapshot(),
+      subagentsPanelVisible: true,
+      delegationEntries: [
+        { kind: 'child', id: 's1', parentId: 'root', depth: 1, activity: 'inactive', hasChildren: false, mode: 'one-shot', label: '主探索', timing: { settledMs: 100 } },
+      ],
+      subagentTimings: new Map([['s1', { settledMs: 2300 }]]),
+    })
+    expect(kept.join('\n')).toContain('0.1s')
+    expect(kept.join('\n')).not.toContain('2.3s')
+  })
+
+  it('externalRuns 追加外部段', () => {
+    const rows = renderDelegationPanel({
+      ...baseSnapshot(),
+      subagentsPanelVisible: true,
+      delegationEntries: [],
+      externalRuns: [{ id: 'e1', provider: 'acp', label: '远端' }],
+    })
+    expect(rows.join('\n')).toContain('⤷ 外部子代理')
+    expect(rows.join('\n')).toContain('远端')
+  })
 })
 
 describe('renderWorkflowPanel', () => {
@@ -233,6 +269,21 @@ describe('renderWorkflowPanel', () => {
     }
     const rows = renderWorkflowPanel(snap)
     expect(rows.join('\n')).toContain('wf-1')
+  })
+
+  it('childId 命中委派树 → roster 追加 ⤷ 子会话段', () => {
+    const rows = renderWorkflowPanel({
+      ...baseSnapshot(),
+      workflowPanelVisible: true,
+      delegationEntries: [
+        { kind: 'child', id: 'c1', parentId: 'root', depth: 1, activity: 'running', hasChildren: false, mode: 'one-shot', label: '探索鉴权' },
+      ],
+      workflowRuns: [{
+        info: { id: 'wf-1', meta: { name: '评审', description: '' } },
+        agents: [{ seq: 1, label: '调研员', childId: 'c1', outcome: 'completed' }],
+      }],
+    })
+    expect(rows.join('\n')).toContain('⤷ ⏳ 探索鉴权')
   })
 })
 

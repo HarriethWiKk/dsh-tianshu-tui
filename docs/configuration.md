@@ -17,6 +17,8 @@ dsh-tianshu-tui 的配置分三层:**装配时配置**(TuiRunnerConfig,插件注
 | `vision.bridgeEnabled` | 按宿主 `visionBridge` 服务存在性自动探测 | 是否配置独立识图桥模型 |
 | `vision.bridgeSource` | — | 识图桥来源(configured / auto / none) |
 | `workflowHistoryLimit` | `50` | `/workflow` 面板已结算 run 缓存上限(drop-oldest) |
+| `activityBand` | `true` | 输入轨上方统一活动带;`false` 回退每条子代理一行 spinner |
+| `activityBandMaxRows` | `5` | 活动带 item 行封顶(正整数;超限折叠为 `+N`) |
 | `lsp.enabled` | `true` | LSP 诊断拉取开关(本地语言服务桥) |
 | `lsp.timeoutMs` | `2000` | 单次诊断拉取超时 |
 | `autoRestartOnUpdate` | `true` | 启动自更新落盘后自动重启生效;`false` 时仅提示,手动 `/restart` |

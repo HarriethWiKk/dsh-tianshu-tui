@@ -157,6 +157,7 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 | src/truncation-marker.ts | truncation-marker.ts | ported |
 | src/turn-summary.ts | turn-summary.ts | modified（上游单文件拆为模型+渲染，此为模型半；渲染半见 src/format/turn-summary.ts） |
 | src/ui-glyphs.ts | ui-glyphs.ts | ported |
+| src/ui/activity-flow.ts | — | new（子代理/工作流活动带装配：fold/摘要/委派合并/外部 run 降级，自 app.ts 抽出保棘轮） |
 | src/ui/app.ts | — | new（角色对应上游 engine/app.ts，为面向 dsh cordis 服务的独立装配实现，非逐行移植） |
 | src/ui/startup-pickers.ts | — | new（/model /theme /effort 选择器：Enter 本会话、S 写启动默认，自 app.ts 抽出保棘轮） |
 | src/ui/key-dialog.ts | ui/key-dialog.ts | ported（2026-08 回流：供应商 API Key 掩码输入对话框状态机） |

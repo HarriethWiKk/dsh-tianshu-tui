@@ -43,6 +43,8 @@ When there is more than one session, a **session tab bar** appears above the inp
 | `Enter` (empty input) | Toggle expansion of the last in-flight tool card (shows argument JSON) |
 | `Shift+Tab` | Mode cycle: normal → plan → always-approve |
 
+Above the input track, running work folds into one activity band (`◐ N subagents · M workflows` plus one stats line per item, capped by `activityBandMaxRows`). A finished subagent commits `✓ {label} · N tools · X tok · 12s`; a finished workflow commits a one-line summary. Set `activityBand: false` to restore per-run spinner rows.
+
 ### Interactive Panels
 
 | Key | Action |
@@ -87,8 +89,8 @@ When there is more than one session, a **session tab bar** appears above the inp
 | `/skills` | Skill browser panel |
 | `/tasks [kill <id>]` | Task panel |
 | `/goal` | Goal management (create/pause/resume/complete/block) |
-| `/subagents` | Delegation-tree panel |
-| `/workflow` | Workflow runs panel |
+| `/subagents` | Delegation-tree live cards (in-flight body, failed state; optional “⤷ external subagent” section) |
+| `/workflow` | Workflow runs panel (roster appends the child-session label / running state when `childId` hits the tree) |
 | `/lsp` | LSP diagnostics panel |
 
 ### Memory & Diagnostics

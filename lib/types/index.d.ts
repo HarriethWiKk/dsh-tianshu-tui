@@ -39,6 +39,10 @@ export interface TuiRunnerConfig {
     };
     /** 已结算 workflow run 缓存条数上限（/workflow 面板历史），超限 drop-oldest；正整数，缺省 50。 */
     workflowHistoryLimit?: number;
+    /** 统一活动带：活跃 item 行数封顶（正整数；超限折叠 +N 尾行）；缺省 5。 */
+    activityBandMaxRows?: number;
+    /** 统一活动带开关；false 回退旧散行渲染（逃生门）；缺省 true。 */
+    activityBand?: boolean;
     /** LSP 诊断桥（本地语言服务）：懒启动——agent 触碰文件时拉取该文件诊断。
      *  诊断只进 TUI 本地展示缓存（工具卡徽标 + /lsp 面板），不写会话事件、
      *  不注册任何模型面。缺省启用。 */

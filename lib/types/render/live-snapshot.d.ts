@@ -16,7 +16,7 @@
 import type { TaskItem } from '../format/task-panel.js';
 import type { RivetTheme } from '../theme.js';
 import type { GoalProjectionInput, PlanProjectionInput, SessionTotalsInput } from '../status-panel.js';
-import type { DelegationIdentityProjection, DelegationTimingProjection, DelegationTreeEntry } from '../delegation-panel.js';
+import type { DelegationIdentityProjection, DelegationTimingProjection, DelegationTreeEntry, ExternalRunEntry } from '../delegation-panel.js';
 import type { WorkflowRunView } from '../workflow-panel.js';
 import type { ConfigPanelProjection } from '../config-panel.js';
 import type { SkillSummaryInput } from '../skill-panel.js';
@@ -75,6 +75,10 @@ export interface LiveSnapshot {
     subagentIdentities: ReadonlyMap<string, DelegationIdentityProjection>;
     /** 按 id 键控的 subagent 耗时投影。 */
     subagentTimings: ReadonlyMap<string, DelegationTimingProjection>;
+    /** 活跃外部 run（无本地 Session；缺宿主面时 []）。 */
+    externalRuns: ExternalRunEntry[];
+    /** 墙钟（epoch 毫秒；外部段 / 活区卡耗时）。 */
+    now?: number;
     /** /workflow 面板显隐。 */
     workflowPanelVisible: boolean;
     /** 运行中 + 已结算 run 的视图数组（组合器已把 Map 折叠为视图；含终态汇总）。 */

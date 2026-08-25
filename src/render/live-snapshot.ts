@@ -21,6 +21,7 @@ import type {
   DelegationIdentityProjection,
   DelegationTimingProjection,
   DelegationTreeEntry,
+  ExternalRunEntry,
 } from '../delegation-panel.js'
 import type { WorkflowRunView } from '../workflow-panel.js'
 import type { ConfigPanelProjection } from '../config-panel.js'
@@ -93,6 +94,10 @@ export interface LiveSnapshot {
   subagentIdentities: ReadonlyMap<string, DelegationIdentityProjection>
   /** 按 id 键控的 subagent 耗时投影。 */
   subagentTimings: ReadonlyMap<string, DelegationTimingProjection>
+  /** 活跃外部 run（无本地 Session；缺宿主面时 []）。 */
+  externalRuns: ExternalRunEntry[]
+  /** 墙钟（epoch 毫秒；外部段 / 活区卡耗时）。 */
+  now?: number
 
   // workflow 面板（运行中 + 已结算 run）
   /** /workflow 面板显隐。 */

@@ -3163,6 +3163,7 @@ describe('TuiApp T2.1/T2.2 多 agent 面板接线（委派树 + workflow 运行�
     expect(written).toContain('3 阶段')
     expect(written).toContain('1 个 agent')
     expect(written).toContain('多 agent 调研 (wf-1)')
+    expect(written).toContain('多 agent 调研 ·')
     await app.dispose()
   })
 })
@@ -6491,7 +6492,7 @@ describe('slash 菜单阶段 2 接线（ghost 预览 / 参数模式 / MRU）', (
 })
 
 describe('subagent 对话流状态行接线（grok SubagentBlock 移植）', () => {
-  function boot() {
+  function boot(opts: { activityBand?: boolean } = {}) {
     const ctx = makeCtx()
     const agent = makeAgent('sub-line')
     const handle = makeHandle(agent)
@@ -6507,7 +6508,7 @@ describe('subagent 对话流状态行接线（grok SubagentBlock 移植）', () 
     })
     const stdin = makeStdin()
     const stdout = makeStdout()
-    const app = new TuiApp({ ctx, stdout, stdin })
+    const app = new TuiApp({ ctx, stdout, stdin, ...opts })
     return { ctx, agent, handle, stdin, stdout, app }
   }
 
@@ -6523,6 +6524,21 @@ describe('subagent 对话流状态行接线（grok SubagentBlock 移植）', () 
     const { ctx, stdout, app } = boot()
     await app.attach()
     await settle() // 等 listDescendants 预取 + renderBatcher
+    const onStart = handlerOf(ctx, 'subagent/start')
+    if (onStart === undefined) throw new Error('subagent/start handler not registered')
+    stdout.write.mockClear()
+    onStart({ runId: 'run-1', id: 'child-1' })
+    await settle()
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('探索鉴权')
+    expect(written).toContain('/subagents')
+    await app.dispose()
+  })
+
+  it('activityBand: false → 仍渲染子代理散行', async () => {
+    const { ctx, stdout, app } = boot({ activityBand: false })
+    await app.attach()
+    await settle()
     const onStart = handlerOf(ctx, 'subagent/start')
     if (onStart === undefined) throw new Error('subagent/start handler not registered')
     stdout.write.mockClear()
@@ -6548,8 +6564,52 @@ describe('subagent 对话流状态行接线（grok SubagentBlock 移植）', () 
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     // ✓ 与文本间有 ANSI 色码，分段断言
     expect(written).toContain('✓')
-    expect(written).toContain('子代理 探索鉴权') // 终态提交
-    expect(written).not.toContain('⠋ 子代理') // 运行行移除
+    expect(written).toContain('探索鉴权')
+    expect(written).not.toContain('工具')
+    expect(written).not.toContain('⠋ 子代理')
+    await app.dispose()
+  })
+
+  it('subagent/end 有 childProgress → 完成行带统计段', async () => {
+    let changeListener: ((s: { id: string }, key: string, value: unknown) => void) | null = null
+    const ctx = makeCtx()
+    const agent = makeAgent('sub-stats')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'sessionProjections') return {
+        snapshot: () => ({ values: {} }),
+        onChanged: (l: (s: { id: string }, key: string, value: unknown) => void) => {
+          changeListener = l
+          return () => { }
+        },
+      }
+      if (name === 'subagents') return {
+        listDescendants: vi.fn(async () => ([
+          { kind: 'child', id: 'child-1', parentId: 'root', depth: 1, activity: 'running', hasChildren: false, mode: 'one-shot', label: '探索鉴权' },
+        ])),
+      }
+      return undefined
+    })
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    await settle()
+    const onStart = handlerOf(ctx, 'subagent/start')
+    const onEnd = handlerOf(ctx, 'subagent/end')
+    if (onStart === undefined || onEnd === undefined) throw new Error('subagent handlers not registered')
+    const listener = changeListener as unknown as (s: { id: string }, key: string, value: unknown) => void
+    onStart({ runId: 'run-1', id: 'child-1' })
+    listener({ id: 'child-1' }, 'subagentProgress', {
+      turns: 1, toolCalls: 3, tokensUsed: 12_300, toolInFlight: false,
+    })
+    stdout.write.mockClear()
+    onEnd({ runId: 'run-1', stopReason: 'completed' })
+    await settle()
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('3 工具')
+    expect(written).toContain('tok')
     await app.dispose()
   })
 
@@ -6567,7 +6627,7 @@ describe('subagent 对话流状态行接线（grok SubagentBlock 移植）', () 
     await settle()
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     expect(written).toContain('✗')
-    expect(written).toContain('子代理 探索鉴权')
+    expect(written).toContain('探索鉴权')
     expect(written).toContain('(error)')
     await app.dispose()
   })

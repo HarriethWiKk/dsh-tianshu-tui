@@ -47,6 +47,10 @@ export interface TuiRunnerConfig {
   }
   /** 已结算 workflow run 缓存条数上限（/workflow 面板历史），超限 drop-oldest；正整数，缺省 50。 */
   workflowHistoryLimit?: number
+  /** 统一活动带：活跃 item 行数封顶（正整数；超限折叠 +N 尾行）；缺省 5。 */
+  activityBandMaxRows?: number
+  /** 统一活动带开关；false 回退旧散行渲染（逃生门）；缺省 true。 */
+  activityBand?: boolean
   /** LSP 诊断桥（本地语言服务）：懒启动——agent 触碰文件时拉取该文件诊断。
    *  诊断只进 TUI 本地展示缓存（工具卡徽标 + /lsp 面板），不写会话事件、
    *  不注册任何模型面。缺省启用。 */
@@ -81,6 +85,10 @@ export function apply(ctx: Context, config: TuiRunnerConfig = {}): void {
   if (config.workflowHistoryLimit !== undefined
     && (!Number.isInteger(config.workflowHistoryLimit) || config.workflowHistoryLimit <= 0)) {
     throw new Error(`[tui-runner] workflowHistoryLimit must be a positive integer, got ${config.workflowHistoryLimit}`)
+  }
+  if (config.activityBandMaxRows !== undefined
+    && (!Number.isInteger(config.activityBandMaxRows) || config.activityBandMaxRows <= 0)) {
+    throw new Error(`[tui-runner] activityBandMaxRows must be a positive integer, got ${config.activityBandMaxRows}`)
   }
   const stdin = config.stdin ?? process.stdin
   const stdout = config.stdout ?? process.stdout
@@ -138,6 +146,8 @@ export function apply(ctx: Context, config: TuiRunnerConfig = {}): void {
       ...(config.vimEnabled === undefined ? {} : { vimEnabled: config.vimEnabled }),
       ...(config.vision === undefined ? {} : { vision: config.vision }),
       ...(config.workflowHistoryLimit === undefined ? {} : { workflowHistoryLimit: config.workflowHistoryLimit }),
+      ...(config.activityBand === undefined ? {} : { activityBand: config.activityBand }),
+      ...(config.activityBandMaxRows === undefined ? {} : { activityBandMaxRows: config.activityBandMaxRows }),
       ...(config.lsp === undefined ? {} : { lsp: config.lsp }),
       ...(config.theme === undefined ? {} : { theme: config.theme }),
       ...(config.prefsPath === undefined ? {} : { prefsPath: config.prefsPath }),

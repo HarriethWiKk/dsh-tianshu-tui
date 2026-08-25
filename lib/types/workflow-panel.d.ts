@@ -35,10 +35,15 @@ export interface WorkflowAgentEndInfoInput {
     label: string;
     /** 所属阶段（phase 选项或当前 phase() 标题）。 */
     phase?: string;
-    /** 子代理 id（roster 定位用，面板不渲染）。 */
+    /** 子代理会话 id（roster 关联用；childState 命中时追加 ⤷ 子会话段）。 */
     childId: string;
     /** 结算方式。 */
     outcome: WorkflowAgentOutcomeInput;
+}
+/** roster 行的子会话显示状态（childId → label/运行态；委派树命中时提供）。 */
+export interface WorkflowChildState {
+    label: string;
+    running: boolean;
 }
 /** run 终态汇总（结构兼容 workflow 包 WorkflowResultInfo：无 result value）。 */
 export interface WorkflowResultInfoInput {
@@ -66,6 +71,8 @@ export interface WorkflowPanelOptions {
     width: number;
     /** 展开显示 roster + 终态汇总的 run id 集合；缺省全部折叠。 */
     expanded?: string[];
+    /** childId → 子会话显示状态（委派树派生；缺省 roster 行不带 ⤷ 段）。 */
+    childState?: ReadonlyMap<string, WorkflowChildState>;
 }
 /**
  * 投影多个 run 的运行态视图为面板行（标题 + 列表行 + 展开的 roster/终态汇总）。

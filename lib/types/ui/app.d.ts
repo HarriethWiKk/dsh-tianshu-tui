@@ -79,6 +79,9 @@ export interface TuiAppOptions {
         /** 测试注入：server 可用性探测（透传 LspBridgeOptions.which）。 */
         which?: MultiLspOptions['which'];
     };
+    activityBand?: boolean;
+    activityBandMaxRows?: number;
+    workflowHistoryLimit?: number;
 }
 /**
  * 解析 slash 命令（最小唯一前缀匹配，委托 registry 解析核心）。
@@ -194,8 +197,12 @@ export declare class TuiApp {
     /** T2.1：委派树缓存（listDescendants 预取 + subagent/start|end 事件刷新；
      *  null = subagents 服务缺失/未预取 → 面板降级不可用）。 */
     private delegationEntries;
-    /** 对话流 subagent 运行态（runId → 标签/开始时间；end 时结算并提交 scrollback）。 */
+    /** 对话流 subagent 运行态（runId → 标签/开始时间/childId；end 时结算并提交 scrollback）。 */
     private subagentRuns;
+    private readonly childProgress;
+    private externalRuns;
+    private readonly activityBandEnabled;
+    private readonly activityBandMaxRows;
     /** T2.2：运行中 workflow 缓存（key = payload.id；start 建、end 移除）。 */
     private readonly workflowRuns;
     /** T2.2：已结算 run 视图缓存（workflow/end 折叠；/workflow 面板渲染运行中+已完成）。 */

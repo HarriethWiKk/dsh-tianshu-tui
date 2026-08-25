@@ -17,6 +17,8 @@
  * @module @deepseek-ai/dsh-tianshu-tui/render/live-panels
  */
 import type { LiveSnapshot } from './live-snapshot.js';
+import { type DelegationIdentityProjection, type DelegationTimingProjection, type DelegationTreeEntry } from '../delegation-panel.js';
+import { type WorkflowChildState } from '../workflow-panel.js';
 /**
  * 渲染 glance 段：状态行 + 错误行。
  * 状态/错误行为纯文本（组合器按需着色）。metrics 行自 C4 概念稿 C 起移出
@@ -64,6 +66,10 @@ export declare function renderSkillsPanel(snapshot: LiveSnapshot): string[];
  * @returns 面板行数组。
  */
 export declare function renderDelegationPanel(snapshot: LiveSnapshot): string[];
+/** 旧宿主旁路 Map 合并进条目；条目自带 progress/timing 不覆盖。 */
+export declare function mergeDelegationProjections(entries: DelegationTreeEntry[], identities: ReadonlyMap<string, DelegationIdentityProjection>, timings: ReadonlyMap<string, DelegationTimingProjection>): DelegationTreeEntry[];
+/** 委派树 → workflow roster childState。 */
+export declare function childStateFromEntries(entries: DelegationTreeEntry[] | null): ReadonlyMap<string, WorkflowChildState> | undefined;
 /**
  * 渲染 /workflow 运行态面板（列表行 + 展开的叙述/roster + 终态汇总）。面板隐藏 → 空数组。
  * projectWorkflow 只消费 meta.name；本适配层把 run id 注入列表行

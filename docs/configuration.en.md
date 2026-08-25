@@ -16,6 +16,8 @@ All fields are optional and injected by whoever assembles the plugin:
 | `vision.bridgeEnabled` | auto-detected from the host `visionBridge` service | Whether a separate vision-bridge model is configured |
 | `vision.bridgeSource` | — | Bridge source (configured / auto / none) |
 | `workflowHistoryLimit` | `50` | Settled-run cache cap for the `/workflow` panel (drop-oldest) |
+| `activityBand` | `true` | Unified activity band above the input track; `false` restores per-run spinner rows |
+| `activityBandMaxRows` | `5` | Activity-band item-row cap (positive integer; overflow folds to `+N`) |
 | `lsp.enabled` | `true` | LSP diagnostics toggle (local language-service bridge) |
 | `lsp.timeoutMs` | `2000` | Per-diagnostics-fetch timeout |
 

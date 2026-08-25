@@ -104,10 +104,14 @@ import { formatTurnSummary as renderTurnSummaryLine } from '../format/turn-summa
 import { getToolFamily } from '../format/tool-meta.js'
 import type {
   DelegationTreeEntry,
-  DelegationIdentityProjection,
-  DelegationTimingProjection,
+  DelegationProgressProjection,
+  ExternalRunEntry,
 } from '../delegation-panel.js'
-import type { WorkflowRunView, WorkflowResultInfoInput } from '../workflow-panel.js'
+import {
+  delegationSnapshotSlice, foldWorkflowViews, formatWorkflowSummary, noteForeignProjection,
+  readExternalRuns, renderActivitySection, settleWorkflowView, takeChildStats,
+} from './activity-flow.js'
+import type { WorkflowRunView } from '../workflow-panel.js'
 import { KeyDialogController } from './key-dialog.js'
 import { KeyFlow } from './key-flow.js'
 import {
@@ -163,6 +167,7 @@ type DelegationEntry = DelegationTreeEntry
 /** T2.1：subagents 服务最小面（listDescendants 预取；事件经 ctx.on('subagent/…')）。 */
 interface SubagentsFacet {
   listDescendants(rootSessionId: SessionId, signal?: AbortSignal): Promise<DelegationEntry[]>
+  activeExternalRuns?: () => ExternalRunEntry[]
 }
 
 /** T2.3：tasks 服务最小面（不引入 dsh-tasks 依赖；id 运行时即 string）。 */
@@ -204,6 +209,7 @@ interface WorkflowAgentWire {
   readonly seq: number
   readonly label: string
   readonly phase?: string
+  readonly childId?: string
 }
 interface WorkflowAgentEndWire extends WorkflowAgentWire {
   readonly outcome: 'completed' | 'failed' | 'cancelled'
@@ -230,7 +236,7 @@ interface WorkflowRunState {
   /** 最近一次 workflow/phase 标题；无 phase 事件时为 null。 */
   phase: string | null
   /** 已建立的 agent() 调用（agent-start 追加，agent-end 标记 outcome）。 */
-  agents: { seq: number; label: string; outcome?: 'completed' | 'failed' | 'cancelled' }[]
+  agents: { seq: number; label: string; childId?: string; outcome?: 'completed' | 'failed' | 'cancelled' }[]
   /** 脚本叙述行（workflow/log；cap 20 drop-oldest 防刷屏）。 */
   logs: string[]
 }
@@ -288,7 +294,7 @@ import { formatTurnStatus } from '../format/turn-status.js'
 import { formatPromptFooter } from '../format/prompt-footer.js'
 import { formatInputFrame } from '../format/input-frame.js'
 import { formatSlashMenu, SLASH_MENU_MAX_ROWS } from '../format/slash-menu.js'
-import { formatSubagentRunning, formatSubagentDone } from '../format/subagent-line.js'
+import { formatSubagentDone } from '../format/subagent-line.js'
 import { glanceBarSegments } from '../format/glance-bar.js'
 import { buildGlanceMetrics } from '../format/glance-metrics.js'
 import { MemoryBrowserOverlay } from '../format/memory-overlay.js'
@@ -382,6 +388,9 @@ export interface TuiAppOptions {
     /** 测试注入：server 可用性探测（透传 LspBridgeOptions.which）。 */
     which?: MultiLspOptions['which']
   }
+  activityBand?: boolean
+  activityBandMaxRows?: number
+  workflowHistoryLimit?: number
 }
 
 /** live 区预留行（顶轨 + 输入 + 底轨 + footer）。 */
@@ -605,8 +614,12 @@ export class TuiApp {
   /** T2.1：委派树缓存（listDescendants 预取 + subagent/start|end 事件刷新；
    *  null = subagents 服务缺失/未预取 → 面板降级不可用）。 */
   private delegationEntries: DelegationEntry[] | null = null
-  /** 对话流 subagent 运行态（runId → 标签/开始时间；end 时结算并提交 scrollback）。 */
-  private subagentRuns = new Map<string, { label: string; startedAt: number }>()
+  /** 对话流 subagent 运行态（runId → 标签/开始时间/childId；end 时结算并提交 scrollback）。 */
+  private subagentRuns = new Map<string, { label: string; startedAt: number; childId: string }>()
+  private readonly childProgress = new Map<string, DelegationProgressProjection>()
+  private externalRuns: ExternalRunEntry[] = []
+  private readonly activityBandEnabled: boolean
+  private readonly activityBandMaxRows: number
   /** T2.2：运行中 workflow 缓存（key = payload.id；start 建、end 移除）。 */
   private readonly workflowRuns = new Map<string, WorkflowRunState>()
   /** T2.2：已结算 run 视图缓存（workflow/end 折叠；/workflow 面板渲染运行中+已完成）。 */
@@ -747,6 +760,8 @@ export class TuiApp {
     this.editorKey = options.editorKey ?? 'ctrl_e'
     this.editorCommand = options.editorCommand
     this.vimEnabled = options.vimEnabled ?? false
+    this.activityBandEnabled = options.activityBand !== false
+    this.activityBandMaxRows = options.activityBandMaxRows ?? 5
     this.supportsVision = options.vision?.supportsVision ?? false
     this.visionBridgeEnabled = options.vision?.bridgeEnabled ?? false
     this.visionBridgeSource = options.vision?.bridgeSource
@@ -2294,7 +2309,12 @@ export class TuiApp {
       const statusLine = this.statusLine as WorkflowStatusLine | null
       statusLine?.setPlanState(this.planState)
       this.projectionDisposer = projections.onChanged((s, key, value) => {
-        if (s.id !== id) return
+        if (s.id !== id) {
+          if (noteForeignProjection({ sessionId: String(s.id), key, value, panelVisible: this.subagentsPanelVisible },
+            { childProgress: this.childProgress, subagentRuns: this.subagentRuns.values(), delegationEntries: this.delegationEntries },
+            () => { this.refreshDelegationTree(id) })) this.renderBatcher.schedule()
+          return
+        }
         // 按 key 分流缓存（5 域总线）；todos/plan 有专有消费，其余域仅进缓存。
         /* v8 ignore next -- projectionCache 在快照后恒非 null（L766 赋值），null 仅类型收窄 */
         if (this.projectionCache !== null) {
@@ -2334,14 +2354,14 @@ export class TuiApp {
     // ctx.on 返回 disposer（恒非空）——start/end 必须分别注册，?? 会短路右侧。
     this.subagentDisposer?.()
     this.delegationEntries = null
-    this.subagentRuns.clear()
+    this.subagentRuns.clear(); this.childProgress.clear(); this.externalRuns = []
     const onSubStart = this.ctx.on('subagent/start', () => { this.refreshDelegationTree(id) })
     const onSubEnd = this.ctx.on('subagent/end', () => { this.refreshDelegationTree(id) })
     // 对话流 subagent 状态行（grok SubagentBlock 移植，dsh 精简版）：start →
     // live 区运行行（spinner 动态帧）；end → 终态行提交 scrollback（append）。
     // label 尽力取委派树缓存（可能滞后 → 回退 id 短哈希，与面板同款兜底）。
     const onRunStart = this.ctx.on('subagent/start', (info: { runId: string; id: string }) => {
-      this.subagentRuns.set(info.runId, { label: this.subagentLabel(info.id), startedAt: Date.now() })
+      this.subagentRuns.set(info.runId, { label: this.subagentLabel(info.id), startedAt: Date.now(), childId: info.id })
       this.renderBatcher.schedule()
     })
     const onRunEnd = this.ctx.on('subagent/end', (info: { runId: string; stopReason: string }) => {
@@ -2354,6 +2374,7 @@ export class TuiApp {
           label: run.label,
           elapsedMs: Date.now() - run.startedAt,
           stopReason: info.stopReason,
+          stats: takeChildStats(this.childProgress, run.childId),
         }, this.theme),
         trailingNewline: true,
       })
@@ -2400,7 +2421,7 @@ export class TuiApp {
       }),
       this.ctx.on('workflow/agent-start', (info: WorkflowRunInfoWire, agent: WorkflowAgentWire) => {
         const run = this.workflowRuns.get(info.id)
-        if (run !== undefined) { run.agents.push({ seq: agent.seq, label: agent.label }); this.renderBatcher.schedule() }
+        if (run !== undefined) { run.agents.push({ seq: agent.seq, label: agent.label, childId: agent.childId ?? '' }); this.renderBatcher.schedule() }
       }),
       this.ctx.on('workflow/agent-end', (info: WorkflowRunInfoWire, agent: WorkflowAgentEndWire) => {
         const run = this.workflowRuns.get(info.id)
@@ -2414,6 +2435,7 @@ export class TuiApp {
           const view = this.toWorkflowRunView(run, result)
           this.workflowRuns.delete(info.id)
           this.completedWorkflowRuns.set(info.id, view)
+          this.commitToScrollback({ text: formatWorkflowSummary(view, this.theme), trailingNewline: true })
           this.flushLiveRender()
         }
       }),
@@ -2452,7 +2474,9 @@ export class TuiApp {
 
   private refreshDelegationTree(sessionId: SessionId): void {
     const subagents = this.ctx.reflect.get('subagents', false) as SubagentsFacet | undefined
-    if (subagents === undefined) { this.delegationEntries = null; return }
+    if (subagents === undefined) { this.delegationEntries = null; this.externalRuns = []; return }
+    this.externalRuns = readExternalRuns(subagents)
+    this.renderBatcher.schedule()
     void subagents.listDescendants(sessionId).then((entries) => {
       if (this.disposed) return
       this.delegationEntries = entries
@@ -2468,22 +2492,7 @@ export class TuiApp {
 
   /** T2.2：运行态缓存项 → 面板视图（终态含 stopReason/agentsStarted）。 */
   private toWorkflowRunView(run: WorkflowRunState, result: WorkflowResultWire): WorkflowRunView {
-    return {
-      info: { id: run.id, meta: run.meta },
-      agents: run.agents.map(a => ({
-        seq: a.seq,
-        label: a.label,
-        childId: '',
-        outcome: a.outcome ?? 'completed',
-      })),
-      result: {
-        stopReason: result.stopReason as WorkflowResultInfoInput['stopReason'],
-        ...(result.error === undefined ? {} : { error: result.error }),
-        agentsStarted: run.agents.length,
-      },
-      elapsedMs: Date.now() - run.startedAt,
-      ...(run.logs.length === 0 ? {} : { logs: [...run.logs] }),
-    }
+    return settleWorkflowView(run, result, Date.now())
   }
 
   /** T3.2：刷新 /config 面板投影（settings describe + permission + credentials；服务缺失降级）。 */
@@ -3792,22 +3801,8 @@ export class TuiApp {
       active: this.liveAgent?.state.status === 'running',
       width: cols,
     }, theme)
-    // T2.2：运行中 + 已结算 workflow run 折叠为视图数组（列表行 + 终态汇总）。
-    const workflowRuns: WorkflowRunView[] = []
-    for (const state of this.workflowRuns.values()) {
-      workflowRuns.push({
-        info: { id: state.id, meta: state.meta },
-        agents: state.agents.map(a => ({
-          seq: a.seq,
-          label: a.label,
-          childId: '',
-          outcome: a.outcome ?? 'completed',
-        })),
-        elapsedMs: Date.now() - state.startedAt,
-        ...(state.logs.length === 0 ? {} : { logs: [...state.logs] }),
-      })
-    }
-    workflowRuns.push(...this.completedWorkflowRuns.values())
+    const now = Date.now()
+    const workflowRuns = foldWorkflowViews(this.workflowRuns.values(), this.completedWorkflowRuns.values(), now)
     const snapshot: LiveSnapshot = {
       cols,
       theme,
@@ -3831,12 +3826,10 @@ export class TuiApp {
       todosPanelVisible: this.todosPanelVisible,
       todosExpanded: this.todosExpanded,
       todosItems: this.todosRetained,
-      subagentsPanelVisible: this.subagentsPanelVisible,
-      delegationEntries: this.delegationEntries,
-      subagentIdentities: (this.projectionCache?.subagent as
-        ReadonlyMap<string, DelegationIdentityProjection> | undefined) ?? new Map(),
-      subagentTimings: (this.projectionCache?.subagentTiming as
-        ReadonlyMap<string, DelegationTimingProjection> | undefined) ?? new Map(),
+      ...delegationSnapshotSlice({
+        subagentsPanelVisible: this.subagentsPanelVisible, delegationEntries: this.delegationEntries,
+        projectionCache: this.projectionCache, externalRuns: this.externalRuns, now,
+      }),
       workflowPanelVisible: this.workflowPanelVisible,
       workflowRuns,
       configPanelVisible: this.configPanelVisible,
@@ -3992,17 +3985,12 @@ export class TuiApp {
       lines.push({ text: color(` …(+${overflow}) 个工具进行中`, theme.muted) })
     }
 
-    // 对话流 subagent 运行行（grok SubagentBlock 移植）：live 区动态 spinner 帧，
-    // 终态在 end 事件提交 scrollback 后从本集合移除（本处只渲染进行中的）。
-    for (const run of this.subagentRuns.values()) {
-      for (const line of formatSubagentRunning({
-        width: cols,
-        label: run.label,
-        tick: this.tick,
-      }, theme)) {
-        lines.push({ text: line })
-      }
-    }
+    for (const line of renderActivitySection({
+      enabled: this.activityBandEnabled, subagentRuns: this.subagentRuns,
+      childProgress: this.childProgress, workflowRuns: this.workflowRuns.values(),
+      tasks: this.taskSnapshots,
+      width: cols, maxRows: this.activityBandMaxRows, now, tick: this.tick, theme,
+    })) lines.push({ text: line })
 
     // chrome 起点：提问/审批贴输入轨（列入 chrome，小窗口也不会被从顶裁掉），
     // 其后是 slash / vim / 图片 / 输入轨 / footer。溢出裁剪只作用在动态段；
