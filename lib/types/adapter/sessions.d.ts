@@ -4,6 +4,11 @@
  * module only READS logs and the live store; it never appends events and never
  * disposes agents (a handle's teardown belongs to its holder).
  *
+ * 唯一例外：`clearEmptySessionArtifact` 会删除一个「没有任何内容」的会话的
+ * 持久化 artifact——启动复用（同 id 换 cwd）要求旧目录下的空 artifact 消失，
+ * 否则后端以 duplicate id / id collision 拒绝。删除对象经调用方确认无任何
+ * 聊天内容，且仅此一处（写操作不落在事件日志上）。
+ *
  * @module @deepseek-ai/dsh-tianshu-tui/adapter/sessions
  */
 import type { Context } from '@deepseek-ai/cordis';
@@ -61,6 +66,34 @@ export declare function forkSession(ctx: Context, source: SessionForkSource, bou
  * @returns the immutable event log, or an empty array when the session is unknown.
  */
 export declare function loadHistory(ctx: Context, id: SessionId): Promise<readonly SessionEvent[]>;
+/**
+ * 启动复用候选：最近（createdAt 降序第一个）没有任何聊天内容的会话——
+ * 标题折叠为「新对话」（无标题事件且无真人消息；会话 title 服务首 prompt
+ * cadence 生成，标题存在即内容存在）。读取失败（corrupt/消失）的会话跳过，
+ * 绝不冒险复用——artifact 清理只针对确认无内容的会话。
+ *
+ * 只扫描最近 {@link REUSE_SCAN_LIMIT} 个会话：候选空会话几乎总是上次启动
+ * 遗留（列表头部），无界扫描会逐个 readFrom 全量事件日志，拖慢启动。
+ * @param ctx - any context exposing `ctx.sessions` and optionally
+ *   `ctx.sessionPersistence`.
+ * @returns 最近空会话的摘要；无候选返回 undefined。
+ */
+export declare function findMostRecentEmptySession(ctx: Context): Promise<SessionSummary | undefined>;
+/** 启动复用候选扫描上限（只翻最近 N 个会话）。 */
+export declare const REUSE_SCAN_LIMIT = 15;
+/**
+ * 清掉一个已确认无内容会话的旧持久化 artifact（跨 cwd 复用前调用）。
+ *
+ * 后端（JSONL）以 `<root>/<projectKey(cwd)>/<id>/` 组织 artifact；同 id 留在
+ * 两个项目目录会让 list 报 duplicate、跨 cwd create 被判 id collision。删除
+ * 整目录（含后端可能的会话本地附属文件）后，同 id 才能在启动目录重新
+ * materialize。无物化记录（惰性后端未写盘）视为已清理。
+ * @param ctx - any context exposing optional `ctx.sessionPersistence`.
+ * @param summary - 目标空会话摘要（id + 原 cwd）。
+ * @returns 可以安全复用为 true；无 locate 能力或删除失败为 false
+ *   （调用方应退回全新 id，避免启动被后端 collision 拒绝）。
+ */
+export declare function clearEmptySessionArtifact(ctx: Context, summary: SessionSummary): Promise<boolean>;
 /**
  * Flush every live session to durable storage — the teardown checkpoint.
  * Each flush dispatches the awaited `session/flush` durability barrier through

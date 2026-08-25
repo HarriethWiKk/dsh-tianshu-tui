@@ -491,6 +491,160 @@ describe('TuiApp agent-ensure 三分支', () => {
   })
 })
 
+describe('TuiApp 启动复用（上一个空会话 id 复用 + cwd 重绑启动目录）', () => {
+  function userMessageEvent(text: string): { seq: number; time: number; type: string; data: unknown } {
+    return {
+      seq: 1,
+      time: 1,
+      type: 'user/message',
+      data: { id: 'm-1', role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text }] },
+    }
+  }
+
+  /** 给 ctx 注入 sessionPersistence 服务（其余服务名回落到默认 mock）。 */
+  function withPersistence(ctx: ReturnType<typeof makeCtx>, persistence: Record<string, unknown>): void {
+    const baseGet = ctx.reflect.get.getMockImplementation() as ((name: string) => unknown) | undefined
+    ctx.reflect.get.mockImplementation((name: string) => (name === 'sessionPersistence' ? persistence : baseGet?.(name)))
+  }
+
+  /** 状态化接线：create 前 live store 空（候选会话走 persistence inspect），
+   *  create 后把 mock 会话挂进 live store（mountSession 读取）。 */
+  function wireLiveAfterCreate(ctx: ReturnType<typeof makeCtx>, agent: ReturnType<typeof makeAgent>): void {
+    let createdId: SessionId | null = null
+    ctx.agents.create.mockImplementation(async (opts: { sessionId: SessionId }) => {
+      createdId = opts.sessionId
+      return makeHandle(agent)
+    })
+    ctx.sessions.get.mockImplementation((id: SessionId) => (id === createdId ? agent.session : undefined))
+    ctx.sessions.list.mockReturnValue([]) // live store 空 → 启动走持久化列表
+  }
+
+  it('同目录的上一个空会话 → attach 复用其 id（统一清旧 artifact 后重建；meta.cwd = 启动目录）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('reuse-1')
+    wireLiveAfterCreate(ctx, agent)
+    const oldHeader = { id: SessionId('session-empty-1'), version: 0, createdAt: 5, cwd: process.cwd() }
+    // 同目录复用同样先清 artifact（adopt 会因 meta 事件前缀不一致被宿主拒绝）。
+    const locate = vi.fn(() => ({ path: '/tmp/dsh-reuse-test-never-exists/session-empty-1/session.jsonl' }))
+    withPersistence(ctx, {
+      list: vi.fn(async () => [oldHeader]),
+      readFrom: vi.fn(async () => ({ events: [] })),
+      locate,
+    })
+
+    const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
+    await app.attach()
+
+    expect(locate).toHaveBeenCalledWith(oldHeader)
+    expect(ctx.agents.create).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: SessionId('session-empty-1'),
+      meta: { cwd: process.cwd() },
+    }))
+    await app.dispose()
+  })
+
+  it('同目录但后端无 locate（无法清 artifact）→ 回退全新 id，不触发 adopt 拒绝', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('reuse-1b')
+    wireLiveAfterCreate(ctx, agent)
+    const oldHeader = { id: SessionId('session-empty-1b'), version: 0, createdAt: 5, cwd: process.cwd() }
+    withPersistence(ctx, {
+      list: vi.fn(async () => [oldHeader]),
+      readFrom: vi.fn(async () => ({ events: [] })),
+    })
+
+    const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
+    await app.attach()
+
+    expect(ctx.agents.create).not.toHaveBeenCalledWith(expect.objectContaining({ sessionId: SessionId('session-empty-1b') }))
+    await app.dispose()
+  })
+
+  it('跨目录空会话 → 清旧 artifact 后复用同 id（项目地址改为启动目录）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('reuse-2')
+    wireLiveAfterCreate(ctx, agent)
+    const oldHeader = { id: SessionId('session-empty-2'), version: 0, createdAt: 5, cwd: '/old/project' }
+    const locate = vi.fn(() => ({ path: '/tmp/dsh-reuse-test-never-exists/session-empty-2/session.jsonl' }))
+    withPersistence(ctx, {
+      list: vi.fn(async () => [oldHeader]),
+      readFrom: vi.fn(async () => ({ events: [] })),
+      locate,
+    })
+
+    const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
+    await app.attach()
+
+    expect(locate).toHaveBeenCalledWith(oldHeader)
+    expect(ctx.agents.create).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: SessionId('session-empty-2'),
+      meta: { cwd: process.cwd() },
+    }))
+    await app.dispose()
+  })
+
+  it('跨目录但后端无 locate（无法清 artifact）→ 回退全新 id，不冒险复用', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('reuse-3')
+    wireLiveAfterCreate(ctx, agent)
+    const oldHeader = { id: SessionId('session-empty-3'), version: 0, createdAt: 5, cwd: '/old/project' }
+    withPersistence(ctx, {
+      list: vi.fn(async () => [oldHeader]),
+      readFrom: vi.fn(async () => ({ events: [] })),
+    })
+
+    const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
+    await app.attach()
+
+    expect(ctx.agents.create).toHaveBeenCalledWith(expect.objectContaining({ meta: { cwd: process.cwd() } }))
+    expect(ctx.agents.create).not.toHaveBeenCalledWith(expect.objectContaining({ sessionId: SessionId('session-empty-3') }))
+    await app.dispose()
+  })
+
+  it('最近的会话有聊天内容 → 不复用（铸造全新 id）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('reuse-4')
+    wireLiveAfterCreate(ctx, agent)
+    const busyHeader = { id: SessionId('session-busy-1'), version: 0, createdAt: 5, cwd: process.cwd() }
+    withPersistence(ctx, {
+      list: vi.fn(async () => [busyHeader]),
+      readFrom: vi.fn(async () => ({ events: [userMessageEvent('评估某模型的识别准确率')] })),
+    })
+
+    const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
+    await app.attach()
+
+    expect(ctx.agents.create).toHaveBeenCalledTimes(1)
+    expect(ctx.agents.create).not.toHaveBeenCalledWith(expect.objectContaining({ sessionId: SessionId('session-busy-1') }))
+    await app.dispose()
+  })
+
+  it('/session 选择器展示会话摘要（标题 + 「新对话」空会话占位）', async () => {
+    const ctx = makeCtx()
+    const a = makeAgent('sum-a')
+    ;(a.session.events as unknown as { push(e: unknown): void }).push(userMessageEvent('评估某模型的识别准确率'))
+    const b = makeAgent('sum-b')
+    ctx.agents.create.mockResolvedValue(makeHandle(a))
+    ctx.sessions.list.mockReturnValue([a.session, b.session])
+    ctx.sessions.get.mockImplementation((id: SessionId) => (id === a.session.id ? a.session : b.session))
+    ctx.agents.get.mockReturnValue(a) // attach target = list()[0] → registry 兜底
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+
+    app.handleSubmit('/session') // 无参 → 打开会话选择器（摘要行）
+    await new Promise(resolve => setTimeout(resolve, 60))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('选择会话')
+    expect(written).toContain('评估某模型的识别准确率') // 首条真人消息 fallback 标题
+    expect(written).toContain('新对话') // 空会话占位摘要
+    expect(written).toContain('↑↓ 选择') // 滚动窗口页脚（选择器展示全部会话，不分页）
+    await app.dispose()
+  })
+})
+
 describe('TuiApp 模型定路', () => {
   it('newSession 的 setup 经 installModelSelection 接线装配与请求路由', async () => {
     const ctx = makeCtx()
@@ -2089,7 +2243,7 @@ describe('TuiApp Phase 6.1 slash 命令系统', () => {
     await app.dispose()
   })
 
-  it('/session list 经 listSessions 列出已知会话', async () => {
+  it('/session list 经 listSessions 直接打印已知会话（旧版样式）', async () => {
     const ctx = makeCtx()
     const agent = makeAgent('slash-sess')
     const handle = makeHandle(agent)

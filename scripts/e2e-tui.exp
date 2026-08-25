@@ -1,0 +1,265 @@
+#!/usr/bin/env expect
+# e2e-tui.exp — 真机交互式终端测试驱动器（expect 驱动 pty 里的官方 dsh CLI）。
+#
+# 覆盖三项改动：
+#   1. 启动复用上一个空会话 id：phase0 在旧项目留一个空会话 → phase1 在新项目
+#      启动，断言 /session list 出现同 id、顶栏 cwd = 新项目、旧目录 artifact 被清、
+#      同 id 迁移到新项目目录（cwd 重绑启动目录）。
+#   2. /session list 直接打印全部会话行（旧版样式，不进交互界面）。
+#   3. /session 选择器：摘要行（首条真人消息 fallback 标题）+ 展示全部会话（不分页）。
+#
+# 环境由 scripts/e2e-tui.sh 提供（DSH_HOME 独立临时家目录、E2E_CLI、项目目录）；
+# 全程 log_user 0（TUI 帧流不外泄），失败输出 E2E-FAIL 行并 exit 1。
+
+log_user 0
+set timeout 45
+set stty_init "rows 30 cols 100"
+
+# 调试：E2E_DEBUG_LOG=<path> 时把 pty 全量帧流记录到文件（失败排查用）
+if {[info exists env(E2E_DEBUG_LOG)]} {
+  log_file -a $env(E2E_DEBUG_LOG)
+}
+
+proc fail {msg} {
+  puts stderr "E2E-FAIL: $msg"
+  exit 1
+}
+proc pass {msg} {
+  puts "E2E-PASS: $msg"
+}
+
+set cli $env(E2E_CLI)
+set old $env(E2E_OLD_PROJ)
+set new $env(E2E_NEW_PROJ)
+set home $env(DSH_HOME)
+
+proc wait_tui {} {
+  # 两段就绪：欢迎页/页脚（ctrl+p）先到 → 输入轨（❯）由 attach 完成后的首帧
+  # renderLive 绘制——此时 onAnyKey 按键路由已注册，此前键入会被静默丢弃。
+  expect {
+    -re {ctrl\+p} {}
+    timeout { fail "等待 TUI 就绪超时（45s）" }
+    eof { fail "CLI 提前退出（先跑 node scripts/dev.mjs 排查装配）" }
+  }
+  expect {
+    -re {❯} {}
+    timeout { fail "等待输入轨就绪超时" }
+    eof { fail "CLI 提前退出（输入轨出现前）" }
+  }
+  drain 500
+}
+
+# 边排空 pty 输出边等待：expect 的 sleep/after 不读子进程输出，TUI 帧写满
+# pty 缓冲后子进程阻塞、事件循环停摆（输入聚成一坨、渲染全停）；update 循环
+# 同样不服务 spawn IO。expect 的 timeout 变量按整秒截断，故用「1 秒粒度
+# expect 循环」实现：每秒都读一次子进程输出，绝不回压。
+proc drain {ms} {
+  global timeout
+  set saved $timeout
+  set deadline [expr {[clock milliseconds] + $ms}]
+  while {[clock milliseconds] < $deadline} {
+    set timeout 1
+    expect {
+      timeout {}
+      eof {}
+    }
+  }
+  set timeout $saved
+}
+
+proc quit_tui {} {
+  global timeout
+  set saved $timeout
+  set timeout 10
+  send "/exit\r"
+  expect {
+    eof { set timeout $saved; return }
+    timeout { }
+  }
+  # 兜底：/exit 键入未被路由时用 Ctrl+Q（同一 onExit 路径）
+  send "\x11"
+  expect {
+    eof {}
+    timeout { fail "退出兜底（/exit + Ctrl+Q）后进程仍未退出" }
+  }
+  set timeout $saved
+}
+
+# ── phase0：旧项目启动一次，留下一个真实装配的空会话（不手工造 artifact）──
+cd $old
+spawn -noecho node $cli --profile tui
+expect {
+  -re {dsh-tui-e2e-old} {}
+  timeout { fail "phase0: 顶栏未显示旧项目 cwd" }
+}
+wait_tui
+pass "phase0: TUI 启动（cwd=$old）"
+quit_tui
+pass "phase0: 已退出"
+
+# 从 store 发现空会话与存储根（fresh home 首启由后端创建）
+if {[catch {set found [exec sh -c "find '$home' -name 'session.jsonl.zstd' -print -quit"]} e]} {
+  fail "phase0: 未发现 session artifact（$e）"
+}
+set found [string trim $found]
+if {$found eq ""} { fail "phase0: 未发现 session artifact" }
+set d1 [file dirname $found]
+set sid [file tail $d1]
+set d2 [file dirname $d1]
+set oldKey [file tail $d2]
+set ds [file dirname $d2]
+# macOS /tmp = /private/tmp（cwd 经 resolve 归一），key 前缀按平台而定——只匹配尾部。
+if {![string match "*dsh-tui-e2e-old--" $oldKey]} { fail "phase0: 项目目录键不符合预期：$oldKey" }
+pass "phase0: 空会话 $sid 已持久化（store=$ds）"
+
+# ── phase1：新项目启动 → 应复用 $sid（cwd 重绑新目录）──
+cd $new
+spawn -noecho node $cli --profile tui
+# 顶栏是首帧内容（wait_tui 的 ctrl+p/❯ 匹配会消费掉更早的顶栏），先断言 cwd。
+expect {
+  -re {dsh-tui-e2e-new} {}
+  timeout { fail "phase1: 顶栏未显示启动目录（sessionCwd 未重绑）" }
+}
+pass "phase1: 顶栏 cwd = 启动目录（项目地址已改为启动时的文件夹）"
+wait_tui
+pass "phase1: TUI 启动（cwd=$new）"
+
+# 重试打开 /session list（header 落盘是异步序列化任务，命令可能抢跑在
+# materialize 之前看到「当前无会话」——重试直到面板打开）。
+# /session list 直接打印（旧版样式）：重试直到行文本出现（header 落盘异步，
+# 命令可能抢跑看到「当前无会话」）。
+proc list_echo_expect {pat} {
+  for {set i 0} {$i < 30} {incr i} {
+    send "/session list\r"
+    set got 0
+    expect {
+      -re $pat { set got 1 }
+      -re {（当前无会话）} {}
+      timeout {}
+      eof { fail "CLI 提前退出" }
+    }
+    if {$got} return
+    drain 150
+  }
+  fail "phase1: 重试 30 次后 /session list 仍未打印 $pat"
+}
+
+proc open_picker_expect {titlePat} {
+  global timeout
+  for {set i 0} {$i < 30} {incr i} {
+    send "/session\r"
+    set opened 0
+    expect {
+      -re {选择会话} { set opened 1 }
+      -re {当前无会话} {}
+      timeout {}
+      eof { fail "CLI 提前退出" }
+    }
+    if {!$opened} { drain 150; continue }
+    set ok 0
+    set saved $timeout
+    set timeout 2
+    expect {
+      -re $titlePat { set ok 1 }
+      timeout {}
+    }
+    set timeout $saved
+    if {$ok} return
+    send "\x1b"
+    drain 300
+  }
+  fail "phase1: 重试后选择器仍未显示摘要 $titlePat"
+}
+
+list_echo_expect $sid
+pass "phase1: /session list 直接打印复用会话（$sid · 新对话 · 旧版样式）"
+
+# 创建 16 个新会话 → 共 17 个（15/页 → 2 页）
+for {set i 1} {$i <= 16} {incr i} {
+  send "/session new\r"
+  expect {
+    -re {已新建会话} {}
+    timeout { fail "phase1: /session new #$i 无回显" }
+  }
+  drain 80
+}
+pass "phase1: 已创建 16 个新会话（共 17 个）"
+drain 1000 ;# 等持久化 write-behind（≤200ms/会话）把新会话 header 全部落盘
+
+# /session list 直接打印（旧版样式）：17 个会话全部成行输出，不进交互界面
+list_echo_expect $sid
+pass "phase1: /session list 直接打印全部会话行（旧版样式，无交互界面）"
+
+# /session 选择器：摘要（首条真人消息 fallback 标题）+ 展示全部会话（不分页，
+# 滚动窗口页脚；分页仅属于 /session list）。
+# 面板关闭后的重绘爆发会让子进程短暂回压（输入事件被延迟处理）——
+# 先排空到稳定空闲再发消息，摘要匹配仍带重试兜底。
+drain 800
+send "你好 e2e 摘要\r"
+drain 1500
+open_picker_expect {你好 e2e 摘要 · }
+expect {
+  -re {↑↓ 选择} {}
+  timeout { fail "phase1: 选择器页脚缺少 ↑↓ 选择提示（应为滚动窗口而非分页）" }
+}
+expect {
+  -re {第 1/2 页} { fail "phase1: 选择器不应出现分页页码（仅 /session list 分页）" }
+  timeout {}
+}
+pass "phase1: /session 选择器展示摘要 + 全部会话（无分页页码）"
+# ↑↓ 可遍历全部 17 个会话：下移越过第一条摘要后应看到其余会话行
+send "\x1b\[B"
+drain 200
+send "\x1b"
+drain 300
+quit_tui
+
+# ── phase2：同目录再次启动 → 复用最近空会话（统一清 artifact 重建，不得触发
+#   adopt 前缀校验的 ✗ 错误——真实宿主 meta 事件每轮不同，adopt 恒拒）。──
+cd $new
+spawn -noecho node $cli --profile tui
+expect {
+  -re {dsh-tui-e2e-new} {}
+  timeout { fail "phase2: 顶栏未显示启动目录" }
+}
+wait_tui
+pass "phase2: TUI 重启（同目录）"
+# 启动即复用：不应出现 adopt 被拒的错误文本
+set errSeen 0
+set saved $timeout
+set timeout 3
+expect {
+  -re {does not match|id collision|already owns} { set errSeen 1 }
+  timeout {}
+}
+set timeout $saved
+if {$errSeen} { fail "phase2: 同目录复用触发 adopt 拒绝错误" }
+# /session list 应直接打印（复用成功、无 ✗ 错误），行内包含复用会话 id
+list_echo_expect $sid
+pass "phase2: 同目录复用成功（/session list 直接打印，无 adopt 错误）"
+quit_tui
+
+# ── 复用断言（fs）：旧项目 artifact 清空、同 id 迁移到新项目目录 ──
+set oldGone 1
+if {![catch {set left [exec sh -c "ls -A '$ds/$oldKey' 2>/dev/null"]} e]} {
+  if {[string trim $left] ne ""} { set oldGone 0 }
+}
+if {!$oldGone} { fail "phase1: 旧项目 artifact 残留：$left" }
+pass "phase1: 旧项目目录已清空（跨目录复用前 artifact 清理生效）"
+
+if {[catch {set projects [exec sh -c "ls '$ds'"]} e]} { fail "phase1: store 不可读：$e" }
+set others {}
+foreach p [split [string trim $projects] "\n"] {
+  if {$p ne $oldKey} { lappend others $p }
+}
+if {[llength $others] != 1} { fail "phase1: 预期恰好一个新项目目录，实际：$others" }
+set newKey [lindex $others 0]
+if {![string match "*dsh-tui-e2e-new--" $newKey]} { fail "phase1: 新项目目录键不符合预期：$newKey" }
+if {[catch {set newIds [exec sh -c "ls '$ds/$newKey'"]} e]} { fail "phase1: 新项目目录不可读：$e" }
+set idList [split [string trim $newIds] "\n"]
+if {[lsearch -exact $idList $sid] < 0} { fail "phase1: 复用会话 $sid 未出现在新项目目录" }
+if {[llength $idList] != 17} { fail "phase1: 预期新项目 17 个会话（1 复用 + 16 新建），实际 [llength $idList]" }
+pass "phase1: 复用会话 $sid 已迁移到新项目目录（共 [llength $idList] 个会话）"
+
+pass "e2e 全部通过"
+exit 0

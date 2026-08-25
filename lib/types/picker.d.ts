@@ -5,6 +5,8 @@
  * 打开时注入条目与确认回调；↑/↓ 移动、PageUp/PageDown 翻页、Enter 确认、
  * Esc/q 关闭。当前值条目带 ● 标记（current），选中项 ▶ 高亮。
  *
+ * 滚动窗口跟随选中（主题/模型/会话选择器均展示全部条目，↑/↓ 浏览）。
+ *
  * @module @deepseek-ai/dsh-tianshu-tui/picker
  */
 import type { RivetTheme } from './theme.js';
@@ -23,6 +25,13 @@ export type PickerCommit = (item: PickerItem) => void;
 export type PickerPreview = (item: PickerItem) => void;
 /** 取消回调：选择器被关闭（Esc/q，非确认路径）时调用（还原预览等）。 */
 export type PickerCancel = () => void;
+/** open 的可选钩子。 */
+export interface PickerHooks {
+    /** 选中变化时调用（实时预览，如主题切换）。 */
+    onPreview?: PickerPreview;
+    /** Esc/q 关闭时调用（还原预览）。 */
+    onCancel?: PickerCancel;
+}
 /** 选择器状态：开合 + 选中下标 + 标题。 */
 export interface PickerState {
     open: boolean;
@@ -91,10 +100,7 @@ export declare class PickerController {
      * @param hooks - 可选：onPreview（选中变化时调用，实时预览）；
      *   onCancel（Esc/q 关闭时调用，还原预览）。
      */
-    open(title: string, items: readonly PickerItem[], commit: PickerCommit, selectedIndex?: number, hooks?: {
-        onPreview?: PickerPreview;
-        onCancel?: PickerCancel;
-    }): void;
+    open(title: string, items: readonly PickerItem[], commit: PickerCommit, selectedIndex?: number, hooks?: PickerHooks): void;
     /** 关闭选择器（Esc/q 路径；触发 onCancel 还原预览；保留条目，下次 open 重建）。 */
     close(): void;
     /**

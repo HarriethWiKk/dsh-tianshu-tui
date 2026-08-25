@@ -254,8 +254,8 @@ describe('内置命令 — /clear', () => {
 })
 
 describe('内置命令 — /session', () => {
-  it('list 列出已知会话（经 listSessions）', async () => {
-    const { cmd } = commandByName('session')
+  it('list 直接逐行打印已知会话（旧版样式，不进交互界面）', async () => {
+    const { cmd, deps } = commandByName('session')
     const sid = 'session-red-1' as SessionId
     const other = 'session-red-2' as SessionId
     const ctx = makeCtx({
@@ -271,6 +271,7 @@ describe('内置命令 — /session', () => {
     await cmd.run(args)
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('session-red-1'))
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('session-red-2'))
+    expect(deps.openSessionPicker).not.toHaveBeenCalled()
   })
 
   it('list 空会话回显占位', async () => {
@@ -323,6 +324,7 @@ describe('内置命令 — /session list 会话标题（官方 session/title 事
   function listRows(sid: SessionId, createdAt = 1): Array<{ id: SessionId; header: { id: SessionId; version: number; createdAt: number } }> {
     return [{ id: sid, header: { id: sid, version: 0, createdAt } }]
   }
+
 
   it('list 展示官方 session/title 事件折叠出的标题', async () => {
     const { cmd } = commandByName('session')

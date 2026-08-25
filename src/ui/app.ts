@@ -72,7 +72,11 @@ import { createTranscript, type Transcript, type TranscriptToolCall } from '../a
 import { resolveToolViews, type ToolPresenterSource } from '../adapter/tool-view.js'
 import { trackAgent, type LiveAgent } from '../adapter/live.js'
 import { controlsFromHandle, controlsFromRegistry, type AgentControls } from '../adapter/send.js'
-import { listSessions, flushAll, getSession, type SessionSummary } from '../adapter/sessions.js'
+import {
+  listSessions, loadHistory, flushAll, getSession,
+  findMostRecentEmptySession, clearEmptySessionArtifact, type SessionSummary,
+} from '../adapter/sessions.js'
+import { sessionTitleFor } from '../adapter/session-title.js'
 import { updateNoticeText, autoRestartNoticeText, updateNoticePackage, readOwnVersion } from '../self-update.js'
 import { supportsOsc52 } from '../term-caps.js'
 import { getTheme, getActiveThemeName, listCustomThemes, setTheme, THEME_NAMES, type RivetTheme } from '../theme.js'
@@ -1185,7 +1189,12 @@ export class TuiApp {
 
     const target = initialSessionId ?? this.initialSessionId ?? this.ctx.sessions.list()[0]?.id
     if (target !== undefined) await this.switchSession(target)
-    else await this.newSession()
+    else {
+      // 启动复用：上一个没有任何内容的新对话（标题折叠为「新对话」）复用其
+      // session id 而非铸造新 id——空会话随启动目录迁移（见 newSession）。
+      const reuse = await findMostRecentEmptySession(this.ctx).catch(() => undefined)
+      await this.newSession(reuse)
+    }
 
     // Phase 9b：会话恢复面板——启动时把可恢复会话列表写进 scrollback
     // （当前会话除外；无其他可恢复会话时静默）。live 标注取 live store。
@@ -1796,15 +1805,27 @@ export class TuiApp {
    * detach/dispose 时释放；controls 走 controlsFromHandle（驱动 handle.agent）。
    * 先卸载当前挂载（与 switchSession 对称）：否则 transcript/liveAgent/
    * statusLine/streamFeed 被覆盖即泄漏监听器，旧 ownedHandle 丢失即泄漏 agent。
-   * @returns 新会话的 id（本层铸造的 session-<uuid>）。
+   * @param reuse - 可选的启动复用空会话：id 复用、header.cwd 重绑启动目录；
+   *   跨目录复用时先清掉旧目录的空 artifact（后端按 cwd 分目录存 artifact，
+   *   同 id 双目录会被 duplicate/collision 拒绝）；清理不可行则退回全新 id。
+   * @returns 新会话的 id（本层铸造或复用）。
    */
-  async newSession(): Promise<SessionId> {
+  async newSession(reuse?: SessionSummary): Promise<SessionId> {
     // P3 side conversation：切换时保留旧会话 agent（keepHandle 让渡 registry）——
     // /session new 后旧会话可切回。退出（dispose）时 detachProjections 默认
     // 释放全部 handle（见 dispose 路径）。
     await this.detachProjections({ keepHandle: true })
     this.dynamicRowsHighWater = 0
-    const id = SessionId(`session-${randomUUID()}`)
+    let id = reuse?.id
+    if (reuse !== undefined) {
+      // 空会话复用统一先清旧 artifact（无论是否跨目录）：同目录走后端 adopt 会
+      // 校验存储事件与新 live seed 逐条一致——真实宿主的 meta 事件
+      // （permission/preset、sandbox/mode、approval/policy）内容/时间每轮不同，
+      // adopt 恒被拒（"already has a persisted log on disk that does not match"）。
+      // 清掉后以同 id 全新 materialize，规避前缀校验且 header 恒为当前格式。
+      if (!await clearEmptySessionArtifact(this.ctx, reuse)) id = undefined
+    }
+    const sessionId = id ?? SessionId(`session-${randomUUID()}`)
     const selection = this.ctx.agentDefaultModel.currentSelection()
     // C2 项 4：持有可变 ModelSelectionRef——/model 热切当前会话（改 current，
     // 下一次 agent 步进的 prompt assembly 自动生效）。
@@ -1813,7 +1834,7 @@ export class TuiApp {
     // header.cwd 是 Web 会话列表与 workspace 挂载的门槛：缺省会被持久化进
     // `_no-cwd/` 并从 web API 可见列表过滤掉（issue #5）。TUI 工作区 = 启动目录。
     const handle = await this.ctx.agents.create({
-      sessionId: id,
+      sessionId,
       meta: { cwd: process.cwd() },
       agentOptions: { provider: selection.provider, model: selection.model },
       setup: (agentCtx) => {
@@ -1822,9 +1843,9 @@ export class TuiApp {
     })
     this.ownedHandle = handle
     this.controls = controlsFromHandle(handle)
-    this.activeSessionId = id
-    this.mountSession(id)
-    return id
+    this.activeSessionId = sessionId
+    this.mountSession(sessionId)
+    return sessionId
   }
 
   /**
@@ -2058,7 +2079,7 @@ export class TuiApp {
     overlay.activate('picker')
   }
 
-  /** #31：打开会话选择器（listSessions 同源；当前会话 ● 高亮）。 */
+  /** #31：打开会话选择器（listSessions 同源；当前会话 ● 高亮；摘要行，展示全部会话）。 */
   private async openSessionPicker(): Promise<void> {
     const overlay = this.overlay
     const picker = this.picker
@@ -2069,10 +2090,16 @@ export class TuiApp {
       return
     }
     const active = this.activeSessionId
+    const now = Date.now()
     const items: PickerItem[] = []
     let selectedIndex = 0
     for (const row of rows) {
-      const label = `${row.id}${row.id === active ? '（当前）' : ''}`
+      // 会话摘要行：短 id + 标题（官方 session/title fold → 首条真人消息
+      // fallback → 「新对话」）+ 相对年龄。标题数据源与 /session list 同款，
+      // 只读纯函数、不调 API。
+      const events = await loadHistory(this.ctx, row.id)
+      const title = sessionTitleFor(events)
+      const label = `#${shortSessionLabel(row.id)} · ${title} · ${formatSessionAge(row.createdAt, now)}${row.id === active ? '（当前）' : ''}`
       const item: PickerItem = { label, value: row.id, current: row.id === active }
       if (row.id === active) selectedIndex = items.length
       items.push(item)

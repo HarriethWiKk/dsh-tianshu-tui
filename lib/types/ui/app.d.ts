@@ -473,9 +473,12 @@ export declare class TuiApp {
      * detach/dispose 时释放；controls 走 controlsFromHandle（驱动 handle.agent）。
      * 先卸载当前挂载（与 switchSession 对称）：否则 transcript/liveAgent/
      * statusLine/streamFeed 被覆盖即泄漏监听器，旧 ownedHandle 丢失即泄漏 agent。
-     * @returns 新会话的 id（本层铸造的 session-<uuid>）。
+     * @param reuse - 可选的启动复用空会话：id 复用、header.cwd 重绑启动目录；
+     *   跨目录复用时先清掉旧目录的空 artifact（后端按 cwd 分目录存 artifact，
+     *   同 id 双目录会被 duplicate/collision 拒绝）；清理不可行则退回全新 id。
+     * @returns 新会话的 id（本层铸造或复用）。
      */
-    newSession(): Promise<SessionId>;
+    newSession(reuse?: SessionSummary): Promise<SessionId>;
     /**
      * C2 项 4：热切当前会话的模型。改 modelRef.current——下一次 agent 步进
      * （prompt assembly）自动生效，不中断当前步骤。registry 兜底的会话
@@ -542,7 +545,7 @@ export declare class TuiApp {
     /** #31/#33：打开主题选择器（THEME_NAMES + custom: + 当前主题 ● 高亮）。
      *  实时预览：↑↓ 移动即 setTheme 生效；Enter 落定；Esc/q 还原打开前主题。 */
     private openThemePicker;
-    /** #31：打开会话选择器（listSessions 同源；当前会话 ● 高亮）。 */
+    /** #31：打开会话选择器（listSessions 同源；当前会话 ● 高亮；摘要行，展示全部会话）。 */
     private openSessionPicker;
     /**
      * C3 项 3：执行回退。mode 决定范围：

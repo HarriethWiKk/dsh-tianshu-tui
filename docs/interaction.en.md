@@ -52,6 +52,8 @@ When there is more than one session, a **session tab bar** appears above the inp
 | `f` → `Enter` | Plan-review feedback mode (Keep planning + custom feedback) |
 | Digits | Structured-question panel options |
 | In pickers: `↑`/`↓` (j/k) select, `Enter` confirm, `Esc`/`q` close | No-arg `/model` `/theme` `/session` pickers |
+| Session list: prints rows directly (legacy style, no interactive panel) | `/session list` |
+| Session picker: `↑`/`↓` scroll through all sessions | No-arg `/session` picker (title + relative-age summary, not paginated) |
 
 ## Command Reference (29 commands)
 

@@ -376,6 +376,7 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
           // 在会话活跃时自动生成）；无标题事件的历史会话展示首条真人消息的
           // 确定性 fallback；无聊天记录的会话显示「新对话」。只读纯函数，
           // 不调 API、不写 sidecar、不写 session log。
+          // 旧版样式：逐行直接打印（不进交互界面）。
           for (const row of rows) {
             const events = await loadHistory(ctx, row.id)
             echo(`${row.id} · ${sessionTitleFor(events)} · ${new Date(row.createdAt).toISOString()}`)
