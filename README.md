@@ -35,40 +35,56 @@
 
 本包不是独立程序。须先有官方 CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh)（npm `latest`，当前 `0.1.1-rc.2`；需 ≥ `0.1.0-rc.8`，peer 依赖对齐）。只 `npm i` 本包跑不起来。
 
+**一键安装（推荐）**：仓库自带跨平台脚本，自动检测 Node/pnpm、经 pnpm 安装官方 CLI + 装配本插件并启动（国内网络默认走 npmmirror 镜像）：
+
+```sh
+# macOS / Linux（bash）
+bash <(curl -fsSL https://raw.githubusercontent.com/huiliyi37/dsh-tianshu-tui/main/scripts/install-tui.sh)
+# 只安装不启动：
+bash <(curl -fsSL https://raw.githubusercontent.com/huiliyi37/dsh-tianshu-tui/main/scripts/install-tui.sh) --no-launch
+
+# Windows（PowerShell）
+powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/huiliyi37/dsh-tianshu-tui/main/scripts/install-tui.ps1 | iex"
+# 只安装不启动：
+powershell -ExecutionPolicy Bypass -File scripts\install-tui.ps1 -NoLaunch   # 克隆仓库后本地跑
+```
+
 ### 1. 准备环境
 
 - [Node.js](https://nodejs.org/) `^22.19 || >=24`
-- PATH 上有 [`pnpm`](https://pnpm.io/installation)（`dsh plugin` 会转发给它）
+- [`pnpm`](https://pnpm.io/installation)（`dsh plugin` 会转发给它；没有时 `corepack enable` 即可——Node 自带 corepack）
 
-**不要直接敲 `dsh`。** 若 PATH 上已有旧的 `dsh`（例如 `~/.local/bin/dsh`，`dsh --version` 低于 `0.1.0-rc.8`），会走到本地 staging，出现 `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`。请始终用下面的 `npx` 命令。
+> ⚠ **npm 11 的 OOM 坑**：官方 CLI `@deepseek-ai/dsh` 依赖树较大（60+ 子包），**npm 11（Node 24 自带）安装时会 JavaScript heap out of memory**（卡住数分钟后 OOM，实测复现）。请用 pnpm（下方命令）。若你已经在用 `npx -y @deepseek-ai/dsh` 且卡住/报 heap OOM，切到 pnpm 即可。
+
+**不要直接敲 `dsh`。** 若 PATH 上已有旧的 `dsh`（例如 `~/.local/bin/dsh`，`dsh --version` 低于 `0.1.0-rc.8`），会走到本地 staging，出现 `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`。请始终用下面的 `pnpm dlx` 命令。
 
 ### 2. 把本插件装进 tui profile
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+pnpm dlx @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
 ```
 
-pnpm 可能提示 peer missing，可忽略：peer 由官方 `dsh` 宿主提供，不必另装。
+pnpm 可能提示 peer missing，可忽略：peer 由官方 `dsh` 宿主提供，不必另装。没有 pnpm 也可以 `npx -y pnpm dlx @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui`。
 
-从 npm 安装后，每次启动会对照 npm `latest`：有新版本就写入 profile，提示重启后生效。不想联网检查时设 `DSH_TUI_SKIP_UPDATE=1`。`github:` / `link:` 安装不会改写成 npm 包。
+从 npm 安装后，每次启动会对照 npm `latest`：有新版本就写入 profile，提示重启后生效。也可在 TUI 里敲 `/update` 手动检查（只查不装，给出更新命令）。不想联网检查时设 `DSH_TUI_SKIP_UPDATE=1`。`github:` / `link:` 安装不会改写成 npm 包。
 
-也可以从 Git 装：`npx -y @deepseek-ai/dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui`（仓库已包含 `lib/index.js`，不必再打包）。
+也可以从 Git 装：`pnpm dlx @deepseek-ai/dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui`（仓库已包含 `lib/index.js`，不必再打包）。
 
 ### 3. 启动
 
 ```sh
-npx -y @deepseek-ai/dsh --profile tui
+pnpm dlx @deepseek-ai/dsh --profile tui
 ```
 
 看到欢迎页品牌 **dsh-tianshu-tui** 即成功。`Ctrl+Q` 或 `/exit` 退出。
 
-已全局安装官方 CLI 且 `dsh --version` 不低于 `0.1.0-rc.8` 时，把上面的 `npx -y @deepseek-ai/dsh` 换成 `dsh` 即可。
+已全局安装官方 CLI（`pnpm add -g @deepseek-ai/dsh`）且 `dsh --version` 不低于 `0.1.0-rc.8` 时，把上面的 `pnpm dlx @deepseek-ai/dsh` 换成 `dsh` 即可。
 
 若 `npx` 仍报 `ERR_FS_EISDIR`，是 `~/.dsh/profiles/node_modules` 里旧的安装 fallback 与官方 CLI 冲突。换干净目录再启动：
 
 ```sh
-DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
-DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh --profile tui
+DSH_HOME=/tmp/dsh-tianshu pnpm dlx @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+DSH_HOME=/tmp/dsh-tianshu pnpm dlx @deepseek-ai/dsh --profile tui
 ```
 
 不要在 DeepSeek Harness 工作区根目录对本包跑 tsdown：会把未发布的 `@deepseek-ai/dsh-root` 写进 bundle，加载必失败。

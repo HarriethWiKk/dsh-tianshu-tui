@@ -34,40 +34,56 @@
 
 This package is not a standalone app. You need the official CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh) (npm `latest`, currently `0.1.1-rc.2`; needs ≥ `0.1.0-rc.8`, aligned with the peer deps). `npm i` of this package alone will not run.
 
+**One-click install (recommended)**: the repo ships cross-platform scripts that detect Node/pnpm, install the official CLI via pnpm, wire this plugin and launch (defaults to the npmmirror registry for CN networks):
+
+```sh
+# macOS / Linux (bash)
+bash <(curl -fsSL https://raw.githubusercontent.com/huiliyi37/dsh-tianshu-tui/main/scripts/install-tui.sh)
+# install only, no launch:
+bash <(curl -fsSL https://raw.githubusercontent.com/huiliyi37/dsh-tianshu-tui/main/scripts/install-tui.sh) --no-launch
+
+# Windows (PowerShell)
+powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/huiliyi37/dsh-tianshu-tui/main/scripts/install-tui.ps1 | iex"
+# install only, no launch (after cloning the repo):
+powershell -ExecutionPolicy Bypass -File scripts\install-tui.ps1 -NoLaunch
+```
+
 ### 1. Prerequisites
 
 - [Node.js](https://nodejs.org/) `^22.19 || >=24`
-- [`pnpm`](https://pnpm.io/installation) on PATH (`dsh plugin` forwards to it)
+- [`pnpm`](https://pnpm.io/installation) on PATH (`dsh plugin` forwards to it; if missing, `corepack enable` — Node ships corepack)
 
-**Do not type `dsh` by itself.** An older `dsh` on PATH (for example `~/.local/bin/dsh`, where `dsh --version` is below `0.1.0-rc.8`) will hit a local staging tree and fail with `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`. Always use the `npx` commands below.
+> ⚠ **npm 11 OOM pitfall**: the official CLI `@deepseek-ai/dsh` has a large dependency tree (60+ sub-packages); **npm 11 (bundled with Node 24) runs out of heap while installing it** (hangs for minutes then `JavaScript heap out of memory` — reproduced). Use pnpm (commands below). If you are already on `npx -y @deepseek-ai/dsh` and it hangs/throws heap OOM, switch to pnpm.
+
+**Do not type `dsh` by itself.** An older `dsh` on PATH (for example `~/.local/bin/dsh`, where `dsh --version` is below `0.1.0-rc.8`) will hit a local staging tree and fail with `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`. Always use the `pnpm dlx` commands below.
 
 ### 2. Add this plugin to the tui profile
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+pnpm dlx @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
 ```
 
-pnpm may warn about missing peers; ignore that. Peers come from the official `dsh` host.
+pnpm may warn about missing peers; ignore that. Peers come from the official `dsh` host. Without pnpm you can also use `npx -y pnpm dlx @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui`.
 
-After an npm install, each launch checks npm `latest` and writes a newer version into the profile, then asks you to restart. Set `DSH_TUI_SKIP_UPDATE=1` to skip the check. `github:` / `link:` installs are left alone.
+After an npm install, each launch checks npm `latest` and writes a newer version into the profile, then asks you to restart. You can also run `/update` inside the TUI for a manual check (check-only; it prints the update command). Set `DSH_TUI_SKIP_UPDATE=1` to skip the check. `github:` / `link:` installs are left alone.
 
-You can also install from Git: `npx -y @deepseek-ai/dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui` (the repository ships `lib/index.js`; no rebuild).
+You can also install from Git: `pnpm dlx @deepseek-ai/dsh plugin --profile tui add github:huiliyi37/dsh-tianshu-tui` (the repository ships `lib/index.js`; no rebuild).
 
 ### 3. Start
 
 ```sh
-npx -y @deepseek-ai/dsh --profile tui
+pnpm dlx @deepseek-ai/dsh --profile tui
 ```
 
 Success looks like a welcome screen branded **dsh-tianshu-tui**. Quit with `Ctrl+Q` or `/exit`.
 
-If the official CLI is installed globally and `dsh --version` is at least `0.1.0-rc.8`, you can use `dsh` in place of `npx -y @deepseek-ai/dsh`.
+If the official CLI is installed globally (`pnpm add -g @deepseek-ai/dsh`) and `dsh --version` is at least `0.1.0-rc.8`, you can use `dsh` in place of `pnpm dlx @deepseek-ai/dsh`.
 
 If `npx` still raises `ERR_FS_EISDIR`, stale install fallbacks under `~/.dsh/profiles/node_modules` are colliding with the official CLI. Use a clean home:
 
 ```sh
-DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
-DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh --profile tui
+DSH_HOME=/tmp/dsh-tianshu pnpm dlx @deepseek-ai/dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+DSH_HOME=/tmp/dsh-tianshu pnpm dlx @deepseek-ai/dsh --profile tui
 ```
 
 Do not run tsdown for this package from the DeepSeek Harness workspace root: it rewrites imports to unpublished `@deepseek-ai/dsh-root`, and loading fails.
