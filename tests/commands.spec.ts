@@ -1772,3 +1772,69 @@ describe('内置命令 — /todos', () => {
     expect(parsed?.text).toBe('all')
   })
 })
+
+describe('/preset（agent-presets 可选服务降级 + 切换链路）', () => {
+  const facet = {
+    list: vi.fn(async () => [
+      { id: 'standard', name: '标准', description: '默认工具面' },
+      { id: 'ptc', name: 'PTC' },
+    ]),
+    composedPreset: vi.fn(() => 'standard'),
+    recompose: vi.fn(async (_agentCtx: unknown, id: string) => ({ id, name: 'PTC' })),
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('服务未装配（reflect 无 agentPresets）→ 优雅提示，不抛', async () => {
+    const { cmd } = commandByName('preset')
+    const { args, echo } = makeArgs() // 默认 makeCtx：reflect.get 返回 undefined
+    await cmd.run(args)
+    expect(echo).toHaveBeenCalledWith('⚠ agent-presets 服务不可用（host 未装配 agent 预设）')
+  })
+
+  it('服务在场 + 无参 → 列出预设与当前态（无会话时当前行未装配）', async () => {
+    const { cmd } = commandByName('preset')
+    const { args, echo } = makeArgs({ ctx: makeCtx({ agentPresets: facet }) })
+    await cmd.run(args)
+    expect(echo).toHaveBeenCalledWith('agent 预设 (2):')
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('标准 (standard) — 默认工具面'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('PTC (ptc)'))
+    expect(echo).toHaveBeenCalledWith('当前: 未装配（host 默认）')
+  })
+
+  it('有参 + 无会话 → 无法切换', async () => {
+    const { cmd } = commandByName('preset')
+    const { args, echo } = makeArgs({ text: 'ptc', ctx: makeCtx({ agentPresets: facet }) })
+    await cmd.run(args)
+    expect(echo).toHaveBeenCalledWith('当前无会话，无法切换预设')
+    expect(facet.recompose).not.toHaveBeenCalled()
+  })
+
+  it('有参 + 会话非空白 → 拒绝切换（官方 recompose 契约）', async () => {
+    const { cmd, deps } = commandByName('preset')
+    vi.mocked(deps.currentAgent).mockReturnValue({ ctx: {} } as unknown as Agent)
+    vi.mocked(deps.isBlankSession).mockReturnValue(false)
+    const { args, echo } = makeArgs({ text: 'ptc', ctx: makeCtx({ agentPresets: facet }) })
+    await cmd.run(args)
+    expect(echo).toHaveBeenCalledWith('⚠ 会话已产生内容，无法切换预设（仅空白会话可换；新会话默认仍用当前预设）')
+    expect(facet.recompose).not.toHaveBeenCalled()
+  })
+
+  it('有参 + 空白会话 → recompose 成功回显；recompose 失败回显原因', async () => {
+    const { cmd, deps } = commandByName('preset')
+    vi.mocked(deps.currentAgent).mockReturnValue({ ctx: {}, session: { append: vi.fn() } } as unknown as Agent)
+    vi.mocked(deps.isBlankSession).mockReturnValue(true)
+    const { args, echo } = makeArgs({ text: 'ptc', ctx: makeCtx({ agentPresets: facet }) })
+    await cmd.run(args)
+    expect(facet.recompose).toHaveBeenCalledWith({}, 'ptc')
+    expect(echo).toHaveBeenCalledWith('已切换为 PTC (ptc)')
+
+    // 失败路径：recompose 抛错 → 回显原因，不留切换痕迹
+    const failing = { ...facet, recompose: vi.fn(async () => { throw new Error('compose rejected') }) }
+    const { args: args2, echo: echo2 } = makeArgs({ text: 'ptc', ctx: makeCtx({ agentPresets: failing }) })
+    await cmd.run(args2)
+    expect(echo2).toHaveBeenCalledWith('切换失败: compose rejected')
+  })
+})

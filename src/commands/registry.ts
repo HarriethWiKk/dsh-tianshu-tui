@@ -555,9 +555,9 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
       description: '查看/切换 agent 预设模式（标准 / PTC / 极简 / 创造）',
       argsHint: '[id]',
       run: async ({ text, echo, ctx }) => {
-        // as unknown as：Context 声明合并的 agentPresets 是完整服务面，
-        // 这里只消费最小读/切三方法（本地 PresetFacet）。
-        const facet = (ctx as unknown as { agentPresets?: PresetFacet }).agentPresets
+        // reflect.get 读取可选服务（Cordis 4 注入代理：属性访问未注册服务
+        // 抛 "without inject"——/compact /goal 同款）；未装配时返回 undefined。
+        const facet = ctx.reflect.get('agentPresets', false) as PresetFacet | undefined
         if (facet === undefined) {
           echo('⚠ agent-presets 服务不可用（host 未装配 agent 预设）')
           return

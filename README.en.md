@@ -79,6 +79,21 @@ Success looks like a welcome screen branded **dsh-tianshu-tui**. Quit with `Ctrl
 
 If the official CLI is installed globally (`pnpm add -g @deepseek-ai/dsh`) and `dsh --version` is at least `0.1.0-rc.8`, you can use `dsh` in place of `pnpm dlx @deepseek-ai/dsh`.
 
+### 4. (Optional) Enable agent presets (`/preset`)
+
+`/preset` lists/switches agent presets (standard / PTC / minimal / creative). It needs the official `@deepseek-ai/dsh-agent-presets` plugin, which the official dsh does not ship by default — install it explicitly:
+
+```sh
+pnpm dlx @deepseek-ai/dsh plugin --profile tui add @deepseek-ai/dsh-agent-presets@0.1.1-rc.2
+```
+
+> ⚠ Pin `@0.1.1-rc.2` explicitly: the official npm `latest` tag still points at the outdated `0.0.1-rc.1` (`@latest` would install the old one). Without the plugin, `/preset` reports 「⚠ agent-presets 服务不可用（host 未装配 agent 预设）」 — install it and restart.
+
+Usage:
+
+- `/preset` — list all presets with the current one marked (`*`), plus the current wire tool surface
+- `/preset <id>` — switch to the given preset (blank sessions only: `/session new` first)
+
 If `npx` still raises `ERR_FS_EISDIR`, stale install fallbacks under `~/.dsh/profiles/node_modules` are colliding with the official CLI. Use a clean home:
 
 ```sh

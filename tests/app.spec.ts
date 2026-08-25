@@ -6246,7 +6246,7 @@ describe('slash 命令菜单接线（grok slash_dropdown 移植）', () => {
   })
 
   it('PageUp/PageDown：菜单选择翻页（clamp）', async () => {
-    const { stdin, stdout, app } = boot()
+    const { stdin, app } = boot()
     // 断言不绑定具体命令名：MRU 命令集随增删漂移（/key /update 加入都移动过分页
     // 边界），只验证相对行为——翻页后选中项移动、PageUp 回顶部原位。经
     // LiveEngine.render spy 拿结构化行（无 ANSI 干扰），模式同「输入轨行位钉住」。

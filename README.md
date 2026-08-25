@@ -80,6 +80,21 @@ pnpm dlx @deepseek-ai/dsh --profile tui
 
 已全局安装官方 CLI（`pnpm add -g @deepseek-ai/dsh`）且 `dsh --version` 不低于 `0.1.0-rc.8` 时，把上面的 `pnpm dlx @deepseek-ai/dsh` 换成 `dsh` 即可。
 
+### 4.（可选）启用 agent 预设（`/preset`）
+
+`/preset` 查看/切换 agent 预设（标准 / PTC / 极简 / 创造），依赖官方 `@deepseek-ai/dsh-agent-presets` 插件——官方 dsh 默认不携带，需显式装配：
+
+```sh
+pnpm dlx @deepseek-ai/dsh plugin --profile tui add @deepseek-ai/dsh-agent-presets@0.1.1-rc.2
+```
+
+> ⚠ 版本要显式给 `@0.1.1-rc.2`：官方 npm `latest` 标签仍停在过时的 `0.0.1-rc.1`（`@latest` 会装到旧版）。未装配时 `/preset` 会提示「⚠ agent-presets 服务不可用（host 未装配 agent 预设）」——装配后重启即可用。
+
+用法：
+
+- `/preset` —— 列出全部预设与当前项（`*` 标记），并附当前工具面（wire）摘要
+- `/preset <id>` —— 切换到指定预设（仅空白会话可换：先 `/session new` 再切）
+
 若 `npx` 仍报 `ERR_FS_EISDIR`，是 `~/.dsh/profiles/node_modules` 里旧的安装 fallback 与官方 CLI 冲突。换干净目录再启动：
 
 ```sh
