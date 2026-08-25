@@ -128,7 +128,13 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 
 ## 更新说明
 
-当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.15`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.15)）。
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.16`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.16)）。
+
+### 0.1.2-rc.16（2026-08-25）
+
+`/preset` 注入降级版本。
+
+- **`/preset` 不再 `without inject`（[#46](https://github.com/huiliyi37/dsh-tianshu-tui/issues/46)）** — 未装配官方 `@deepseek-ai/dsh-agent-presets` 时，经 `reflect.get('agentPresets', false)` 读可选服务，回显「服务不可用」而不抛 `cannot get property "agentPresets" without inject`（与 `/compact` `/goal` 同款）；跟仓 `lib/index.js` 已对齐，`github:` 安装也会吃到修复。装配预设：`pnpm dlx @deepseek-ai/dsh plugin --profile tui add @deepseek-ai/dsh-agent-presets@0.1.1-rc.2`（npm `latest` 标签仍停在过时的 `0.0.1-rc.1`，需显式版本）
 
 ### 0.1.2-rc.15（2026-08-25）
 

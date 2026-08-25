@@ -129,7 +129,13 @@ The companion vision plugin lives in `vision-ask/` if you need image re-interrog
 
 ## Release notes
 
-Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.15`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.15)).
+Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.16`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.16)).
+
+### 0.1.2-rc.16 (2026-08-25)
+
+`/preset` inject-fallback release.
+
+- **`/preset` no longer throws `without inject` ([#46](https://github.com/huiliyi37/dsh-tianshu-tui/issues/46))** — when the official `@deepseek-ai/dsh-agent-presets` plugin is not installed, the command reads the optional service via `reflect.get('agentPresets', false)` and prints "service unavailable" instead of `cannot get property "agentPresets" without inject` (same pattern as `/compact` `/goal`); the tracked `lib/index.js` bundle is synced, so `github:` installs get the fix too. To enable presets: `pnpm dlx @deepseek-ai/dsh plugin --profile tui add @deepseek-ai/dsh-agent-presets@0.1.1-rc.2` (npm `latest` still points at stale `0.0.1-rc.1`; pin the version)
 
 ### 0.1.2-rc.15 (2026-08-25)
 
