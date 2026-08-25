@@ -49,7 +49,7 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
 | `a` | 审批卡:本会话放行(always-approve + 结算当前请求) |
 | `f` → `Enter` | plan-review 反馈模式(Keep planning + 自定义反馈) |
 | 数字键 | 结构化提问面板选项 |
-| 选择器中:`↑`/`↓`(j/k)选择、`Enter` 确认、`Esc`/`q` 关闭 | `/model` `/theme` `/session` 无参选择器 |
+| 选择器中:`↑`/`↓`(j/k)选择、`Enter` 应用(本会话)、`S` 设为默认、`Esc`/`q` 关闭 | `/model` `/theme` `/effort` 选择器(会话/`/key` 选择器无 S) |
 | 会话列表:直接逐行打印(旧版样式，不进交互界面) | `/session list` |
 | 会话选择器:`↑`/`↓` 滚动浏览全部会话 | `/session` 无参选择器(带标题/相对年龄摘要，不分页) |
 
@@ -70,11 +70,11 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
 
 | 命令 | 作用 |
 |---|---|
-| `/model [target] [effort]` | 查看/切换模型(无参打开选择器;别名 `spark-flash`/`spark-pro`) |
-| `/effort off\|high\|max\|auto` | 设置推理等级(热切) |
-| `/preset [name]` | 查看/切换 agent 预设模式 |
+| `/model [target] [effort] [default]` | 查看/切换模型(无参打开选择器; Enter=本会话, S 或末尾 `default`=启动默认; 别名 `spark-flash`/`spark-pro`) |
+| `/effort off\|high\|max\|auto\|default` | 设置推理等级(无参打开选择器; Enter/带参=本会话, S 或 `default`=启动默认; `auto` 回模型默认) |
+| `/preset [name] [default]` | 查看/切换 agent 预设(带参=本会话; 末尾 `default`=新会话启动默认; 仅空白会话可换) |
 | `/yolo [on\|off]` | 全放行模式 |
-| `/density` | 切换紧凑工具卡渲染 |
+| `/density [default]` | 切换紧凑工具卡渲染(开关=本会话; `/density default`=启动默认) |
 | `/glance [segment]` | 切换 footer metrics 段显隐(如 `/glance cost`;无参查看现状) |
 
 ### 面板
@@ -106,7 +106,7 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
 
 | 命令 | 作用 |
 |---|---|
-| `/theme [name]` | 切换主题(无参打开选择器,含 `custom:`);`auto` 随终端明暗;`export [name]` 导出当前主题为自定义模板 |
+| `/theme [name] [default]` | 切换主题(无参打开选择器,含 `custom:`; Enter/带参=本会话, S 或末尾 `default`=启动默认);`auto` 随终端明暗;`export [name]` 导出当前主题为自定义模板 |
 | `/steer <text>` | 中轮转向 |
 | `/restart` | 重启当前 dsh 进程(同命令重新启动;插件更新后生效) |
 | `/exit` | 退出 TUI |
@@ -137,9 +137,10 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
 - **审批卡**:挂起审批内联 diff 预览(y/N/a/esc);工具可 diff 时红绿渲染,不可见时
   盲批提示;非当前会话请求委托下一个监听者。
 - **提问面板**:数字键选择、Esc 取消、重叠保护;plan-review 反馈模式。
-- **选择器(issue #31)**:`/model` `/theme` `/session` 无参打开,当前值 ● 高亮,
-  上下键选择、回车确认。**主题选择器支持实时预览**:↑↓ 移动即切换主题,
-  Enter 落定、Esc 还原打开前主题。
+- **选择器(issue #31)**:`/model` `/theme` `/effort` `/session` 无参打开,当前值 ● 高亮,
+  启动默认 ★。`/model` `/theme` `/effort`：Enter 仅本会话, S 应用并写启动默认。
+  会话与 `/key` 选择器不加 S。**主题选择器支持实时预览**:↑↓ 移动即切换主题,
+  Enter 落定(不写 prefs)、S 写启动默认、Esc 还原打开前主题。
 - **命令面板(Ctrl+P)**:命令模糊搜索 + 子序列匹配,Enter 回填 `/cmd `。
 - **键位表(Ctrl+.)**:完整快捷键清单,随时呼出。
 - **历史搜索(Ctrl+F)**:滚动区消息快照搜索,`n`/`N` 跳转。

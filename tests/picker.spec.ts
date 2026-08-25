@@ -159,4 +159,68 @@ describe('PickerController', () => {
     expect(onCommit).toHaveBeenCalledWith(items[1])
     expect(onCancel).not.toHaveBeenCalled()
   })
+
+  it('saveDefault 以选中项调用 onSaveDefault，不触发 onCommit / onCancel', () => {
+    const c = new PickerController({ getTheme: fakeTheme })
+    const onCommit = vi.fn()
+    const onSaveDefault = vi.fn()
+    const onCancel = vi.fn()
+    c.open('选择主题', items, onCommit, 1, { onSaveDefault, onCancel })
+    expect(c.canSaveDefault()).toBe(true)
+    c.saveDefault()
+    expect(onSaveDefault).toHaveBeenCalledWith(items[1])
+    expect(onCommit).not.toHaveBeenCalled()
+    expect(onCancel).not.toHaveBeenCalled()
+    expect(c.isOpen()).toBe(false)
+  })
+
+  it('未注入 onSaveDefault 时 canSaveDefault 为 false，saveDefault 不动作', () => {
+    const c = new PickerController({ getTheme: fakeTheme })
+    const onCommit = vi.fn()
+    c.open('选择会话', items, onCommit)
+    expect(c.canSaveDefault()).toBe(false)
+    c.saveDefault()
+    expect(onCommit).not.toHaveBeenCalled()
+    expect(c.isOpen()).toBe(true)
+  })
+})
+
+describe('renderPicker 启动默认标记', () => {
+  it('isDefault 条目显示 ★；当前项仍是 ●', () => {
+    const mixed: PickerItem[] = [
+      { label: 'graphite', value: 'graphite', current: true },
+      { label: 'paper', value: 'paper', isDefault: true },
+    ]
+    const rows = plain(renderPicker({ open: true, selected: 1, title: 't' }, mixed, 60, 10, fakeTheme()))
+    expect(rows[1]).toBe('  graphite ●')
+    expect(rows[2]).toBe('▶ paper ★')
+  })
+
+  it('saveDefault 开启时底栏为 Enter 应用（本会话）· S 设为默认', () => {
+    const rows = plain(renderPicker(
+      { open: true, selected: 0, title: 't' },
+      items,
+      80,
+      10,
+      fakeTheme(),
+      { saveDefault: true },
+    ))
+    const footer = rows[rows.length - 1]!
+    expect(footer).toContain('Enter 应用（本会话）')
+    expect(footer).toContain('S 设为默认')
+    expect(footer).not.toContain('Enter 确认')
+  })
+
+  it('未开 saveDefault 时底栏保持 Enter 确认（会话选择器）', () => {
+    const rows = plain(renderPicker({ open: true, selected: 0, title: 't' }, items, 80, 10, fakeTheme()))
+    expect(rows[rows.length - 1]).toContain('Enter 确认')
+    expect(rows[rows.length - 1]).not.toContain('S 设为默认')
+  })
+
+  it('控制器注入 onSaveDefault 后面栏切换；render 委托带 saveDefault', () => {
+    const c = new PickerController({ getTheme: fakeTheme })
+    c.open('选择主题', items, () => {}, undefined, { onSaveDefault: () => {} })
+    const footer = plain(c.render(80, 10)).at(-1)
+    expect(footer).toContain('S 设为默认')
+  })
 })

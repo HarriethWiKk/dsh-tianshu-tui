@@ -17,7 +17,6 @@
  * @module @deepseek-ai/dsh-tianshu-tui/commands
  */
 import type { Context } from '@deepseek-ai/cordis';
-import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { SessionId } from '@deepseek-ai/dsh-session';
 declare module '@deepseek-ai/dsh-session/types' {
     interface SessionEventMap {
@@ -28,6 +27,7 @@ declare module '@deepseek-ai/dsh-session/types' {
 }
 import { getActiveThemeName } from '../theme.js';
 import { type UpdateCheckResult } from '../self-update.js';
+import { type StartupCommandDeps } from './startup-commands.js';
 /**
  * Slash 命令执行上下文——TuiApp 在分发时注入。
  */
@@ -142,20 +142,13 @@ export declare class SlashCommandRegistry {
 /**
  * 内置命令工厂依赖——TuiApp 私有能力注入（会话铸造、滚动区重置、面板显隐切换）。
  */
-export interface BuiltinCommandDeps {
-    /** /theme：主题确认后按新主题重放当前历史消息（#40；reset 滚动区重提交）。 */
-    onThemeChanged?(): void;
+export interface BuiltinCommandDeps extends StartupCommandDeps {
     /** /session new：新建会话并挂载（TuiApp.newSession）。 */
     newSession(): Promise<SessionId>;
     /** /fork、/branch（A3）：分叉当前会话（复制历史）并切换（TuiApp.forkSession）。 */
     forkSession(opts?: {
         directive?: string;
     }): Promise<SessionId>;
-    /** C2 项 4：热切当前会话的模型（TuiApp.switchLiveModel）；返回是否已热切。 */
-    switchLiveModel(selection: {
-        provider: string;
-        model: string;
-    }): boolean;
     /** /clear：清空当前会话 scrollback（CommitEngine.reset）。 */
     clearScrollback(): void;
     /** /tasks 无参：切换任务窗格显隐（TuiApp 私有状态 + renderLive）。 */
@@ -180,22 +173,8 @@ export interface BuiltinCommandDeps {
     requestRestart(): void;
     /** /help：当前注册表的全部命令（TuiApp 是注册表所有者，经 deps 注入而非 ctx 服务）。 */
     listCommands(): SlashCommand[];
-    /** /preset：当前会话的 agent（recompose/composedPreset 的 agentCtx 来源；无会话为 null）。 */
-    currentAgent(): Agent | null;
-    /** /preset：当前会话是否 blank（无消息且无进行中工具调用）——recompose 的调用方契约。 */
-    isBlankSession(): boolean;
     /** /yolo：开启/关闭全放行模式（approval always-approve 快捷入口；返回开启后提示）。 */
     setYoloMode(flag: boolean): void;
-    /** #31：打开模型选择器（上下键选择替代命令参数输入）。 */
-    openModelPicker(): void;
-    /** #31：打开主题选择器。 */
-    openThemePicker(): void;
-    /** P1：主题生效后的持久化写透（/theme 与 picker 确认共用；未知名 no-op）。 */
-    onThemeApplied(name: string): void;
-    /** P1：/theme auto——切回自动检测并持久化（探测异步）。 */
-    applyThemeAuto(): void;
-    /** P1：/theme export [name]——当前主题导出为自定义主题模板；返回回显消息。 */
-    exportTheme(name?: string): string;
     /** #31：打开会话选择器。 */
     openSessionPicker(): void;
     /** /key、/login：打开 API Key 设置对话框（掩码输入 + 联网验证 + 落盘）。 */

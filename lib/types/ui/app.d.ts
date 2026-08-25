@@ -520,11 +520,7 @@ export declare class TuiApp {
      * @returns 是否已打开。
      */
     private openMemoryBrowser;
-    /**
-     * #31：打开模型选择器。数据源 = llm 服务的 provider/model 目录（动态现取）；
-     * llm 服务缺失时 fails loud（不静默）。确认后走 /model 同路径
-     * （saveSelection + switchLiveModel 热切）。
-     */
+    /** #31：打开模型选择器（Enter 本会话 / S 写默认）。 */
     private openModelPicker;
     /** P1：偏好原子落盘（禁用态 no-op；prefs 已就地变更）。 */
     private persistPrefs;
@@ -532,13 +528,14 @@ export declare class TuiApp {
     private pushHistory;
     /** P1：应用主题并持久化（/theme 与 picker 确认共用的写透点；未知主题 no-op）。 */
     private applyThemeAndPersist;
-    /** P1：/theme auto——切回自动检测并持久化（探测异步，落定后回显）。 */
+    /** /theme auto：探测明暗；persist 时才写 prefs。 */
     private applyThemeAuto;
     /** P1：/theme export——委托 theme-custom（模板构建 + 就地注册属于主题域）。 */
     private exportTheme;
-    /** #31/#33：打开主题选择器（THEME_NAMES + custom: + 当前主题 ● 高亮）。
-     *  实时预览：↑↓ 移动即 setTheme 生效；Enter 落定；Esc/q 还原打开前主题。 */
+    /** #31/#33：主题选择器（Enter 本会话 / S 写默认；↑↓ 预览，Esc 还原）。 */
     private openThemePicker;
+    /** /effort 无参：推理等级选择器。 */
+    private openEffortPicker;
     /** #31：打开会话选择器（listSessions 同源；当前会话 ● 高亮；摘要行，展示全部会话）。 */
     private openSessionPicker;
     /**

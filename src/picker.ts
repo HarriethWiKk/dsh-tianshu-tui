@@ -3,7 +3,8 @@
  *
  * 纯状态机 + 渲染 + 控制器，与 command-palette 同构（OverlayRenderer 契约）。
  * 打开时注入条目与确认回调；↑/↓ 移动、PageUp/PageDown 翻页、Enter 确认、
- * Esc/q 关闭。当前值条目带 ● 标记（current），选中项 ▶ 高亮。
+ * S 设为默认（可选）、Esc/q 关闭。当前值条目带 ● 标记（current），启动默认
+ * 带 ★（isDefault），选中项 ▶ 高亮。
  *
  * 滚动窗口跟随选中（主题/模型/会话选择器均展示全部条目，↑/↓ 浏览）。
  *
@@ -22,6 +23,8 @@ export interface PickerItem {
   value: string
   /** 当前生效值（列表行 ● 标记；无匹配条目时忽略）。 */
   current?: boolean
+  /** 启动默认值（列表行 ★ 标记；与 current 可并存）。 */
+  isDefault?: boolean
 }
 
 /** 确认回调：选中条目 → 调用方执行动作。 */
@@ -39,6 +42,14 @@ export interface PickerHooks {
   onPreview?: PickerPreview
   /** Esc/q 关闭时调用（还原预览）。 */
   onCancel?: PickerCancel
+  /** S 设为默认：应用并写入启动默认（确认路径，不走 onCancel）。 */
+  onSaveDefault?: PickerCommit
+}
+
+/** renderPicker 可选提示：有 onSaveDefault 时换底栏。 */
+export interface PickerRenderOpts {
+  /** true = Enter 应用（本会话）· S 设为默认；缺省 = Enter 确认。 */
+  saveDefault?: boolean
 }
 
 /** 选择器状态：开合 + 选中下标 + 标题。 */
@@ -98,6 +109,7 @@ export function renderPicker(
   width: number,
   height: number,
   theme: RivetTheme,
+  opts?: PickerRenderOpts,
 ): string[] {
   const lines: string[] = [color(state.title, theme.brandColor, { bold: true })]
   if (items.length === 0) {
@@ -112,13 +124,16 @@ export function renderPicker(
       /* v8 ignore next 1 -- unreachable: window 来自 items.slice()，元素恒非 undefined */
       if (item === undefined) continue
       const isSel = start + i === sel
-      const marker = item.current === true ? ' ●' : ''
+      const marker = `${item.current === true ? ' ●' : ''}${item.isDefault === true ? ' ★' : ''}`
       const text = `${isSel ? '▶ ' : '  '}${item.label}${marker}`
       const clipped = truncate(text, width)
       lines.push(isSel ? color(clipped, theme.primary, { bold: true }) : color(clipped, theme.dim))
     }
   }
-  lines.push(color('↑↓ 选择 · Enter 确认 · Esc 关闭', theme.muted))
+  const footer = opts?.saveDefault === true
+    ? '↑↓ 选择 · Enter 应用（本会话） · S 设为默认 · Esc 关闭'
+    : '↑↓ 选择 · Enter 确认 · Esc 关闭'
+  lines.push(color(footer, theme.muted))
   return lines
 }
 
@@ -147,6 +162,7 @@ export class PickerController {
   private onCommit: PickerCommit | null = null
   private onPreview: PickerPreview | null = null
   private onCancel: PickerCancel | null = null
+  private onSaveDefault: PickerCommit | null = null
   private readonly getTheme: () => RivetTheme
 
   constructor(opts: PickerOptions) {
@@ -165,7 +181,8 @@ export class PickerController {
    * @param commit - 确认回调（Enter 时以选中条目调用）。
    * @param selectedIndex - 初始选中下标（缺省 0）。
    * @param hooks - 可选：onPreview（选中变化时调用，实时预览）；
-   *   onCancel（Esc/q 关闭时调用，还原预览）。
+   *   onCancel（Esc/q 关闭时调用，还原预览）；
+   *   onSaveDefault（S 设为默认，确认路径不走 onCancel）。
    */
   open(
     title: string,
@@ -178,6 +195,7 @@ export class PickerController {
     this.onCommit = commit
     this.onPreview = hooks?.onPreview ?? null
     this.onCancel = hooks?.onCancel ?? null
+    this.onSaveDefault = hooks?.onSaveDefault ?? null
     this.state = applyPickerEvent(this.state, { type: 'open', title })
     if (selectedIndex !== undefined && selectedIndex > 0) {
       this.state = applyPickerEvent(this.state, { type: 'move', delta: selectedIndex, count: this.items.length })
@@ -190,6 +208,7 @@ export class PickerController {
     this.onCancel = null
     this.onCommit = null
     this.onPreview = null
+    this.onSaveDefault = null
     this.state = applyPickerEvent(this.state, { type: 'close' })
     if (cancel !== null) cancel()
   }
@@ -224,8 +243,30 @@ export class PickerController {
     this.onCancel = null
     this.onCommit = null
     this.onPreview = null
+    this.onSaveDefault = null
     this.state = applyPickerEvent(this.state, { type: 'close' })
     if (item !== undefined && cb !== null) cb(item)
+  }
+
+  /** 是否注入了 S 设为默认钩子（键路由据此决定是否消费 s/S）。 */
+  canSaveDefault(): boolean {
+    return this.onSaveDefault !== null
+  }
+
+  /**
+   * 设为启动默认：以选中条目调用 onSaveDefault 并关闭；无钩子或无选中时
+   * 不动作（选择器保持打开）。确认路径不触发 onCancel。
+   */
+  saveDefault(): void {
+    if (this.onSaveDefault === null) return
+    const item = this.selected
+    const cb = this.onSaveDefault
+    this.onCancel = null
+    this.onCommit = null
+    this.onPreview = null
+    this.onSaveDefault = null
+    this.state = applyPickerEvent(this.state, { type: 'close' })
+    if (item !== undefined) cb(item)
   }
 
   /**
@@ -235,6 +276,8 @@ export class PickerController {
    * @returns 渲染行数组（含 ANSI）。
    */
   render(width: number, height: number): string[] {
-    return renderPicker(this.state, this.items, width, height, this.getTheme())
+    return renderPicker(this.state, this.items, width, height, this.getTheme(), {
+      saveDefault: this.onSaveDefault !== null,
+    })
   }
 }

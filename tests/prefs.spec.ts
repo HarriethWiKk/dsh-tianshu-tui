@@ -23,12 +23,14 @@ describe('parsePrefs 容错', () => {
   it('合法形状全字段解析', () => {
     const p = parsePrefs(JSON.stringify({
       theme: 'custom:mine',
+      preset: 'minimal',
       compactMode: true,
       panels: { subagents: true, workflow: false },
       glance: { hideSegments: ['cost', 'cache'] },
     }))
     expect(p).toEqual({
       theme: 'custom:mine',
+      preset: 'minimal',
       compactMode: true,
       panels: { subagents: true, workflow: false },
       glance: { hideSegments: ['cost', 'cache'] },
@@ -40,11 +42,13 @@ describe('parsePrefs 容错', () => {
     expect(parsePrefs('"string"')).toEqual({})
     expect(parsePrefs('null')).toEqual({})
     expect(parsePrefs(JSON.stringify({ theme: '' }))).toEqual({})
+    expect(parsePrefs(JSON.stringify({ preset: '' }))).toEqual({})
   })
 
   it('形状不对与未知 key 逐项丢弃（前向兼容）', () => {
     const p = parsePrefs(JSON.stringify({
       theme: 42,                       // 非字符串 → 丢
+      preset: '',                      // 空串 → 丢
       compactMode: 'yes',              // 非布尔 → 丢
       panels: { config: true, subagents: 'x' }, // config 非白名单 / subagents 非布尔 → 丢
       glance: { hideSegments: ['model', 'nope', 'cost'] }, // model 非可隐藏 / nope 未知 → 只留 cost

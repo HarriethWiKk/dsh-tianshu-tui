@@ -42,10 +42,11 @@ dsh-tianshu-tui 的配置分三层:**装配时配置**(TuiRunnerConfig,插件注
 
 ### 本地偏好与历史(`~/.dsh-tui/`)
 
-TUI 的个性化选择自动持久化,重启保留:
+TUI 的启动默认存在 `prefs.json`;带参 `/theme` `/density` `/preset` 默认只改本会话,
+选择器按 S 或命令末尾 `default` 才写入:
 
-- **`prefs.json`** — `/theme` 选择(含 `custom:` 与 `auto` 档)、`/density` 紧凑
-  渲染、`/subagents` `/workflow` 常驻监控面板显隐、`/glance` 隐藏的 metrics 段。
+- **`prefs.json`** — 启动默认主题(含 `custom:` 与 `auto`)、密度、agent 预设,
+  以及 `/subagents` `/workflow` 常驻面板显隐、`/glance` 隐藏的 metrics 段。
   损坏/缺失静默回到缺省;删文件即恢复出厂。
 - **`input-history.json`** — 输入框历史(上限 1000 条,Ctrl+P/N 翻阅)。
   内容为用户输入原文——介意隐私时删除该文件即可清空。
@@ -63,16 +64,17 @@ TUI 的个性化选择自动持久化,重启保留:
 
 | 命令 | 作用 |
 |---|---|
-| `/theme [name]` | 切换主题(无参打开选择器;`custom:<name>` 自定义) |
-| `/density` | 切换紧凑工具卡渲染 |
-| `/model [target] [effort]` | 查看/切换模型(无参打开选择器;`spark-flash`/`spark-pro` 别名) |
-| `/effort off\|high\|max\|auto` | 设置推理等级(当前会话热切) |
-| `/preset [name]` | 查看/切换 agent 预设模式(标准 / PTC / 极简 / 创造) |
+| `/theme [name] [default]` | 切换主题(Enter/带参=本会话; S 或末尾 `default`=启动默认) |
+| `/density [default]` | 切换紧凑渲染(开关=本会话; `/density default`=启动默认) |
+| `/model [target] [effort] [default]` | 查看/切换模型(Enter/带参=本会话; S 或 `default`=启动默认) |
+| `/effort off\|high\|max\|auto\|default` | 推理等级(带参=本会话; S 或 `default`=启动默认) |
+| `/preset [name] [default]` | 切换 agent 预设(带参=本会话; 末尾 `default`=新会话启动默认) |
 | `/yolo [on\|off]` | 全放行模式(等价 Shift+Tab 进 always-approve) |
 | `Shift+Tab` | 模式循环:normal → plan → always-approve |
 
 ### 配置持久化
 
-- 模型/effort 选择经 `agentDefaultModel` 服务持久化(会话默认);
-  always-approve 是会话级本地态,切换/退出时复位。
+- 模型/effort 的启动默认经 `agentDefaultModel.saveSelection` 写入(选择器 S 或
+  命令末尾 `default`);带参切换只热切当前会话。always-approve 是会话级本地态,
+  切换/退出时复位。
 - 会话恢复时,输入框历史、会话列表来自宿主持久化(`sessionPersistence`)。

@@ -51,7 +51,7 @@ When there is more than one session, a **session tab bar** appears above the inp
 | `a` | Approval card: allow for this session (always-approve + settle the current request) |
 | `f` → `Enter` | Plan-review feedback mode (Keep planning + custom feedback) |
 | Digits | Structured-question panel options |
-| In pickers: `↑`/`↓` (j/k) select, `Enter` confirm, `Esc`/`q` close | No-arg `/model` `/theme` `/session` pickers |
+| In pickers: `↑`/`↓` (j/k) select, `Enter` apply (this session), `S` save default, `Esc`/`q` close | `/model` `/theme` `/effort` pickers (session/`/key` pickers have no S) |
 | Session list: prints rows directly (legacy style, no interactive panel) | `/session list` |
 | Session picker: `↑`/`↓` scroll through all sessions | No-arg `/session` picker (title + relative-age summary, not paginated) |
 
@@ -72,11 +72,11 @@ When there is more than one session, a **session tab bar** appears above the inp
 
 | Command | Effect |
 |---|---|
-| `/model [target] [effort]` | View/switch model (no args opens the picker; aliases `spark-flash`/`spark-pro`) |
-| `/effort off\|high\|max\|auto` | Set reasoning effort (hot) |
-| `/preset [name]` | View/switch agent preset mode |
+| `/model [target] [effort] [default]` | View/switch model (no args opens the picker; Enter=this session, S or trailing `default`=startup default; aliases `spark-flash`/`spark-pro`) |
+| `/effort off\|high\|max\|auto\|default` | Set reasoning effort (no args opens the picker; Enter/args=this session, S or `default`=startup default; `auto` follows the model default) |
+| `/preset [name] [default]` | View/switch agent preset (args=this session; trailing `default`=new-session startup default; blank sessions only) |
 | `/yolo [on\|off]` | Always-approve mode |
-| `/density` | Toggle compact tool-card rendering |
+| `/density [default]` | Toggle compact tool-card rendering (toggle=this session; `/density default`=startup default) |
 
 ### Panels
 
@@ -107,7 +107,7 @@ When there is more than one session, a **session tab bar** appears above the inp
 
 | Command | Effect |
 |---|---|
-| `/theme [name]` | Switch theme (no args opens the picker) |
+| `/theme [name] [default]` | Switch theme (no args opens the picker; Enter/args=this session, S or trailing `default`=startup default) |
 | `/steer <text>` | Steer mid-turn |
 | `/restart` | Restart the current dsh process (same command re-launched; applies plugin updates) |
 | `/exit` | Exit the TUI |
@@ -124,7 +124,7 @@ When there is more than one session, a **session tab bar** appears above the inp
 
 - **Approval card**: pending approvals with inline diff preview (y/N/a/esc); red/green rendering when the tool is diffable, blind-approval hint otherwise; non-current-session requests are delegated to the next listener.
 - **Question panel**: digit selection, Esc to cancel, overlap protection; plan-review feedback mode.
-- **Pickers (issue #31)**: no-arg `/model` `/theme` `/session` open a picker with the current value marked ●, arrow-key selection, Enter to confirm. **The theme picker previews live**: ↑/↓ switches the theme immediately, Enter settles, Esc restores the theme from before opening.
+- **Pickers (issue #31)**: no-arg `/model` `/theme` `/effort` `/session` open a picker with the current value marked ● and the startup default ★. `/model` `/theme` `/effort`: Enter applies this session only; S applies and writes the startup default. Session and `/key` pickers have no S. **The theme picker previews live**: ↑/↓ switches the theme immediately, Enter settles without writing prefs, S writes the startup default, Esc restores the theme from before opening.
 - **Command palette (Ctrl+P)**: fuzzy + subsequence command search, Enter fills `/cmd `.
 - **Keymap panel (Ctrl+.)**: the full shortcut list, always one key away.
 - **History search (Ctrl+F)**: searches the scrollback message snapshot, `n`/`N` to jump.

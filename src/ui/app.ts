@@ -61,7 +61,8 @@ import {
   FALLBACK_MAX_ROWS,
   renderHalfBlockPreview,
 } from '../engine/image-preview.js'
-import { parseRouteKey } from '../engine/route-key.js'
+import { applyPrefPreset, echoSavedDefault, echoSessionOnly, effortSelection, splitDefaultFlag, type PrefPresetFacet } from '../startup-defaults.js'
+import { openEffortPicker, openModelPicker, openThemePicker, type ModelPickerLlm } from './startup-pickers.js'
 import {
   encodeTermImage,
   parseImageDataUrl,
@@ -80,7 +81,7 @@ import { createForkedAgent } from '../adapter/fork-agent.js'
 import { sessionTitleFor } from '../adapter/session-title.js'
 import { updateNoticeText, autoRestartNoticeText, updateNoticePackage, readOwnVersion, checkForUpdate as runUpdateCheck, defaultUpdateCachePath, type UpdateCheckResult } from '../self-update.js'
 import { supportsOsc52 } from '../term-caps.js'
-import { getTheme, getActiveThemeName, listCustomThemes, setTheme, THEME_NAMES, type RivetTheme } from '../theme.js'
+import { getTheme, getActiveThemeName, setTheme, type RivetTheme } from '../theme.js'
 import { displayWidth, ambiguousWideEnabled } from '../width.js'
 import { detectTerminalBackground, autoThemeFor } from '../theme-detect.js'
 import { formatUserMessage } from '../format/user-message.js'
@@ -811,7 +812,7 @@ export class TuiApp {
       onThemeChanged: () => { this.rerenderHistory() },
       newSession: () => this.newSession(),
       forkSession: opts => this.forkSession(opts),
-      switchLiveModel: selection => this.switchLiveModel(selection),
+      switchLiveModel: selection => this.switchLiveModel(selection as ModelSelection),
       // /preset：当前会话 agent（recompose/composedPreset 的 agentCtx 来源）；
       // activeSessionId 为 null（未 attach）时返回 null，命令层拒绝切换。
       currentAgent: (): Agent | null => {
@@ -887,10 +888,12 @@ export class TuiApp {
       // #31：交互式选择器（/model /theme /session 无参打开）。
       openModelPicker: () => { void this.openModelPicker() },
       openThemePicker: () => { this.openThemePicker() },
-      // P1：主题持久化写透 + auto/export 子命令（app 私有实现，registry 只路由）。
+      openEffortPicker: () => { this.openEffortPicker() },
       onThemeApplied: (name) => { this.applyThemeAndPersist(name) },
-      applyThemeAuto: () => { void this.applyThemeAuto() },
+      applyThemeAuto: (persist) => { void this.applyThemeAuto(persist === true) },
       exportTheme: (name) => this.exportTheme(name),
+      persistPresetDefault: (id) => { this.prefs.preset = id; this.persistPrefs() },
+      currentDefaultPreset: () => this.prefs.preset,
       openSessionPicker: () => { void this.openSessionPicker() },
       // /key、/login：API Key 设置对话框（key-flow 装配层；onSaved 已接刷新就绪标志）。
       openKeyDialog: () => { void this.keyFlow.openKeyDialog() },
@@ -995,13 +998,19 @@ export class TuiApp {
     // /compact 前缀歧义——resolveSlashCommand 最小唯一前缀会拒掉歧义输入）。
     this.slash.register({
       name: 'density',
-      description: '切换紧凑渲染模式（工具卡仅标题行）',
-      run: () => {
+      description: '切换紧凑渲染（带参 default=设为启动默认）',
+      argsHint: '[default]',
+      run: ({ text, echo }) => {
+        const { persist } = splitDefaultFlag(text)
+        if (persist) {
+          this.prefs.compactMode = this.compactMode
+          this.persistPrefs()
+          echo(echoSavedDefault('density', this.compactMode ? '紧凑' : '宽松'))
+          return
+        }
         this.compactMode = !this.compactMode
-        // P1：写透偏好（下次启动恢复）
-        this.prefs.compactMode = this.compactMode
-        this.persistPrefs()
         this.renderBatcher.schedule()
+        echo(echoSessionOnly('density', this.compactMode ? '紧凑' : '宽松'))
       },
     })
     this.slash.register({
@@ -1847,6 +1856,11 @@ export class TuiApp {
     this.ownedHandle = handle
     this.controls = controlsFromHandle(handle)
     this.activeSessionId = sessionId
+    const preset = await applyPrefPreset({
+      presetId: this.prefs.preset, isBlank: true, agent: handle.agent,
+      facet: this.ctx.reflect.get('agentPresets', false) as PrefPresetFacet | undefined,
+    })
+    if (preset.error) this.echoWarn(`⚠ 启动默认预设未生效: ${preset.error}`)
     this.mountSession(sessionId)
     return sessionId
   }
@@ -1963,54 +1977,25 @@ export class TuiApp {
     return true
   }
 
-  /**
-   * #31：打开模型选择器。数据源 = llm 服务的 provider/model 目录（动态现取）；
-   * llm 服务缺失时 fails loud（不静默）。确认后走 /model 同路径
-   * （saveSelection + switchLiveModel 热切）。
-   */
+  /** #31：打开模型选择器（Enter 本会话 / S 写默认）。 */
   private async openModelPicker(): Promise<void> {
-    const overlay = this.overlay
-    const picker = this.picker
-    if (overlay === null || picker === null) return
-    const llm = this.ctx.reflect.get('llm', false) as
-      | { listProviders(): Array<{ id: string; name: string }>; listModels(provider: string): Promise<Array<{ id: string; name: string }>> }
-      | undefined
-    if (llm === undefined) {
-      this.echoWarn('⚠ llm 服务不可用（未装配 llm 插件），模型选择器不可用')
-      return
-    }
-    const current = (this.ctx as unknown as { agentDefaultModel?: ModelFacet }).agentDefaultModel
+    const saved = (this.ctx as unknown as { agentDefaultModel?: ModelFacet }).agentDefaultModel
       ?.currentSelection()
-    const currentKey = current === undefined ? null : `${current.provider}/${current.model}`
-    const items: PickerItem[] = []
-    let selectedIndex = 0
-    for (const provider of llm.listProviders()) {
-      // listModels 为 adapter 通告目录（advisory）；失败/空目录跳过该 provider。
-      const models = await llm.listModels(provider.id).catch(() => [])
-      for (const model of models) {
-        const key = `${provider.id}/${model.id}`
-        const item: PickerItem = {
-          label: key === currentKey ? `${key}（当前）` : key,
-          value: key,
-          current: key === currentKey,
-        }
-        if (key === currentKey) selectedIndex = items.length
-        items.push(item)
-      }
-    }
-    if (items.length === 0) {
-      this.echoWarn('⚠ 无可用模型（llm 目录为空），模型选择器不可用')
-      return
-    }
-    picker.open('选择模型', items, (item) => {
-      const selection = parseRouteKey(item.value)
-      if (selection === undefined) return
-      void (this.ctx as unknown as { agentDefaultModel?: ModelFacet }).agentDefaultModel
-        ?.saveSelection(selection)
-      const hot = this.switchLiveModel(selection)
-      this.commitToScrollback({ text: `模型已切换: ${selection.provider}/${selection.model}${hot ? '（当前会话与默认均生效）' : '（默认生效）'}`, trailingNewline: true })
-    }, selectedIndex)
-    overlay.activate('picker')
+    const live = this.modelRef?.current ?? saved
+    await openModelPicker({
+      overlay: this.overlay,
+      picker: this.picker,
+      echoWarn: (text) => { this.echoWarn(text) },
+      commit: (text) => { this.commitToScrollback({ text, trailingNewline: true }) },
+      ...(live === undefined ? {} : { current: live }),
+      savedKey: saved === undefined ? null : `${saved.provider}/${saved.model}`,
+      llm: this.ctx.reflect.get('llm', false) as ModelPickerLlm | undefined,
+      applySession: (selection) => this.switchLiveModel(selection),
+      applyDefault: (selection) => {
+        void (this.ctx as unknown as { agentDefaultModel?: ModelFacet }).agentDefaultModel
+          ?.saveSelection(selection)
+      },
+    })
   }
 
   /** P1：偏好原子落盘（禁用态 no-op；prefs 已就地变更）。 */
@@ -2034,13 +2019,18 @@ export class TuiApp {
     return true
   }
 
-  /** P1：/theme auto——切回自动检测并持久化（探测异步，落定后回显）。 */
-  private async applyThemeAuto(): Promise<void> {
+  /** /theme auto：探测明暗；persist 时才写 prefs。 */
+  private async applyThemeAuto(persist = false): Promise<void> {
     const background = await detectTerminalBackground()
     setTheme(autoThemeFor(background))
-    this.prefs.theme = 'auto'
-    this.persistPrefs()
-    this.commitToScrollback({ text: '主题已切换: auto（随终端明暗）', trailingNewline: true })
+    if (persist) {
+      this.prefs.theme = 'auto'
+      this.persistPrefs()
+    }
+    this.commitToScrollback({
+      text: persist ? echoSavedDefault('theme', 'auto') : echoSessionOnly('theme', 'auto'),
+      trailingNewline: true,
+    })
   }
 
   /** P1：/theme export——委托 theme-custom（模板构建 + 就地注册属于主题域）。 */
@@ -2048,36 +2038,40 @@ export class TuiApp {
     return exportCurrentTheme(nameArg)
   }
 
-  /** #31/#33：打开主题选择器（THEME_NAMES + custom: + 当前主题 ● 高亮）。
-   *  实时预览：↑↓ 移动即 setTheme 生效；Enter 落定；Esc/q 还原打开前主题。 */
+  /** #31/#33：主题选择器（Enter 本会话 / S 写默认；↑↓ 预览，Esc 还原）。 */
   private openThemePicker(): void {
-    const overlay = this.overlay
-    const picker = this.picker
-    if (overlay === null || picker === null) return
-    const prev = getActiveThemeName()
-    const allNames = [...THEME_NAMES, ...listCustomThemes().map(n => `custom:${n}`)]
-    const items: PickerItem[] = allNames.map(name => ({
-      label: name === prev ? `${name}（当前）` : name,
-      value: name,
-      current: name === prev,
-    }))
-    const selectedIndex = Math.max(0, allNames.indexOf(prev))
-    picker.open('选择主题', items, (item) => {
-      // 确认：主题已在预览中生效；持久化（prefs）落盘。overlay 退出后按新
-      // 主题重放历史——rerenderHistory 会 reset 滚动区（清掉暂存回显），
-      // 故「主题已切换」回显放在重放之后。
-      this.applyThemeAndPersist(item.value)
-      this.overlay?.deactivate()
-      this.rerenderHistory()
-      this.commitToScrollback({ text: `主题已切换: ${item.value}`, trailingNewline: true })
-      this.flushLiveRender()
-    }, selectedIndex, {
-      // ↑↓ 移动即切换（实时预览，overlay 渲染随主题色即时变化）。
-      onPreview: (item) => { setTheme(item.value) },
-      // Esc/q 关闭还原打开前主题。
-      onCancel: () => { setTheme(prev) },
+    openThemePicker({
+      overlay: this.overlay,
+      picker: this.picker,
+      savedTheme: this.prefs.theme,
+      applyDefault: (name) => { this.applyThemeAndPersist(name) },
+      rerenderHistory: () => { this.rerenderHistory() },
+      flushLiveRender: () => { this.flushLiveRender() },
+      commit: (text) => { this.commitToScrollback({ text, trailingNewline: true }) },
     })
-    overlay.activate('picker')
+  }
+
+  /** /effort 无参：推理等级选择器。 */
+  private openEffortPicker(): void {
+    const facet = (this.ctx as unknown as { agentDefaultModel?: ModelFacet }).agentDefaultModel
+    const saved = facet?.currentSelection()
+    const live = this.modelRef?.current ?? saved
+    openEffortPicker({
+      overlay: this.overlay, picker: this.picker,
+      currentEffort: live?.reasoningEffort ?? 'auto',
+      savedEffort: saved?.reasoningEffort ?? 'auto',
+      apply: (level, persist) => {
+        const base = persist ? saved : (live ?? saved)
+        if (base === undefined) return
+        const selection = effortSelection(base, level)
+        if (persist) void facet?.saveSelection(selection)
+        const hot = this.switchLiveModel(selection as ModelSelection)
+        const text = persist
+          ? (hot ? echoSavedDefault('effort', level) : `${echoSavedDefault('effort', level)}（当前会话不可热切）`)
+          : (hot ? echoSessionOnly('effort', level) : `推理等级已设为 ${level}（当前会话不可热切）。选择器按 S 或 /effort default 可设为启动默认`)
+        this.commitToScrollback({ text, trailingNewline: true })
+      },
+    })
   }
 
   /** #31：打开会话选择器（listSessions 同源；当前会话 ● 高亮；摘要行，展示全部会话）。 */
@@ -3148,6 +3142,9 @@ export class TuiApp {
         this.overlay.rerender()
       } else if (key.name === 'return') {
         picker.commit()
+        this.overlay.deactivate()
+      } else if ((key.char === 's' || key.char === 'S') && picker.canSaveDefault()) {
+        picker.saveDefault()
         this.overlay.deactivate()
       }
       return

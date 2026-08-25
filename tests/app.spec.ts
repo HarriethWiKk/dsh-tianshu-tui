@@ -5427,10 +5427,9 @@ describe('TuiApp /config 服务组合分支', () => {
 })
 
 describe('TuiApp /model 热切切换 saveSelection', () => {
-  it('/model provider/model 切换 → saveSelection 调用 + 热切当前会话', async () => {
+  it('/model provider/model 切换 → 仅热切，不 saveSelection', async () => {
     const ctx = makeCtx()
     const saveSelection = vi.fn(async () => { })
-    // /model 命令经 ctx.agentDefaultModel 属性访问（非 reflect.get）
     Object.assign(ctx.agentDefaultModel, {
       currentSelection: vi.fn(() => ({ provider: 'deepseek', model: 'v4-flash' })),
       saveSelection,
@@ -5443,10 +5442,28 @@ describe('TuiApp /model 热切切换 saveSelection', () => {
     await app.attach()
 
     app.handleSubmit('/model deepseek/v4-turbo')
-    // runSlash 是 async 且 handleSubmit 不 await——等一拍让执行落定。
     await new Promise(resolve => setTimeout(resolve, 30))
     await app.dispose()
-    // saveSelection 路径被触达（/model 命令 run 内调用）
+    expect(saveSelection).not.toHaveBeenCalled()
+  })
+
+  it('/model provider/model default → saveSelection + 热切', async () => {
+    const ctx = makeCtx()
+    const saveSelection = vi.fn(async () => { })
+    Object.assign(ctx.agentDefaultModel, {
+      currentSelection: vi.fn(() => ({ provider: 'deepseek', model: 'v4-flash' })),
+      saveSelection,
+    })
+    const agent = makeAgent('mdl-1d')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    await app.attach()
+
+    app.handleSubmit('/model deepseek/v4-turbo default')
+    await new Promise(resolve => setTimeout(resolve, 30))
+    await app.dispose()
     expect(saveSelection).toHaveBeenCalledWith({ provider: 'deepseek', model: 'v4-turbo' })
   })
 })
@@ -5663,7 +5680,10 @@ describe('TuiApp 监听器生命周期（?? 短路 + 泄漏回归）', () => {
 
 describe('Issue #31 交互式选择器（/model /theme /session 无参打开）', () => {
   /** attach 模式 boot（键盘链路在 attach 注册；2466 同款）。 */
-  async function bootPicker() {
+  async function bootPicker(opts?: {
+    currentSelection?: () => { provider: string; model: string }
+    saveSelection?: ReturnType<typeof vi.fn>
+  }) {
     const ctx = makeCtx()
     const handlers = new Map<string, Array<(...args: unknown[]) => void>>()
     ctx.on.mockImplementation((name: string, h: (...args: unknown[]) => void) => {
@@ -5677,6 +5697,12 @@ describe('Issue #31 交互式选择器（/model /theme /session 无参打开）'
       ctx.sessions.get.mockReturnValue(agent.session)
       return makeHandle(agent)
     })
+    if (opts?.currentSelection || opts?.saveSelection) {
+      Object.assign(ctx.agentDefaultModel, {
+        currentSelection: opts.currentSelection ?? (() => ({ provider: 'mock', model: 'mock' })),
+        saveSelection: opts.saveSelection ?? vi.fn(async () => {}),
+      })
+    }
     const stdin = makeStdin()
     const stdout = makeStdout()
     const app = new TuiApp({ ctx, stdout, stdin })
@@ -5728,11 +5754,10 @@ describe('Issue #31 交互式选择器（/model /theme /session 无参打开）'
     await app.dispose()
   })
 
-  it('/model 无参 → 模型选择器（llm 目录 + 当前 ● 高亮）；Enter 确认持久化 + 热切', async () => {
-    const { ctx, stdin, app, written, type } = await bootPicker()
+  it('/model 无参 → 模型选择器（llm 目录 + 当前 ● 高亮）；Enter 仅热切不写默认', async () => {
     const currentSelection = vi.fn(() => ({ provider: 'deepseek-official', model: 'deepseek-v4-pro' }))
     const saveSelection = vi.fn(async () => {})
-    ctx.agentDefaultModel = { currentSelection, saveSelection } as never
+    const { ctx, stdin, app, written, type } = await bootPicker({ currentSelection, saveSelection })
     ctx.reflect.get.mockImplementation((name: string) => {
       if (name === 'llm') {
         return {
@@ -5750,20 +5775,44 @@ describe('Issue #31 交互式选择器（/model /theme /session 无参打开）'
     await type('/model')
     expect(written()).toContain('选择模型')
     expect(written()).toContain('deepseek-official/deepseek-v4-pro（当前）')
-    // 当前项已选中；Enter 确认 → saveSelection + 热切（不重新选择）
+    // 当前项已选中；Enter 确认 → 只热切，不 saveSelection
     stdin.emit('data', '\r')
+    await new Promise(resolve => setTimeout(resolve, 30))
+    expect(saveSelection).not.toHaveBeenCalled()
+    await app.dispose()
+  })
+
+  it('/model 选择器按 S 才 saveSelection（设为启动默认）', async () => {
+    const currentSelection = vi.fn(() => ({ provider: 'deepseek-official', model: 'deepseek-v4-pro' }))
+    const saveSelection = vi.fn(async () => {})
+    const { ctx, stdin, app, written, type } = await bootPicker({ currentSelection, saveSelection })
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'llm') {
+        return {
+          listProviders: () => [{ id: 'deepseek-official', name: 'DeepSeek' }],
+          listModels: async () => [
+            { id: 'deepseek-v4-flash', name: 'Flash' },
+            { id: 'deepseek-v4-pro', name: 'Pro' },
+          ],
+          resolveModelInfo: async () => ({ inputModalities: undefined }),
+        }
+      }
+      return undefined
+    })
+    await type('/model')
+    expect(written()).toContain('S 设为默认')
+    stdin.emit('data', 's')
     await new Promise(resolve => setTimeout(resolve, 30))
     expect(saveSelection).toHaveBeenCalledWith({ provider: 'deepseek-official', model: 'deepseek-v4-pro' })
     await app.dispose()
   })
 
   it('/model 选择器：含斜杠的模型 id 确认时不截断（openrouter 风格）', async () => {
-    const { ctx, stdin, app, written, type } = await bootPicker()
     const saveSelection = vi.fn(async () => {})
-    ctx.agentDefaultModel = {
-      currentSelection: vi.fn(() => ({ provider: 'openrouter', model: 'stealth/ox-alpha' })),
+    const { ctx, stdin, app, written, type } = await bootPicker({
+      currentSelection: () => ({ provider: 'openrouter', model: 'stealth/ox-alpha' }),
       saveSelection,
-    } as never
+    })
     ctx.reflect.get.mockImplementation((name: string) => {
       if (name === 'llm') {
         return {
@@ -5776,10 +5825,10 @@ describe('Issue #31 交互式选择器（/model /theme /session 无参打开）'
     })
     await type('/model')
     expect(written()).toContain('openrouter/stealth/ox-alpha（当前）')
-    // 当前项已选中；Enter 确认 → 整个 id 原样落盘，不再只剩首段
+    // 当前项已选中；Enter 确认 → 整个 id 原样热切，不写默认
     stdin.emit('data', '\r')
     await new Promise(resolve => setTimeout(resolve, 30))
-    expect(saveSelection).toHaveBeenCalledWith({ provider: 'openrouter', model: 'stealth/ox-alpha' })
+    expect(saveSelection).not.toHaveBeenCalled()
     await app.dispose()
   })
 
@@ -6410,16 +6459,15 @@ describe('slash 菜单阶段 2 接线（ghost 预览 / 参数模式 / MRU）', (
   it('参数模式：/cmd + 尾空格 → ghost 显示参数占位，Enter 提交完整行', async () => {
     const { stdin, stdout, app } = boot()
     await app.attach()
-    // /theme 无参现会打开选择器（#31）——用带 argsHint 且无参安全的 /effort
-    for (const ch of ['/', 'e', 'f', 'f', 'o', 'r', 't', ' ']) stdin.emit('data', ch)
+    // /theme /effort 无参会打开选择器——用带 argsHint 且无参安全的 /glance
+    for (const ch of ['/', 'g', 'l', 'a', 'n', 'c', 'e', ' ']) stdin.emit('data', ch)
     await writtenOf(stdout)
-    // ghost 显示 argsHint 参数占位（/effort 的 argsHint 为 [off|high|max|auto]）
     const before = await writtenOf(stdout)
-    expect(before).toContain('\x1B[2m[off|high|max|auto]\x1B[22m')
+    expect(before).toContain('\x1B[2m[segment]\x1B[22m')
     stdout.write.mockClear()
     stdin.emit('data', '\r')
     const after = await writtenOf(stdout)
-    // 提交后输入行清空（命令执行走 /effort 无参回显）
+    // 提交后输入行清空（命令执行走 /glance 无参回显）
     expect(after.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '')).toContain('❯ █')
     expect(after).not.toContain('询问任何事')
     await app.dispose()

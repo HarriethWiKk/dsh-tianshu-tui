@@ -42,15 +42,15 @@ All fields are optional and injected by whoever assembles the plugin:
 
 | Command | Effect |
 |---|---|
-| `/theme [name]` | Switch theme (no args opens the picker; `custom:<name>` for custom) |
-| `/density` | Toggle compact tool-card rendering |
-| `/model [target] [effort]` | View/switch model (no args opens the picker; `spark-flash`/`spark-pro` aliases) |
-| `/effort off\|high\|max\|auto` | Set reasoning effort (hot-switches the current session) |
-| `/preset [name]` | View/switch agent preset (standard / PTC / minimal / creative) |
+| `/theme [name] [default]` | Switch theme (Enter/args=this session; S or trailing `default`=startup default) |
+| `/density [default]` | Toggle compact rendering (toggle=this session; `/density default`=startup default) |
+| `/model [target] [effort] [default]` | View/switch model (Enter/args=this session; S or `default`=startup default) |
+| `/effort off\|high\|max\|auto\|default` | Reasoning effort (args=this session; S or `default`=startup default) |
+| `/preset [name] [default]` | Switch agent preset (args=this session; trailing `default`=new-session startup default) |
 | `/yolo [on\|off]` | Always-approve mode (equivalent to Shift+Tab into always-approve) |
 | `Shift+Tab` | Mode cycle: normal → plan → always-approve |
 
 ### Persistence
 
-- Model/effort selections persist through the `agentDefaultModel` service (session default); always-approve is a session-local state that resets on switch/exit.
+- Model/effort startup defaults persist through `agentDefaultModel.saveSelection` (picker S or trailing `default`); typed switches only hot-apply the current session. always-approve is a session-local state that resets on switch/exit.
 - On session restore, input history and the session list come from the host persistence (`sessionPersistence`).

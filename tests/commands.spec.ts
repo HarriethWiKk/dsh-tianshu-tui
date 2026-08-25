@@ -79,9 +79,12 @@ function commandByName(name: string) {
     setYoloMode: vi.fn(),
     openModelPicker: vi.fn(),
     openThemePicker: vi.fn(),
+    openEffortPicker: vi.fn(),
     onThemeApplied: vi.fn(),
     applyThemeAuto: vi.fn(),
     exportTheme: vi.fn((): string => 'exported'),
+    persistPresetDefault: vi.fn(),
+    currentDefaultPreset: vi.fn(() => undefined),
     openSessionPicker: vi.fn(),
     openKeyDialog: vi.fn(),
     checkForUpdate: vi.fn(),
@@ -217,14 +220,31 @@ describe('SlashCommandRegistry — 注册/列举/解析', () => {
 })
 
 describe('内置命令 — /theme', () => {
-  it('有效主题名切换并回显（持久化走 P1 prefs onThemeApplied；#40 追加历史重放）', async () => {
+  it('有效主题名仅本会话（不写 prefs）', async () => {
     const { cmd, deps } = commandByName('theme')
     const { args, echo } = makeArgs({ text: 'paper' })
     await cmd.run(args)
     expect(getActiveThemeName()).toBe('paper')
-    expect(deps.onThemeApplied).toHaveBeenCalledWith('paper')
+    expect(deps.onThemeApplied).not.toHaveBeenCalled()
     expect(deps.onThemeChanged).toHaveBeenCalledTimes(1)
-    expect(echo).toHaveBeenCalledWith('主题已切换: paper')
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('仅本会话'))
+  })
+
+  it('/theme paper default 才写启动默认', async () => {
+    const { cmd, deps } = commandByName('theme')
+    const { args, echo } = makeArgs({ text: 'paper default' })
+    await cmd.run(args)
+    expect(getActiveThemeName()).toBe('paper')
+    expect(deps.onThemeApplied).toHaveBeenCalledWith('paper')
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('已设为默认主题：paper'))
+  })
+
+  it('/theme default 保存当前主题为启动默认', async () => {
+    const { cmd, deps } = commandByName('theme')
+    const { args, echo } = makeArgs({ text: 'default' })
+    await cmd.run(args)
+    expect(deps.onThemeApplied).toHaveBeenCalledWith('graphite')
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('已设为默认主题：graphite'))
   })
 
   it('未知主题回显错误且不改当前主题', async () => {
@@ -485,8 +505,8 @@ describe('内置命令 — /model', () => {
     expect(echo).not.toHaveBeenCalled()
   })
 
-  it('provider/model 切换并持久化', async () => {
-    const { cmd } = commandByName('model')
+  it('provider/model 仅本会话热切，不写默认', async () => {
+    const { cmd, deps } = commandByName('model')
     const saveSelection = vi.fn(async () => {})
     const ctx = makeCtx({
       agentDefaultModel: {
@@ -496,8 +516,40 @@ describe('内置命令 — /model', () => {
     })
     const { args, echo } = makeArgs({ text: 'openai/gpt-5', ctx })
     await cmd.run(args)
+    expect(saveSelection).not.toHaveBeenCalled()
+    expect(deps.switchLiveModel).toHaveBeenCalledWith({ provider: 'openai', model: 'gpt-5' })
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('仅本会话'))
+  })
+
+  it('/model x/y default 才 saveSelection', async () => {
+    const { cmd, deps } = commandByName('model')
+    const saveSelection = vi.fn(async () => {})
+    const ctx = makeCtx({
+      agentDefaultModel: {
+        currentSelection: vi.fn(() => ({ provider: 'deepseek', model: 'v4-flash' })),
+        saveSelection,
+      },
+    })
+    const { args, echo } = makeArgs({ text: 'openai/gpt-5 default', ctx })
+    await cmd.run(args)
     expect(saveSelection).toHaveBeenCalledWith({ provider: 'openai', model: 'gpt-5' })
-    expect(echo).toHaveBeenCalledWith(expect.stringContaining('openai/gpt-5'))
+    expect(deps.switchLiveModel).toHaveBeenCalledWith({ provider: 'openai', model: 'gpt-5' })
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('已设为默认模型'))
+  })
+
+  it('/model default 保存当前选择为启动默认', async () => {
+    const { cmd } = commandByName('model')
+    const saveSelection = vi.fn(async () => {})
+    const ctx = makeCtx({
+      agentDefaultModel: {
+        currentSelection: vi.fn(() => ({ provider: 'deepseek', model: 'v4-flash' })),
+        saveSelection,
+      },
+    })
+    const { args, echo } = makeArgs({ text: 'default', ctx })
+    await cmd.run(args)
+    expect(saveSelection).toHaveBeenCalledWith({ provider: 'deepseek', model: 'v4-flash' })
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('已设为默认模型：deepseek/v4-flash'))
   })
 
   it('含斜杠的模型 id（openrouter 风格）：按首个斜杠分割不截断', async () => {
@@ -511,7 +563,7 @@ describe('内置命令 — /model', () => {
     })
     const { args, echo } = makeArgs({ text: 'openrouter/stealth/ox-alpha', ctx })
     await cmd.run(args)
-    expect(saveSelection).toHaveBeenCalledWith({ provider: 'openrouter', model: 'stealth/ox-alpha' })
+    expect(saveSelection).not.toHaveBeenCalled()
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('openrouter/stealth/ox-alpha'))
   })
 
@@ -526,7 +578,7 @@ describe('内置命令 — /model', () => {
     })
     const { args, echo } = makeArgs({ text: 'v4-max', ctx })
     await cmd.run(args)
-    expect(saveSelection).toHaveBeenCalledWith({ provider: 'deepseek', model: 'v4-max' })
+    expect(saveSelection).not.toHaveBeenCalled()
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('deepseek/v4-max'))
   })
 
@@ -541,7 +593,7 @@ describe('内置命令 — /model', () => {
     })
     const { args, echo } = makeArgs({ text: 'spark-flash', ctx })
     await cmd.run(args)
-    expect(saveSelection).toHaveBeenCalledWith({ provider: 'deepseek-official', model: 'deepseek-v4-flash' })
+    expect(saveSelection).not.toHaveBeenCalled()
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('deepseek-official/deepseek-v4-flash'))
   })
 
@@ -556,12 +608,12 @@ describe('内置命令 — /model', () => {
     })
     const { args, echo } = makeArgs({ text: 'spark-pro', ctx })
     await cmd.run(args)
-    expect(saveSelection).toHaveBeenCalledWith({ provider: 'deepseek-official', model: 'deepseek-v4-pro' })
+    expect(saveSelection).not.toHaveBeenCalled()
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('deepseek-official/deepseek-v4-pro'))
   })
 
-  it('effort 参数：/model p/m high → saveSelection 带 reasoningEffort', async () => {
-    const { cmd } = commandByName('model')
+  it('effort 参数：/model p/m high → 热切带 reasoningEffort，不写默认', async () => {
+    const { cmd, deps } = commandByName('model')
     const saveSelection = vi.fn(async () => {})
     const ctx = makeCtx({
       agentDefaultModel: {
@@ -571,8 +623,23 @@ describe('内置命令 — /model', () => {
     })
     const { args, echo } = makeArgs({ text: 'deepseek/v4-flash high', ctx })
     await cmd.run(args)
-    expect(saveSelection).toHaveBeenCalledWith({ provider: 'deepseek', model: 'v4-flash', reasoningEffort: 'high' })
+    expect(saveSelection).not.toHaveBeenCalled()
+    expect(deps.switchLiveModel).toHaveBeenCalledWith({ provider: 'deepseek', model: 'v4-flash', reasoningEffort: 'high' })
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('effort: high'))
+  })
+
+  it('/model p/m high default → saveSelection 带 reasoningEffort', async () => {
+    const { cmd } = commandByName('model')
+    const saveSelection = vi.fn(async () => {})
+    const ctx = makeCtx({
+      agentDefaultModel: {
+        currentSelection: vi.fn(() => ({ provider: 'deepseek', model: 'v4-flash' })),
+        saveSelection,
+      },
+    })
+    const { args } = makeArgs({ text: 'deepseek/v4-flash high default', ctx })
+    await cmd.run(args)
+    expect(saveSelection).toHaveBeenCalledWith({ provider: 'deepseek', model: 'v4-flash', reasoningEffort: 'high' })
   })
 
   it('effort 参数与别名组合：/model spark-flash max', async () => {
@@ -586,11 +653,11 @@ describe('内置命令 — /model', () => {
     })
     const { args } = makeArgs({ text: 'spark-flash max', ctx })
     await cmd.run(args)
-    expect(saveSelection).toHaveBeenCalledWith({ provider: 'deepseek-official', model: 'deepseek-v4-flash', reasoningEffort: 'max' })
+    expect(saveSelection).not.toHaveBeenCalled()
   })
 
-  it('不带 effort 参数：saveSelection 不含 reasoningEffort（清除语义，回 provider 默认）', async () => {
-    const { cmd } = commandByName('model')
+  it('不带 effort 参数：热切不含 reasoningEffort（清除语义，回 provider 默认）', async () => {
+    const { cmd, deps } = commandByName('model')
     const saveSelection = vi.fn(async (_selection: Record<string, unknown>) => {})
     const ctx = makeCtx({
       agentDefaultModel: {
@@ -600,9 +667,8 @@ describe('内置命令 — /model', () => {
     })
     const { args } = makeArgs({ text: 'deepseek/v4-pro', ctx })
     await cmd.run(args)
-    const next = saveSelection.mock.calls[0]![0]
-    expect(next).toEqual({ provider: 'deepseek', model: 'v4-pro' })
-    expect('reasoningEffort' in next).toBe(false)
+    expect(saveSelection).not.toHaveBeenCalled()
+    expect(deps.switchLiveModel).toHaveBeenCalledWith({ provider: 'deepseek', model: 'v4-pro' })
   })
 
   it('非法 effort：报错且不调用 saveSelection', async () => {
@@ -633,7 +699,7 @@ describe('内置命令 — /model', () => {
     expect(deps.openModelPicker).toHaveBeenCalled()
   })
 
-  it('C2 项 4：切换模型热切当前会话（switchLiveModel 被调，回显双生效）', async () => {
+  it('C2 项 4：切换模型热切当前会话（switchLiveModel 被调，回显仅本会话）', async () => {
     const { cmd, deps } = commandByName('model')
     const saveSelection = vi.fn(async () => {})
     const ctx = makeCtx({
@@ -645,7 +711,7 @@ describe('内置命令 — /model', () => {
     const { args, echo } = makeArgs({ text: 'deepseek/v4-max', ctx })
     await cmd.run(args)
     expect(deps.switchLiveModel).toHaveBeenCalledWith({ provider: 'deepseek', model: 'v4-max' })
-    expect(echo).toHaveBeenCalledWith(expect.stringContaining('当前会话与默认均生效'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('仅本会话'))
   })
 
   it('C2 项 4：registry 兜底会话不可热切（switchLiveModel false → 回显默认生效）', async () => {
@@ -721,7 +787,7 @@ describe('内置命令 — /model', () => {
     })
     const { args } = makeArgs({ text: 'openai-compatible/gpt-5', ctx })
     await cmd.run(args)
-    expect(saveSelection).toHaveBeenCalledWith({ provider: 'openai-compatible', model: 'gpt-5' })
+    expect(saveSelection).not.toHaveBeenCalled()
   })
 
   it('裸模型名沿用当前 provider 并按其目录校验', async () => {
@@ -952,7 +1018,7 @@ describe('内置命令 — /help', () => {
     await cmd.run(args)
     expect(deps.listCommands).toHaveBeenCalledTimes(1)
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('全部命令'))
-    expect(echo).toHaveBeenCalledWith(expect.stringContaining('/theme <name>|auto|export [name] — 切换主题'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('/theme <name>|auto|export [name]|default — 切换主题'))
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('/help [cmd] — 列出全部命令'))
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('Ctrl+.'))
   })
@@ -964,7 +1030,7 @@ describe('内置命令 — /help', () => {
     vi.mocked(deps.listCommands).mockReturnValue(registry.list())
     const detail = makeArgs({ text: 'model' })
     await cmd.run(detail.args)
-    expect(detail.echo).toHaveBeenCalledWith('/model [provider/model | spark-flash | spark-pro] — 查看或切换模型（默认 + 当前会话热切；spark-flash / spark-pro 映射到官方 flash / pro）')
+    expect(detail.echo).toHaveBeenCalledWith(expect.stringContaining('/model [provider/model | spark-flash | spark-pro] [effort] [default]'))
     const unknown = makeArgs({ text: 'nope' })
     await cmd.run(unknown.args)
     expect(unknown.echo).toHaveBeenCalledWith('未知命令: /nope（/help 查看全部命令）')
@@ -1539,32 +1605,47 @@ describe('内置命令 — /effort', () => {
     return { saveSelection, ctx }
   }
 
-  it('/effort max 设为固定值并持久化 + 热切当前会话', async () => {
+  it('/effort max 仅本会话热切，不写默认', async () => {
     const { cmd, deps } = effortByName()
     const { saveSelection, ctx } = effortCtx()
     const { args, echo } = makeArgs({ text: 'max', ctx })
     await cmd.run(args)
-    expect(saveSelection).toHaveBeenCalledWith({ provider: 'deepseek', model: 'v4-flash', reasoningEffort: 'max' })
-    // /model 同构：改 modelRef.current，下一次 agent 步进生效（不中断当前步骤）。
+    expect(saveSelection).not.toHaveBeenCalled()
     expect(deps.switchLiveModel).toHaveBeenCalledWith({ provider: 'deepseek', model: 'v4-flash', reasoningEffort: 'max' })
-    expect(echo).toHaveBeenCalledWith(expect.stringContaining('max'))
-    expect(echo).toHaveBeenCalledWith(expect.stringContaining('当前会话与默认均生效'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('仅本会话'))
   })
 
-  it('/effort auto 清除 effort 并热切清除当前会话', async () => {
+  it('/effort max default 才 saveSelection', async () => {
+    const { cmd, deps } = effortByName()
+    const { saveSelection, ctx } = effortCtx()
+    const { args, echo } = makeArgs({ text: 'max default', ctx })
+    await cmd.run(args)
+    expect(saveSelection).toHaveBeenCalledWith({ provider: 'deepseek', model: 'v4-flash', reasoningEffort: 'max' })
+    expect(deps.switchLiveModel).toHaveBeenCalledWith({ provider: 'deepseek', model: 'v4-flash', reasoningEffort: 'max' })
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('已设为默认推理等级：max'))
+  })
+
+  it('/effort auto 仅本会话清除 effort', async () => {
     const { cmd, deps } = effortByName()
     const { saveSelection, ctx } = effortCtx({ current: { provider: 'deepseek', model: 'v4-flash', reasoningEffort: 'high' } })
     const { args, echo } = makeArgs({ text: 'auto', ctx })
     await cmd.run(args)
-    const next = saveSelection.mock.calls[0]![0]
-    expect(next).toEqual({ provider: 'deepseek', model: 'v4-flash' })
-    expect('reasoningEffort' in next).toBe(false)
-    // absent-effort 语义：热切选择不含 reasoningEffort，下一请求回 provider 默认。
+    expect(saveSelection).not.toHaveBeenCalled()
     expect(deps.switchLiveModel).toHaveBeenCalledWith({ provider: 'deepseek', model: 'v4-flash' })
-    expect(echo).toHaveBeenCalledWith(expect.stringContaining('auto'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('仅本会话'))
   })
 
-  it('/effort 在 registry 兜底会话（不可热切）：持久化仍生效并回显提示', async () => {
+  it('/effort default 保存当前档为启动默认（≠ /effort auto）', async () => {
+    const { cmd, deps } = effortByName()
+    const { saveSelection, ctx } = effortCtx({ current: { provider: 'deepseek', model: 'v4-flash', reasoningEffort: 'high' } })
+    const { args, echo } = makeArgs({ text: 'default', ctx })
+    await cmd.run(args)
+    expect(saveSelection).toHaveBeenCalledWith({ provider: 'deepseek', model: 'v4-flash', reasoningEffort: 'high' })
+    expect(deps.switchLiveModel).not.toHaveBeenCalled()
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('已设为默认推理等级：high'))
+  })
+
+  it('/effort 在 registry 兜底会话（不可热切）：仅本会话回显不可热切', async () => {
     const deps = {
       newSession: vi.fn(),
       forkSession: vi.fn(),
@@ -1586,9 +1667,12 @@ describe('内置命令 — /effort', () => {
       setYoloMode: vi.fn(),
       openModelPicker: vi.fn(),
       openThemePicker: vi.fn(),
+      openEffortPicker: vi.fn(),
       onThemeApplied: vi.fn(),
       applyThemeAuto: vi.fn(),
       exportTheme: vi.fn((): string => 'exported'),
+      persistPresetDefault: vi.fn(),
+      currentDefaultPreset: vi.fn(() => undefined),
       openSessionPicker: vi.fn(),
     openKeyDialog: vi.fn(),
     checkForUpdate: vi.fn(),
@@ -1599,26 +1683,17 @@ describe('内置命令 — /effort', () => {
     const { saveSelection, ctx } = effortCtx()
     const { args, echo } = makeArgs({ text: 'high', ctx })
     await cmd.run(args)
-    expect(saveSelection).toHaveBeenCalledWith({ provider: 'deepseek', model: 'v4-flash', reasoningEffort: 'high' })
+    expect(saveSelection).not.toHaveBeenCalled()
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('当前会话不可热切'))
   })
 
-  it('/effort 无参回显当前等级（固定 vs auto）', async () => {
-    const { cmd } = effortByName()
+  it('/effort 无参打开推理等级选择器', async () => {
+    const { cmd, deps } = effortByName()
     const { ctx } = effortCtx({ current: { provider: 'deepseek', model: 'v4-flash', reasoningEffort: 'high' } })
     const { args, echo } = makeArgs({ text: '', ctx })
     await cmd.run(args)
-    expect(echo).toHaveBeenCalledWith(expect.stringContaining('high'))
-
-    const autoCtx = makeCtx({
-      agentDefaultModel: {
-        currentSelection: vi.fn(() => ({ provider: 'deepseek', model: 'v4-flash' })),
-        saveSelection: vi.fn(async () => {}),
-      },
-    })
-    const { args: autoArgs, echo: autoEcho } = makeArgs({ text: '', ctx: autoCtx })
-    await cmd.run(autoArgs)
-    expect(autoEcho).toHaveBeenCalledWith(expect.stringContaining('auto'))
+    expect(deps.openEffortPicker).toHaveBeenCalled()
+    expect(echo).not.toHaveBeenCalled()
   })
 
   it('/effort 非法值：报错且不调用 saveSelection / switchLiveModel', async () => {
@@ -1710,7 +1785,22 @@ describe('内置命令 — /preset（agent 预设模式切换）', () => {
     expect(append).toHaveBeenCalledTimes(1)
     expect(append.mock.calls[0]![0]).toBe('agent-preset/selected')
     expect(append.mock.calls[0]![1]).toEqual({ agentPreset: 'minimal' })
-    expect(echo).toHaveBeenCalledWith(expect.stringContaining('已切换为'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('仅本会话'))
+    expect(deps.persistPresetDefault).not.toHaveBeenCalled()
+  })
+
+  it('/preset minimal default 切换并写启动默认', async () => {
+    const { cmd, deps } = presetByName()
+    const { presets, ctx } = presetCtx()
+    presets.recompose.mockResolvedValue({ id: 'minimal', name: '极简模式' })
+    const agent = makeAgent()
+    deps.currentAgent.mockReturnValue(agent)
+    deps.isBlankSession.mockReturnValue(true)
+    const { args, echo } = makeArgs({ text: 'minimal default', ctx })
+    await cmd.run(args)
+    expect(presets.recompose).toHaveBeenCalledWith(agent.ctx, 'minimal')
+    expect(deps.persistPresetDefault).toHaveBeenCalledWith('minimal')
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('已设为默认预设'))
   })
 
   it('非 blank 会话拒绝切换：不调 recompose / append', async () => {
@@ -1829,7 +1919,8 @@ describe('/preset（agent-presets 可选服务降级 + 切换链路）', () => {
     const { args, echo } = makeArgs({ text: 'ptc', ctx: makeCtx({ agentPresets: facet }) })
     await cmd.run(args)
     expect(facet.recompose).toHaveBeenCalledWith({}, 'ptc')
-    expect(echo).toHaveBeenCalledWith('已切换为 PTC (ptc)')
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('已切换为 PTC (ptc)'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('仅本会话'))
 
     // 失败路径：recompose 抛错 → 回显原因，不留切换痕迹
     const failing = { ...facet, recompose: vi.fn(async () => { throw new Error('compose rejected') }) }

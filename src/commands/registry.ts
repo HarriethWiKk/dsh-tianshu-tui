@@ -18,7 +18,6 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 
 // agent-preset/selected 事件由 host 的 dsh-agent-presets 声明扩展（官方同款
@@ -30,14 +29,18 @@ declare module '@deepseek-ai/dsh-session/types' {
     'agent-preset/selected': { agentPreset: string }
   }
 }
-import { getActiveThemeName, setTheme, THEME_NAMES } from '../theme.js'
+import { getActiveThemeName } from '../theme.js'
 import { listSessions, loadHistory } from '../adapter/sessions.js'
 import { sessionTitleFor } from '../adapter/session-title.js'
-import { parseRouteKey } from '../engine/route-key.js'
-import { SPARK_ALIASES, validateModelSelection, type LlmCatalogFacet } from './model-validate.js'
 import { collectDoctorReport, getDoctorFixGuidance } from '../format/doctor-report.js'
-import { formatWireSurface, wirePhaseLabel, wireToolNames } from '../preset-surface.js'
 import { TUI_PACKAGE, type UpdateCheckResult } from '../self-update.js'
+import {
+  createEffortCommand,
+  createModelCommand,
+  createPresetCommand,
+  createThemeCommand,
+  type StartupCommandDeps,
+} from './startup-commands.js'
 
 /**
  * Slash 命令执行上下文——TuiApp 在分发时注入。
@@ -87,19 +90,6 @@ export interface ModelFacet {
   currentSelection(): { provider: string; model: string; reasoningEffort?: string }
   saveSelection(next: { provider: string; model: string; reasoningEffort?: string }): Promise<void>
 }
-
-/** /preset 所需的最小 agent-presets 服务面（不引入 dsh-agent-presets 依赖）。 */
-interface PresetFacet {
-  /** 当前配置根提供的全部预设（first-root-wins per id）。 */
-  list(): Promise<Array<{ id: string; name?: string; description?: string }>>
-  /** 一个 live agent 当前运行的预设 id（作用域链读取；未加入任何预设返回 undefined）。 */
-  composedPreset?(agentCtx: Context): string | undefined
-  /** 把 agent 重绑到另一预设的 standing 组成；调用方负责 blank-session 检查。 */
-  recompose(agentCtx: Context, id: string): Promise<{ id: string; name?: string }>
-}
-
-/** /model 的 effort 白名单（llm 三档：off / high / max）。 */
-const EFFORT_LEVELS = ['off', 'high', 'max'] as const
 
 /** /goal 所需的最小目标 ref（CAS 身份，取自当前 view）。 */
 interface GoalRefFacet {
@@ -253,15 +243,11 @@ export class SlashCommandRegistry {
 /**
  * 内置命令工厂依赖——TuiApp 私有能力注入（会话铸造、滚动区重置、面板显隐切换）。
  */
-export interface BuiltinCommandDeps {
-  /** /theme：主题确认后按新主题重放当前历史消息（#40；reset 滚动区重提交）。 */
-  onThemeChanged?(): void
+export interface BuiltinCommandDeps extends StartupCommandDeps {
   /** /session new：新建会话并挂载（TuiApp.newSession）。 */
   newSession(): Promise<SessionId>
   /** /fork、/branch（A3）：分叉当前会话（复制历史）并切换（TuiApp.forkSession）。 */
   forkSession(opts?: { directive?: string }): Promise<SessionId>
-  /** C2 项 4：热切当前会话的模型（TuiApp.switchLiveModel）；返回是否已热切。 */
-  switchLiveModel(selection: { provider: string; model: string }): boolean
   /** /clear：清空当前会话 scrollback（CommitEngine.reset）。 */
   clearScrollback(): void
   /** /tasks 无参：切换任务窗格显隐（TuiApp 私有状态 + renderLive）。 */
@@ -286,22 +272,8 @@ export interface BuiltinCommandDeps {
   requestRestart(): void
   /** /help：当前注册表的全部命令（TuiApp 是注册表所有者，经 deps 注入而非 ctx 服务）。 */
   listCommands(): SlashCommand[]
-  /** /preset：当前会话的 agent（recompose/composedPreset 的 agentCtx 来源；无会话为 null）。 */
-  currentAgent(): Agent | null
-  /** /preset：当前会话是否 blank（无消息且无进行中工具调用）——recompose 的调用方契约。 */
-  isBlankSession(): boolean
   /** /yolo：开启/关闭全放行模式（approval always-approve 快捷入口；返回开启后提示）。 */
   setYoloMode(flag: boolean): void
-  /** #31：打开模型选择器（上下键选择替代命令参数输入）。 */
-  openModelPicker(): void
-  /** #31：打开主题选择器。 */
-  openThemePicker(): void
-  /** P1：主题生效后的持久化写透（/theme 与 picker 确认共用；未知名 no-op）。 */
-  onThemeApplied(name: string): void
-  /** P1：/theme auto——切回自动检测并持久化（探测异步）。 */
-  applyThemeAuto(): void
-  /** P1：/theme export [name]——当前主题导出为自定义主题模板；返回回显消息。 */
-  exportTheme(name?: string): string
   /** #31：打开会话选择器。 */
   openSessionPicker(): void
   /** /key、/login：打开 API Key 设置对话框（掩码输入 + 联网验证 + 落盘）。 */
@@ -320,37 +292,7 @@ export interface BuiltinCommandDeps {
  */
 export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] {
   return [
-    {
-      name: 'theme',
-      description: '切换主题（内置或 custom:<name>；auto/export 子命令）',
-      argsHint: '<name>|auto|export [name]',
-      run: ({ text, echo }) => {
-        const name = text.trim()
-        if (name === '') {
-          // #31：无参打开主题选择器（上下键选择替代命令输入）。
-          deps.openThemePicker()
-          return
-        }
-        // P1：auto 持久化自动档（持久化不能是单行道）；export 导出自定义模板。
-        if (name === 'auto') {
-          deps.applyThemeAuto()
-          return
-        }
-        if (name === 'export' || name.startsWith('export ')) {
-          echo(deps.exportTheme(name.slice('export'.length).trim() || undefined))
-          return
-        }
-        if (setTheme(name)) {
-          // 持久化走 prefs（P1 onThemeApplied）；#40：随后按新主题重放历史。
-          // 重放会 reset 滚动区，故回显在 onThemeChanged 之后。
-          deps.onThemeApplied(name)
-          deps.onThemeChanged?.()
-          echo(`主题已切换: ${name}`)
-        } else {
-          echo(`未知主题: ${name}。可用: ${THEME_NAMES.join(', ')} / custom:<name>`)
-        }
-      },
-    },
+    createThemeCommand(deps),
     {
       name: 'session',
       description: '会话管理：new 新建，list 列出，switch 切换',
@@ -428,59 +370,7 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
         echo(`已分叉会话: ${id}`)
       },
     },
-    {
-      name: 'model',
-      description: '查看或切换模型（默认 + 当前会话热切；spark-flash / spark-pro 映射到官方 flash / pro）',
-      argsHint: '[provider/model | spark-flash | spark-pro]',
-      run: async ({ text, echo, ctx }) => {
-        // as unknown as：Context 声明合并的 agentDefaultModel 是完整服务面，
-        // 这里只消费最小读/写两方法（本地 ModelFacet）。
-        const facet = (ctx as unknown as { agentDefaultModel?: ModelFacet }).agentDefaultModel
-        if (facet === undefined) {
-          echo('⚠ agent-default-model 服务不可用')
-          return
-        }
-        const current = facet.currentSelection()
-        const raw = text.trim()
-        if (raw === '') {
-          // #31：无参打开模型选择器（上下键选择替代命令输入；当前值 ● 高亮）。
-          deps.openModelPicker()
-          return
-        }
-        // 解析：目标（别名或 provider/model）与可选 effort（空格分隔，grok 同款形状）。
-        const [target = '', effortRaw] = raw.split(/\s+/)
-        if (effortRaw !== undefined
-          && !(EFFORT_LEVELS as readonly string[]).includes(effortRaw)) {
-          echo(`⚠ 不支持的 effort: ${effortRaw}（可用: off / high / max）`)
-          return
-        }
-        // spark 一键切换别名：展开为 deepseek-official + 官方 wire 模型 id。
-        // 非别名输入原样解析。
-        const aliased = SPARK_ALIASES[target]
-        const input = aliased === undefined ? target : `${aliased.provider}/${aliased.model}`
-        // 首个斜杠分割：模型 id 可自身含 '/'（openrouter 风格）；无斜杠裸输入沿当前 provider 只换模型。
-        const routed = parseRouteKey(input)
-        const next = routed === undefined
-          ? { provider: current.provider, model: input }
-          : routed
-        // 目录校验（advisory 契约：目录空放行、llm 未装配跳过）；拒绝不切换并点名当前选择。
-        const llm = ctx.reflect.get('llm', false) as LlmCatalogFacet | undefined
-        const invalid = await validateModelSelection(llm, next, current)
-        if (invalid !== null) { echo(invalid); return }
-        // effort 显式传入（含清除：省略 = 回 provider 默认——与 installModelSelection
-        // 的 "absent effort clears inherited" 语义一致）。
-        const selection = effortRaw === undefined
-          ? next
-          : { ...next, reasoningEffort: effortRaw }
-        await facet.saveSelection(selection)
-        // C2 项 4：热切当前会话（下一次 agent 步进生效）；registry 兜底会话不可热切
-        const hot = deps.switchLiveModel(selection)
-        const effortPart = effortRaw === undefined ? '' : ` (effort: ${effortRaw})`
-        echo(hot
-          ? `模型已切换: ${selection.provider}/${selection.model}${effortPart}（当前会话与默认均生效）`
-          : `模型已切换: ${selection.provider}/${selection.model}${effortPart}（默认生效；当前会话不可热切）`)
-      },
-    },
+    createModelCommand(deps),
     {
       name: 'key',
       description: '配置模型供应商 API 密钥（选择供应商 → 掩码输入 + 联网验证；保存即生效）',
@@ -505,118 +395,8 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
         }
       },
     },
-    {
-      name: 'effort',
-      description: '设置推理等级（off / high / max 固定；auto 回模型默认）',
-      argsHint: '[off|high|max|auto]',
-      run: async ({ text, echo, ctx }) => {
-        // 与 /model 共用最小 agent-default-model 面（ModelFacet）。
-        const facet = (ctx as unknown as { agentDefaultModel?: ModelFacet }).agentDefaultModel
-        if (facet === undefined) {
-          echo('⚠ agent-default-model 服务不可用')
-          return
-        }
-        const current = facet.currentSelection()
-        const input = text.trim()
-        if (input === '') {
-          echo(current.reasoningEffort === undefined
-            ? '当前推理等级: auto（跟随模型默认）'
-            : `当前推理等级: ${current.reasoningEffort}（/effort auto 可回默认）`)
-          return
-        }
-        if (input === 'auto') {
-          // auto = 清除 effort，回 provider/模型默认（installModelSelection 的
-          // absent-effort 语义）。持久化 + 热切当前会话（与 /model 同构：
-          // 改 modelRef.current，下一次 agent 步进自动生效）。
-          const selection = { provider: current.provider, model: current.model }
-          await facet.saveSelection(selection)
-          const hot = deps.switchLiveModel(selection)
-          echo(hot
-            ? '推理等级已设为 auto（跟随模型默认；当前会话与默认均生效）'
-            : '推理等级已设为 auto（跟随模型默认；默认生效；当前会话不可热切）')
-          return
-        }
-        if (!(EFFORT_LEVELS as readonly string[]).includes(input)) {
-          echo(`⚠ 不支持的推理等级: ${input}（可用: off / high / max / auto）`)
-          return
-        }
-        // 手动设为固定值：持久化到默认选择 + 热切当前会话（/model 同构：
-        // 下一次 agent 步进自动生效，不中断当前步骤）。
-        const selection = { provider: current.provider, model: current.model, reasoningEffort: input }
-        await facet.saveSelection(selection)
-        const hot = deps.switchLiveModel(selection)
-        echo(hot
-          ? `推理等级已设为 ${input}（固定；当前会话与默认均生效；/effort auto 回默认）`
-          : `推理等级已设为 ${input}（固定；默认生效；当前会话不可热切；/effort auto 回默认）`)
-      },
-    },
-    {
-      name: 'preset',
-      description: '查看/切换 agent 预设模式（标准 / PTC / 极简 / 创造）',
-      argsHint: '[id]',
-      run: async ({ text, echo, ctx }) => {
-        // reflect.get 读取可选服务（Cordis 4 注入代理：属性访问未注册服务
-        // 抛 "without inject"——/compact /goal 同款）；未装配时返回 undefined。
-        const facet = ctx.reflect.get('agentPresets', false) as PresetFacet | undefined
-        if (facet === undefined) {
-          echo('⚠ agent-presets 服务不可用（host 未装配 agent 预设）')
-          return
-        }
-        const target = text.trim()
-        if (target === '') {
-          const presets = await facet.list()
-          const agent = deps.currentAgent()
-          const current = agent === null ? undefined : facet.composedPreset?.(agent.ctx)
-          echo(`agent 预设 (${presets.length}):`)
-          for (const preset of presets) {
-            const mark = preset.id === current ? '*' : ' '
-            const name = preset.name ?? preset.id
-            const desc = preset.description === undefined || preset.description === ''
-              ? ''
-              : ` — ${preset.description}`
-            echo(` ${mark} ${name} (${preset.id})${desc}`)
-          }
-          // 当前预设行追加 wire 工具面（最近 request/header 的实际工具 schema，
-          // 含 preset 过滤器作用后的最终面——日志事实，非插件内部状态）。
-          // 梁神类两阶段 preset 下：双工具面 = 锚定面，run_code = PTC 面。
-          let currentLine = current === undefined ? '当前: 未装配（host 默认）' : `当前: ${current}`
-          if (agent !== null) {
-            const wire = wireToolNames(agent.session.events)
-            const surface = formatWireSurface(wire)
-            if (surface !== undefined) {
-              const phase = wirePhaseLabel(wire)
-              currentLine += ` · wire: ${surface}${phase === undefined ? '' : `（${phase}）`}`
-            }
-          }
-          echo(currentLine)
-          return
-        }
-        const agent = deps.currentAgent()
-        if (agent === null) {
-          echo('当前无会话，无法切换预设')
-          return
-        }
-        // 官方 recompose 契约：仅 blank session 可换（换工具集会留下历史 tool
-        // call 与新组成不匹配）；检查由调用方负责（方法本身不读会话历史）。
-        if (!deps.isBlankSession()) {
-          echo('⚠ 会话已产生内容，无法切换预设（仅空白会话可换；新会话默认仍用当前预设）')
-          return
-        }
-        try {
-          // 切换链与官方 host 一致（recompose 成功后才 append 落日志；失败
-          // 保留原组成且不留记录）。agent-preset/selected 事件类型由 host 的
-          // dsh-agent-presets 声明扩展，本地类型面经 as 桥接。
-          const preset = await facet.recompose(agent.ctx, target)
-          // 切换链与官方 host 一致（recompose 成功后才 append 落日志；失败
-          // 保留原组成且不留记录）。事件类型经上方 declare module 扩展，
-          // append 签名全类型检查（key 合法 + data 形状 { agentPreset }）。
-          agent.session.append('agent-preset/selected', { agentPreset: preset.id })
-          echo(`已切换为 ${preset.name ?? preset.id} (${preset.id})`)
-        } catch (error) {
-          echo(`切换失败: ${error instanceof Error ? error.message : String(error)}`)
-        }
-      },
-    },
+    createEffortCommand(deps),
+    createPresetCommand(deps),
     {
       name: 'clear',
       description: '清空当前会话滚动区并收起命令面板',

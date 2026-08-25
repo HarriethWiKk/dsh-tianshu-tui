@@ -17,7 +17,7 @@ import type { Agent, AgentHandle } from '@deepseek-ai/dsh-agent'
 import { TuiApp } from '../src/ui/app.js'
 import { getActiveThemeName, setTheme, clearCustomThemes } from '../src/theme.js'
 import { exportCurrentTheme } from '../src/theme-custom.js'
-import { readPrefs } from '../src/prefs.js'
+import { readPrefs, writePrefs } from '../src/prefs.js'
 
 // ── 替身工厂（镜像 app.spec.ts；仅本 spec 所需的最小面）──────────
 
@@ -57,6 +57,7 @@ function makeAgent(id: string): Agent & { followup: ReturnType<typeof vi.fn> } {
       events: [],
       requestHeader: vi.fn(() => undefined),
       requestContext: vi.fn(() => undefined),
+      append: vi.fn(),
     },
     inbox: { nextTurn: [], nextStep: [] },
     status: 'idle',
@@ -106,24 +107,30 @@ afterEach(() => {
 })
 
 describe('主题选择持久化', () => {
-  it('/theme paper 写透 prefs；重建 app（同路径）恢复该主题', async () => {
+  it('/theme paper 仅本会话不写 prefs；/theme paper default 才写透并恢复', async () => {
     const prefsPath = tmpPath('prefs.json')
     const b = await boot(prefsPath, null)
     await b.app.handleSubmit('/theme paper')
+    expect(readPrefs(prefsPath).theme).toBeUndefined()
+    expect(getActiveThemeName()).toBe('paper')
+
+    await b.app.handleSubmit('/theme paper default')
     expect(readPrefs(prefsPath).theme).toBe('paper')
 
     await b.app.dispose()
-    setTheme('graphite') // 模拟新进程从缺省开始
+    setTheme('graphite')
     const b2 = await boot(prefsPath, null)
     expect(getActiveThemeName()).toBe('paper')
     await b2.app.dispose()
   })
 
-  it('/theme auto 持久化 auto 档（可回退，非单行道）', async () => {
+  it('/theme auto 仅本会话；/theme auto default 才写 auto 档', async () => {
     const prefsPath = tmpPath('prefs.json')
     const b = await boot(prefsPath, null)
-    await b.app.handleSubmit('/theme paper')
+    await b.app.handleSubmit('/theme paper default')
     await b.app.handleSubmit('/theme auto')
+    expect(readPrefs(prefsPath).theme).toBe('paper')
+    await b.app.handleSubmit('/theme auto default')
     expect(readPrefs(prefsPath).theme).toBe('auto')
     await b.app.dispose()
   })
@@ -139,13 +146,13 @@ describe('主题选择持久化', () => {
 })
 
 describe('density / 常驻面板 / glance 段持久化', () => {
-  it('/density 切换写透 compactMode', async () => {
+  it('/density 仅本会话；/density default 才写透 compactMode', async () => {
     const prefsPath = tmpPath('prefs.json')
     const b = await boot(prefsPath, null)
     await b.app.handleSubmit('/density')
+    expect(readPrefs(prefsPath).compactMode).toBeUndefined()
+    await b.app.handleSubmit('/density default')
     expect(readPrefs(prefsPath).compactMode).toBe(true)
-    await b.app.handleSubmit('/density')
-    expect(readPrefs(prefsPath).compactMode).toBe(false)
     await b.app.dispose()
   })
 
@@ -168,6 +175,21 @@ describe('density / 常驻面板 / glance 段持久化', () => {
     await b.app.handleSubmit('/glance cost')
     // 清空 = 回到缺省：解析层按「空偏好不占 key」丢弃（前向兼容语义）
     expect(readPrefs(prefsPath).glance).toBeUndefined()
+    await b.app.dispose()
+  })
+
+  it('/preset id default 写透 prefs.preset；newSession 对空白会话 recompose', async () => {
+    const prefsPath = tmpPath('prefs.json')
+    writePrefs(prefsPath, { preset: 'minimal' })
+    const recompose = vi.fn(async () => ({ id: 'minimal', name: '极简' }))
+    const b = bootApp(prefsPath, null)
+    b.ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'agentPresets') return { recompose }
+      return undefined
+    })
+    await b.app.attach()
+    expect(recompose).toHaveBeenCalled()
+    expect(b.agent.session.append).toHaveBeenCalledWith('agent-preset/selected', { agentPreset: 'minimal' })
     await b.app.dispose()
   })
 

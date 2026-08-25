@@ -33,6 +33,7 @@
 | src/command-palette.ts | command-palette.ts | modified |
 | src/commands/registry.ts | — | new |
 | src/commands/model-validate.ts | — | new（回流 tianshu 8cc0cbe589：/model 目录分级校验（advisory 契约：provider 硬拒 / 目录外就近建议 / 空目录放行 / 未装配跳过）+ SPARK_ALIASES 一键别名表，自 registry 提取） |
+| src/commands/startup-commands.ts | — | new（/theme /model /effort /preset：Enter/带参=本会话，S 或末尾 default=启动默认） |
 | src/completion/file-completer.ts | file-completer.ts | modified（目录重排 src/tui/ → src/completion/；`resolveFileCompletion` Tab 协调入口为 dsh 新增） |
 | src/config-panel.ts | — | new |
 | src/controllers/approval-controller.ts | — | new |
@@ -127,8 +128,9 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 | src/mention-parser.ts | mention-parser.ts | modified |
 | src/pi/latex-block.ts | pi/latex-block.ts | modified |
 | src/pi/latex-to-unicode.ts | pi/latex-to-unicode.ts | modified |
-| src/prefs.ts | — | new（本地偏好持久化：~/.dsh-tui/prefs.json——theme/density/常驻面板/glance 段；容错解析 + 原子写 + VITEST 密封门） |
-| src/picker.ts | — | new（Issue #31 交互式选择器：纯状态机 + 渲染 + PickerController，/model /theme /session 无参打开） |
+| src/prefs.ts | — | new（本地偏好持久化：~/.dsh-tui/prefs.json——theme/density/preset/常驻面板/glance 段；容错解析 + 原子写 + VITEST 密封门） |
+| src/picker.ts | — | new（Issue #31 交互式选择器：纯状态机 + 渲染 + PickerController，/model /theme /session 无参打开；S 设为默认） |
+| src/startup-defaults.ts | — | new（会话 vs 启动默认：splitDefaultFlag + 回显文案 + newSession 应用 prefs.preset） |
 | src/port.ts | — | new |
 | src/preset-surface.ts | — | new（agent 预设展示面纯投影：preset 名 = header 创建值 + agent-preset/selected 切换值 fold（官方 resolveSessionPreset 等价）；wire 工具面 = 最近 request/header 的 tools 集合（foldRequestHeader）；只消费日志事实，不重放 preset 插件私有晋升逻辑） |
 | src/question-panel.ts | — | new |
@@ -156,6 +158,7 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 | src/turn-summary.ts | turn-summary.ts | modified（上游单文件拆为模型+渲染，此为模型半；渲染半见 src/format/turn-summary.ts） |
 | src/ui-glyphs.ts | ui-glyphs.ts | ported |
 | src/ui/app.ts | — | new（角色对应上游 engine/app.ts，为面向 dsh cordis 服务的独立装配实现，非逐行移植） |
+| src/ui/startup-pickers.ts | — | new（/model /theme /effort 选择器：Enter 本会话、S 写启动默认，自 app.ts 抽出保棘轮） |
 | src/ui/key-dialog.ts | ui/key-dialog.ts | ported（2026-08 回流：供应商 API Key 掩码输入对话框状态机） |
 | src/ui/key-flow.ts | — | new（装配提取层：上游 TuiApp 的 openKeyDialog 系列提取，棘轮对冲；key-wizard/key-dialog 之上） |
 | src/ui/key-wizard.ts | ui/key-wizard.ts | ported（2026-08 回流：/key 供应商选择纯函数层） |

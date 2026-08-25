@@ -1,5 +1,5 @@
 /**
- * 本地偏好持久化层 — ~/.dsh-tui/prefs.json（theme/density/常驻面板/glance 段）。
+ * 本地偏好持久化层 — ~/.dsh-tui/prefs.json（theme/density/preset/常驻面板/glance 段）。
  *
  * 设计约束：
  * - 容错优先：损坏/缺失/未知 key 静默降级为空偏好（缺省 = 现行为），绝不阻塞启动。
@@ -32,6 +32,8 @@ export interface TuiPrefs {
   panels?: Partial<Record<PersistedPanel, boolean>>
   /** glance/footer 隐藏段。 */
   glance?: { hideSegments?: GlanceHideableSegment[] }
+  /** 新会话默认 agent 预设 id（/preset … default）。 */
+  preset?: string
 }
 
 /** 缺省偏好（= 现行为）。 */
@@ -57,6 +59,7 @@ export function parsePrefs(text: string): TuiPrefs {
   const obj = raw as Record<string, unknown>
   const prefs: TuiPrefs = {}
   if (typeof obj.theme === 'string' && obj.theme !== '') prefs.theme = obj.theme
+  if (typeof obj.preset === 'string' && obj.preset !== '') prefs.preset = obj.preset
   if (typeof obj.compactMode === 'boolean') prefs.compactMode = obj.compactMode
   if (typeof obj.panels === 'object' && obj.panels !== null) {
     const p = obj.panels as Record<string, unknown>
