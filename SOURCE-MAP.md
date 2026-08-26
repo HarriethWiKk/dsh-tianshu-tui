@@ -46,6 +46,7 @@
 | src/controllers/skill-surface.ts | — | new（#39 技能展示面：快照缓存 + userInvocable 过滤 + slash 菜单投影 + 手势 MRU + skills/change 订阅，从 ui/app.ts 提取） |
 | src/controllers/workflow-surface.ts | — | new（T2.2 workflow 六事件订阅 + 运行/终态双缓存 + 视图折叠，从 ui/app.ts 抽出保棘轮；渲染与通知经 opts 回调交还宿主） |
 | src/controllers/delegation-surface.ts | — | new（T2.1 子代理委派域：委派树预取/对话流运行行双缓存 + 他会话投影入口，从 ui/app.ts 抽出保棘轮；end 终态数据经 onRunFinished 交还宿主格式化落盘） |
+| src/controllers/commit-surface.ts | — | new（C4 第二波滚动区提交写入域：原子提交编舞/overlay 暂存补写队列/用户气泡与识图三态提示/终端图片与半块回退链路，从 ui/app.ts 抽出保棘轮；渲染调度经 flushRender、overlay 判定与 vision 态经回调交还宿主） |
 | src/delegation-panel.ts | — | new（activity 状态形对齐活区卡语言：running ⠋ / inactive ›；截断走 live-card truncateToLiveWidth） |
 | src/engine/ansi.ts | engine/ansi.ts | modified（新增 DECSCUSR 光标形状常量：稳态竖条 + 默认恢复，overlay 输入光标用） |
 | src/engine/clipboard-image.ts | engine/clipboard-image.ts | modified（移除未声明的 @mariozechner/clipboard native 路径，保留 shell 链 + 注入点；readText 注入测试密封化） |

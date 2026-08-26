@@ -42,7 +42,7 @@ import { installModelSelection, type Agent, type AgentHandle, type ModelSelectio
 // 空类型导入引入 Context 上 agentDefaultModel 服务的声明合并（headless 同款）。
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import { CommitEngine } from '../engine/commit-engine.js'
-import { ANSI, color, imageProtocol, osc52Clipboard } from '../engine/ansi.js'
+import { ANSI, color, osc52Clipboard } from '../engine/ansi.js'
 import {
   LiveEngine, LIVE_TOOL_CARD_MAX, assembleIdleKey, liveHasSpinner, liveMaxRowsFor,
   nextDynamicBudget, padDynamicRegion, shouldSkipIdleAssemble, workingRowsCap,
@@ -72,10 +72,7 @@ import { scopedService } from '../adapter/agent-scope-service.js'
 import { resolvePresetId } from '../preset-surface.js'
 import { openEffortPicker, openModelPicker, openThemePicker, type ModelPickerLlm } from './startup-pickers.js'
 import {
-  encodeTermImage,
   parseImageDataUrl,
-  prepareTermImageForCommit,
-  type PreparedTermImage,
 } from '../engine/term-image.js'
 import { createTranscript, type Transcript, type TranscriptToolCall } from '../adapter/transcript.js'
 import { resolveToolViews, type ToolPresenterSource } from '../adapter/tool-view.js'
@@ -92,7 +89,6 @@ import { supportsOsc52 } from '../term-caps.js'
 import { getTheme, getActiveThemeName, setTheme, type RivetTheme } from '../theme.js'
 import { displayWidth, ambiguousWideEnabled } from '../width.js'
 import { detectTerminalBackground, autoThemeFor } from '../theme-detect.js'
-import { formatUserMessage } from '../format/user-message.js'
 import { formatSteerMessage } from '../format/steer-message.js'
 import { formatToolCardLive, toolCardTitle } from '../format/tool-card.js'
 import { formatToolViewCard } from '../format/tool-view-card.js'
@@ -116,6 +112,7 @@ import {
 } from './activity-flow.js'
 import { WorkflowSurfaceController } from '../controllers/workflow-surface.js'
 import { DelegationSurfaceController, type SubagentsFacet } from '../controllers/delegation-surface.js'
+import { CommitSurface } from '../controllers/commit-surface.js'
 import { KeyDialogController } from './key-dialog.js'
 import { KeyFlow } from './key-flow.js'
 import {
@@ -469,6 +466,7 @@ export class TuiApp {
   private readonly stdout: WriteStream
   private readonly stdin: ReadStream
   private readonly commit: CommitEngine
+  private readonly commitSurface: CommitSurface
   private readonly live: LiveEngine
   private readonly input: InputHandler
   private readonly inputLine: InputLine
@@ -496,11 +494,6 @@ export class TuiApp {
   /** /key 首启自动弹窗禁用（宿主/测试装配显式关闭；缺省 false=启用）。 */
   private readonly disableKeyAutoPrompt: boolean
   private overlay: OverlayController | null = null
-  /**
-   * overlay 激活期间暂存的 scrollback 条目（文本条目或原始字节序列）。
-   * alt screen 下 stdout 写入会盖住面板，且退出时终端恢复的是进入 overlay 前的主屏。
-   */
-  private deferredScrollback: Array<{ text: string; trailingNewline?: boolean } | { raw: string }> = []
   /** C3 项 3：rewind overlay（/rewind 双阶段回退面板）。 */
   private rewindOverlay: RewindOverlay | null = null
   /** P2：memory 浏览器 overlay（/memory 记忆列表/过滤/删除）。 */
@@ -748,6 +741,17 @@ export class TuiApp {
       stdout: options.stdout,
       reservedRows: LIVE_RESERVED_ROWS,
       maxRows: liveMaxRowsFor(options.stdout.rows),
+    })
+    // C4 第二波：滚动区提交写入域（原子编舞/overlay 暂存/用户气泡/图片链路）。
+    this.commitSurface = new CommitSurface({
+      live: this.live,
+      commit: this.commit,
+      stdout: options.stdout,
+      isOverlayActive: () => this.overlay !== null && this.overlay.activeId() !== null,
+      flushRender: () => { this.flushLiveRender() },
+      getTheme: () => this.theme,
+      previewBackground: () => this.previewBackground(),
+      vision: () => ({ supportsVision: this.supportsVision, bridgeEnabled: this.visionBridgeEnabled, bridgeSource: this.visionBridgeSource }),
     })
     this.input = new InputHandler({ stdin: options.stdin, mode: 'input' })
     this.inputLine = new InputLine({
@@ -1295,7 +1299,7 @@ export class TuiApp {
         if (active) return
         // 退出 alt screen 后：把 overlay 期间暂存的 scrollback 补写回主屏，
         // 再同步重绘 live 区（不能只等 120ms ticker——主屏刚恢复时 live 区是旧帧）。
-        this.flushDeferredScrollback()
+        this.commitSurface.flushDeferred()
         this.flushLiveRender()
         // 焦点去抖接线（终端 raw mode 无窗口焦点事件，overlay 关闭为最近似）：
         // 此后 FOCUS_DEBOUNCE_MS 内的 Ctrl+V 只走文本——刚关掉的对话框里那次
@@ -1542,27 +1546,6 @@ export class TuiApp {
     const attachment = await loadClipboardImageAttachment(buf, name.length > 0 ? name : 'clipboard.png')
     this.inputLine.addImage(attachment.dataUrl)
     this.flushLiveRender()
-  }
-
-  /**
-   * 无图形协议终端的气泡图片回退：半块字符预览写进 scrollback（与图形路径
-   * 同编舞——先清 live 区再 writeRaw，写完立即重绘）。解码失败返回 null 已在
-   * 渲染器内吞并，此处无需再兜——静默降级为纯文本气泡（📎 行已随正文写入）。
-   * @param images - 图片 data URL 列表（与气泡一致，封顶 MAX_IMAGES）
-   */
-  private async commitHalfBlockImages(images: string[]): Promise<void> {
-    const cols = Math.max(10, this.stdout.columns - 4)
-    const blocks: string[] = []
-    for (const dataUrl of images.slice(0, MAX_IMAGES)) {
-      const preview = await renderHalfBlockPreview(dataUrl, {
-        maxCols: cols,
-        maxRows: FALLBACK_MAX_ROWS,
-        background: this.previewBackground(),
-      })
-      if (preview) blocks.push(preview.lines.join('\r\n'))
-    }
-    if (blocks.length === 0) return
-    this.atomicScrollbackWrite(() => { this.commit.writeRaw(blocks.join('\r\n') + '\r\n') })
   }
 
   /**
@@ -2465,56 +2448,12 @@ export class TuiApp {
   private get theme(): RivetTheme { return getTheme() }
 
   /**
-   * 原子提交编舞（输入框闪烁根修，2026-08-27）：BEGIN_SYNC 包裹
-   * 「清 live 区 → 写 scrollback → 同步重绘」，END_SYNC 收口。
-   *
-   * 旧序里 clearForCommit 同步直写擦掉整个 live 区（含待办卡/输入轨/footer），
-   * 重绘却交给 WriteBatcher 的 16ms 尾沿——每个段落/思考块落底后屏幕上真实缺席
-   * 一帧 chrome，推理期段边界密集即呈现为「输入框消失几帧又出现」。三步收敛进
-   * 同一轮事件循环后间隙只剩写入耗时；再包 CSI 2026 同步窗把它对终端合成器也
-   * 隐藏。窗内 LiveEngine.render 自带的嵌套 begin 按 CSI 2026 语义忽略、其 end
-   * 的释放点恰是整幅新帧写完之时，擦除中间态不再有任何显示窗口。
-   */
-  private atomicScrollbackWrite(writeScrollback: () => void): void {
-    const stdout = this.stdout
-    stdout.write(ANSI.BEGIN_SYNC)
-    try {
-      this.live.clearForCommit()
-      writeScrollback()
-      this.flushLiveRender()
-    } finally {
-      // 写屏/渲染抛错也必须收口：支持 2026 的终端会持续缓冲到 end 才刷新。
-      stdout.write(ANSI.END_SYNC)
-    }
-  }
-
-  /**
-   * 统一 scrollback 写入：先清除 live 区（mid-stream commit 协议），再写条目。
-   * 不擦则文本写在光标处（live 区底部），随后 renderLive 重绘 live 区把刚写的
-   * 内容覆盖——用户消息丢失根因（assistant 流式 commit 已带 clearForCommit，
-   * 非流式路径缺失导致行为不对称）。重绘由原子编舞内同步完成。
-   * overlay 激活时只入队，退出 alt screen 后再按同一协议补写。
+   * 统一 scrollback 写入委托（C4 第二波：实现已抽至 controllers/commit-surface——
+   * 原子提交编舞 / overlay 暂存补写 / 用户气泡与图片链路，详见该模块 docstring）。
+   * 全仓 ~28 个调用点保留本薄委托，签名不变。
    */
   private commitToScrollback(entry: { text: string; trailingNewline?: boolean }): void {
-    if (this.overlay !== null && this.overlay.activeId() !== null) {
-      this.deferredScrollback.push(entry)
-      return
-    }
-    this.atomicScrollbackWrite(() => { this.commit.write(entry) })
-  }
-
-  /** overlay 退出后把暂存条目按 mid-stream 协议写入主屏 scrollback。 */
-  private flushDeferredScrollback(): void {
-    const pending = this.deferredScrollback
-    if (pending.length === 0) return
-    this.deferredScrollback = []
-    this.atomicScrollbackWrite(() => {
-      for (const entry of pending) {
-        this.live.clearForCommit()
-        if ('raw' in entry) this.commit.writeRaw(entry.raw)
-        else this.commit.write(entry)
-      }
-    })
+    this.commitSurface.text(entry)
   }
 
   /**
@@ -2539,7 +2478,7 @@ export class TuiApp {
         trimmed = text
       } else {
         // 有图但不可发送：只回显附件气泡+警告，不触发 followup。
-        this.commitUserPrompt('', images)
+        this.commitSurface.userPrompt('', images)
         this.inputLine.clearImages()
         this.flushLiveRender()
         return
@@ -2562,8 +2501,8 @@ export class TuiApp {
     this.skillSurface.recordGesture(trimmed)
     this.pushHistory(trimmed)
     // 用户气泡：正文 + 📎 附件行 + 识图能力提示；有图且终端支持图形协议时
-    // 异步 prepare 后在同一写窗口追加终端图片（见 commitUserPrompt 时序说明）。
-    this.commitUserPrompt(expanded, images)
+    // 异步 prepare 后在同一写窗口追加终端图片（时序说明见 commit-surface）。
+    this.commitSurface.userPrompt(expanded, images)
     this.inputLine.clearImages()
     // 图片不可达时不发送（气泡已警告「图片未发送」）；可达时直发或经视觉桥转描述。
     // followup 异步（图片经 attachments 服务持久化后投递）；失败回显警告，不静默吞。
@@ -2573,75 +2512,6 @@ export class TuiApp {
       this.flushLiveRender()
     })
     this.flushLiveRender()
-  }
-
-  /**
-   * 用户气泡提交：正文 + 图片附件行 + 识图能力提示（vision 三态文案）。
-   * 有图且终端支持图形协议时，图片在气泡提交后异步 prepare（本地转码，
-   * 毫秒级，先于任何网络往返的 assistant 输出）并以同一写窗口协议追加
-   * 图形序列（先清 live 区再 writeRaw，写完立即重绘）——物理上图片位于
-   * 所属气泡下方、先于后续流式输出；prepare 失败静默降级为纯文本气泡。
-   * @param content - 用户消息正文（已 mention 展开）
-   * @param images - 图片 data URL 列表（已 normalize；可省略）
-   */
-  private commitUserPrompt(content: string, images?: string[]): void {
-    const protocol = imageProtocol()
-    const withImages = images !== undefined && images.length > 0 && protocol !== 'none'
-    this.commitToScrollback({ text: this.writeUserBubbleLines(content, images), trailingNewline: true })
-    // 无图形协议终端的图片回退：半块字符预览写进 scrollback（有图但协议 none；
-    // 与图形路径同编舞——异步解码完成后同一写窗口协议追加）。
-    if (images !== undefined && images.length > 0 && protocol === 'none') {
-      void this.commitHalfBlockImages(images)
-    }
-    if (!withImages) return
-    void (async () => {
-      let prepared: PreparedTermImage[] = []
-      try {
-        for (const dataUrl of images.slice(0, MAX_IMAGES)) {
-          const img = await prepareTermImageForCommit(dataUrl, protocol)
-          if (img) prepared.push(img)
-        }
-      } catch {
-        prepared = []
-      }
-      if (prepared.length === 0) return
-      // 宽高在写入当刻取最新终端尺寸：转码期间的 resize 不会用过期值编码。
-      const cols = Math.max(10, this.stdout.columns - 4)
-      const maxRows = Math.max(5, Math.min(40, (this.stdout.rows || 24) - 6))
-      let seq = ''
-      for (const img of prepared) {
-        const s = encodeTermImage(img, protocol, cols, maxRows)
-        if (s) seq += s + (protocol === 'kitty' ? '\r' : '\r\n')
-      }
-      if (!seq) return
-      // 与 commitToScrollback 同协议：原子编舞内先清 live 区再写，同步重绘。
-      // overlay 激活（alt screen）时入队，退出后按同一协议补写（与文本条目
-      // 同队列，顺序保持）；否则字节会写进 alt screen 且退出后丢失。
-      if (this.overlay !== null && this.overlay.activeId() !== null) {
-        this.deferredScrollback.push({ raw: seq })
-        return
-      }
-      this.atomicScrollbackWrite(() => { this.commit.writeRaw(seq) })
-    })()
-  }
-
-  /** 用户气泡正文（含 📎 附件行与识图能力提示）。 */
-  private writeUserBubbleLines(content: string, images?: string[]): string {
-    const hasImages = images !== undefined && images.length > 0
-    let imageNote = ''
-    if (hasImages) {
-      imageNote = `\n${color(`📎 ${images.length} image${images.length > 1 ? 's' : ''} attached`, this.theme.muted)}`
-      if (!this.supportsVision) {
-        if (this.visionBridgeEnabled) {
-          // 提示反映真实桥接来源：桥接=图先经视觉模型转文字描述再发。
-          const src = this.visionBridgeSource === 'auto' ? '（自动选用的视觉模型）' : ''
-          imageNote += `\n${color(`🖼 主模型不识图，将经识图桥${src}生成图片描述后发送`, this.theme.muted)}`
-        } else {
-          imageNote += `\n${color('⚠ 当前模型不支持识图，且无可用识图桥，图片未发送。请在配置中指定识图模型。', this.theme.warning)}`
-        }
-      }
-    }
-    return formatUserMessage({ content: content.trim() + imageNote, width: this.stdout.columns }, this.theme).join('\n')
   }
 
   /**
@@ -4321,7 +4191,7 @@ export class TuiApp {
     // overlay 打开期间暂存的 scrollback 条目：退出前按同一协议补写主屏
     // （会话日志是权威数据，scrollback 是展示层——丢条目只影响本次显示，
     // 补写成本低且避免"发了消息但屏上不见"的观感）。
-    this.flushDeferredScrollback()
+    this.commitSurface.flushDeferred()
     await this.detachProjections()
     // P1：/btw 侧问收尾——未决侧问直接销毁 btw agent（done 态答案未折叠则
     // 丢弃，退出即弃；订阅随 teardown 释放，防 dispose 后事件回调泄漏）。

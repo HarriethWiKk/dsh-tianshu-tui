@@ -102,6 +102,7 @@ export declare class TuiApp {
     private readonly stdout;
     private readonly stdin;
     private readonly commit;
+    private readonly commitSurface;
     private readonly live;
     private readonly input;
     private readonly inputLine;
@@ -129,11 +130,6 @@ export declare class TuiApp {
     /** /key 首启自动弹窗禁用（宿主/测试装配显式关闭；缺省 false=启用）。 */
     private readonly disableKeyAutoPrompt;
     private overlay;
-    /**
-     * overlay 激活期间暂存的 scrollback 条目（文本条目或原始字节序列）。
-     * alt screen 下 stdout 写入会盖住面板，且退出时终端恢复的是进入 overlay 前的主屏。
-     */
-    private deferredScrollback;
     /** C3 项 3：rewind overlay（/rewind 双阶段回退面板）。 */
     private rewindOverlay;
     /** P2：memory 浏览器 overlay（/memory 记忆列表/过滤/删除）。 */
@@ -382,13 +378,6 @@ export declare class TuiApp {
      */
     private attachClipboardImage;
     /**
-     * 无图形协议终端的气泡图片回退：半块字符预览写进 scrollback（与图形路径
-     * 同编舞——先清 live 区再 writeRaw，写完立即重绘）。解码失败返回 null 已在
-     * 渲染器内吞并，此处无需再兜——静默降级为纯文本气泡（📎 行已随正文写入）。
-     * @param images - 图片 data URL 列表（与气泡一致，封顶 MAX_IMAGES）
-     */
-    private commitHalfBlockImages;
-    /**
      * composer 附件缩略图维护：附件列表变化时重算最后一张的半块预览。
      * sharp 异步解码毫秒级，完成后触发一次重绘；代际号丢弃迟到结果
      * （快速增删/提交清空后不再挂出过期图片）。渲染失败置 null——计数行
@@ -582,27 +571,11 @@ export declare class TuiApp {
     /** 当前主题（动态读取，切主题后立即生效）。 */
     private get theme();
     /**
-     * 原子提交编舞（输入框闪烁根修，2026-08-27）：BEGIN_SYNC 包裹
-     * 「清 live 区 → 写 scrollback → 同步重绘」，END_SYNC 收口。
-     *
-     * 旧序里 clearForCommit 同步直写擦掉整个 live 区（含待办卡/输入轨/footer），
-     * 重绘却交给 WriteBatcher 的 16ms 尾沿——每个段落/思考块落底后屏幕上真实缺席
-     * 一帧 chrome，推理期段边界密集即呈现为「输入框消失几帧又出现」。三步收敛进
-     * 同一轮事件循环后间隙只剩写入耗时；再包 CSI 2026 同步窗把它对终端合成器也
-     * 隐藏。窗内 LiveEngine.render 自带的嵌套 begin 按 CSI 2026 语义忽略、其 end
-     * 的释放点恰是整幅新帧写完之时，擦除中间态不再有任何显示窗口。
-     */
-    private atomicScrollbackWrite;
-    /**
-     * 统一 scrollback 写入：先清除 live 区（mid-stream commit 协议），再写条目。
-     * 不擦则文本写在光标处（live 区底部），随后 renderLive 重绘 live 区把刚写的
-     * 内容覆盖——用户消息丢失根因（assistant 流式 commit 已带 clearForCommit，
-     * 非流式路径缺失导致行为不对称）。重绘由原子编舞内同步完成。
-     * overlay 激活时只入队，退出 alt screen 后再按同一协议补写。
+     * 统一 scrollback 写入委托（C4 第二波：实现已抽至 controllers/commit-surface——
+     * 原子提交编舞 / overlay 暂存补写 / 用户气泡与图片链路，详见该模块 docstring）。
+     * 全仓 ~28 个调用点保留本薄委托，签名不变。
      */
     private commitToScrollback;
-    /** overlay 退出后把暂存条目按 mid-stream 协议写入主屏 scrollback。 */
-    private flushDeferredScrollback;
     /**
      * 提交用户输入：追加输入历史、将用户消息渲染进 scrollback、
      * 走 adapter.send 的 followup 驱动 agent。slash 命令（/steer）分流到 handleSteer。
@@ -610,18 +583,6 @@ export declare class TuiApp {
      * @param images - 输入框携带的图片附件 data URL 列表（可省略）
      */
     handleSubmit(text: string, images?: string[]): void;
-    /**
-     * 用户气泡提交：正文 + 图片附件行 + 识图能力提示（vision 三态文案）。
-     * 有图且终端支持图形协议时，图片在气泡提交后异步 prepare（本地转码，
-     * 毫秒级，先于任何网络往返的 assistant 输出）并以同一写窗口协议追加
-     * 图形序列（先清 live 区再 writeRaw，写完立即重绘）——物理上图片位于
-     * 所属气泡下方、先于后续流式输出；prepare 失败静默降级为纯文本气泡。
-     * @param content - 用户消息正文（已 mention 展开）
-     * @param images - 图片 data URL 列表（已 normalize；可省略）
-     */
-    private commitUserPrompt;
-    /** 用户气泡正文（含 📎 附件行与识图能力提示）。 */
-    private writeUserBubbleLines;
     /**
      * 执行一条 slash 命令：注册表解析 → handler 运行 → 回显/错误提示。
      * 命令回显写 scrollback（用户可见），但不写回 session log（dsh 纪律：
