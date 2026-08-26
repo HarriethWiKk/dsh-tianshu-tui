@@ -162,3 +162,32 @@ export interface CheckForUpdateOptions {
  * （测试隔离靠 fetchNet 注入，此守卫只兜底误配置）。失败不抛（回显用）。
  */
 export declare function checkForUpdate(opts?: CheckForUpdateOptions): Promise<UpdateCheckResult>;
+/** 解析后的 changelog 条目（一个版本一块）。 */
+export interface ChangelogEntry {
+    /** 版本号（如 `0.1.2-rc.19`）或 `Unreleased`。 */
+    version: string;
+    /** 发布日期（ISO 短格式 `2026-08-26`；Unreleased 无）。 */
+    date: string | null;
+    /** 条目正文（标题之后的原始行，含换行）。 */
+    body: string;
+}
+/**
+ * 解析 CHANGELOG.md：按 `## [version] - date` 标题切块（Keep a Changelog 风格）。
+ * 标题行以 `## [` 开头（`## [Unreleased]` 无日期也识别）；`#` 与空行归入当前块。
+ * @param text - CHANGELOG.md 全文。
+ * @returns 按文件顺序的条目数组；无版本块返回空数组。
+ */
+export declare function parseChangelog(text: string): ChangelogEntry[];
+/**
+ * 读本包 CHANGELOG.md（从 startDir 向上找包根；npm 包内与开发仓库均可命中）。
+ * @param startDir - 起始目录（import.meta.url 所在目录）。
+ * @returns 文件全文；缺失返回 null。
+ */
+export declare function readOwnChangelog(startDir: string): string | null;
+/**
+ * changelog 正文轻量简化（scrollback 纯文本展示）：markdown 链接收成文本、
+ * 粗体标记剥除、列表前缀保留。行内其余内容原样。
+ * @param body - 原始条目正文。
+ * @returns 简化后的正文（逐行）。
+ */
+export declare function simplifyChangelogMarkdown(body: string): string[];

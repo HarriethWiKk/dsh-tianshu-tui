@@ -350,7 +350,7 @@ export async function runSelfUpdate(opts: RunSelfUpdateOptions = {}): Promise<Up
 }
 
 export function updateNoticeText(version: string): string {
-  return `插件已更新到 ${version}。输入 /restart 立即生效（或 Ctrl+Q 退出后重新启动 dsh）`
+  return `插件已更新到 ${version}。输入 /changelog 查看本次更新内容；/restart 立即生效（或 Ctrl+Q 退出后重新启动 dsh）`
 }
 
 /** 失败提示里的手动更新命令包名（app 侧文案引用）。 */
@@ -410,4 +410,77 @@ export async function checkForUpdate(opts: CheckForUpdateOptions = {}): Promise<
   } catch (err) {
     return { kind: 'failed', error: err instanceof Error ? err.message : String(err) }
   }
+}
+
+// ── Changelog（/changelog 命令数据源） ─────────────────────────
+
+/** 解析后的 changelog 条目（一个版本一块）。 */
+export interface ChangelogEntry {
+  /** 版本号（如 `0.1.2-rc.19`）或 `Unreleased`。 */
+  version: string
+  /** 发布日期（ISO 短格式 `2026-08-26`；Unreleased 无）。 */
+  date: string | null
+  /** 条目正文（标题之后的原始行，含换行）。 */
+  body: string
+}
+
+/**
+ * 解析 CHANGELOG.md：按 `## [version] - date` 标题切块（Keep a Changelog 风格）。
+ * 标题行以 `## [` 开头（`## [Unreleased]` 无日期也识别）；`#` 与空行归入当前块。
+ * @param text - CHANGELOG.md 全文。
+ * @returns 按文件顺序的条目数组；无版本块返回空数组。
+ */
+export function parseChangelog(text: string): ChangelogEntry[] {
+  const entries: ChangelogEntry[] = []
+  let current: ChangelogEntry | null = null
+  for (const line of text.split('\n')) {
+    const m = /^## \[([^\]]+)\](?: - ([\d-]+))?$/.exec(line.trim())
+    if (m !== null) {
+      current = { version: m[1]!, date: m[2] ?? null, body: '' }
+      entries.push(current)
+      continue
+    }
+    if (current !== null) {
+      current.body += `${line}\n`
+    }
+  }
+  return entries
+}
+
+/**
+ * 读本包 CHANGELOG.md（从 startDir 向上找包根；npm 包内与开发仓库均可命中）。
+ * @param startDir - 起始目录（import.meta.url 所在目录）。
+ * @returns 文件全文；缺失返回 null。
+ */
+export function readOwnChangelog(startDir: string): string | null {
+  let dir = startDir
+  for (let i = 0; i < 8; i++) {
+    const candidate = join(dir, 'CHANGELOG.md')
+    if (existsSync(candidate)) return readFileSync(candidate, 'utf-8')
+    const parent = dirname(dir)
+    if (parent === dir) break
+    dir = parent
+  }
+  return null
+}
+
+/**
+ * changelog 正文轻量简化（scrollback 纯文本展示）：markdown 链接收成文本、
+ * 粗体标记剥除、列表前缀保留。行内其余内容原样。
+ * @param body - 原始条目正文。
+ * @returns 简化后的正文（逐行）。
+ */
+export function simplifyChangelogMarkdown(body: string): string[] {
+  const out: string[] = []
+  for (const line of body.split('\n')) {
+    if (line.trim() === '') {
+      out.push('')
+      continue
+    }
+    const stripped = line
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+    out.push(stripped)
+  }
+  return out
 }

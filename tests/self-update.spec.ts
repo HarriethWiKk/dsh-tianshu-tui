@@ -15,10 +15,13 @@ import {
   isCacheFresh,
   isNpmVersionSpec,
   npmRegistryCandidates,
+  parseChangelog,
   planSelfUpdate,
+  readOwnChangelog,
   readUpdateCache,
   runSelfUpdate,
   shouldCheckForUpdate,
+  simplifyChangelogMarkdown,
   updateNoticeText,
   writeUpdateCache,
   autoRestartNoticeText,
@@ -151,12 +154,59 @@ describe('runSelfUpdate', () => {
 })
 
 describe('updateNoticeText', () => {
-  it('提示重启后生效', () => {
-    expect(updateNoticeText('0.1.0-rc.7')).toBe('插件已更新到 0.1.0-rc.7。输入 /restart 立即生效（或 Ctrl+Q 退出后重新启动 dsh）')
+  it('提示 /changelog 查看内容 + 重启后生效', () => {
+    expect(updateNoticeText('0.1.0-rc.7')).toBe('插件已更新到 0.1.0-rc.7。输入 /changelog 查看本次更新内容；/restart 立即生效（或 Ctrl+Q 退出后重新启动 dsh）')
   })
 
   it('autoRestartNoticeText 提示自动重启', () => {
     expect(autoRestartNoticeText('0.1.0-rc.7')).toBe('插件已更新到 0.1.0-rc.7，正在自动重启…')
+  })
+})
+
+describe('parseChangelog / readOwnChangelog / simplifyChangelogMarkdown', () => {
+  const SAMPLE = [
+    '# Changelog',
+    '',
+    '## [Unreleased]',
+    '',
+    '- **未发布条目**',
+    '',
+    '## [0.1.2-rc.19] - 2026-08-26',
+    '',
+    '- **功能 A** — 描述（[#1](https://example.com/1)）',
+    '- 普通行',
+  ].join('\n')
+
+  it('按 ## [version] 切块（Unreleased 无日期），正文保留原始行', () => {
+    const entries = parseChangelog(SAMPLE)
+    expect(entries).toHaveLength(2)
+    expect(entries[0]).toMatchObject({ version: 'Unreleased', date: null })
+    expect(entries[0]!.body).toContain('- **未发布条目**')
+    expect(entries[1]).toMatchObject({ version: '0.1.2-rc.19', date: '2026-08-26' })
+    expect(entries[1]!.body).toContain('功能 A')
+    // 文件头 `# Changelog` 不进任何块
+    expect(entries[0]!.body).not.toContain('# Changelog')
+  })
+
+  it('空文本 / 无版本块 → 空数组', () => {
+    expect(parseChangelog('')).toEqual([])
+    expect(parseChangelog('只有正文没有标题')).toEqual([])
+  })
+
+  it('readOwnChangelog 向上找包根 CHANGELOG.md（缺失返回 null）', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-tui-cl-'))
+    const sub = join(dir, 'a', 'b')
+    mkdirSync(sub, { recursive: true })
+    expect(readOwnChangelog(sub)).toBeNull()
+    writeFileSync(join(dir, 'CHANGELOG.md'), '# C')
+    expect(readOwnChangelog(sub)).toBe('# C')
+  })
+
+  it('simplifyChangelogMarkdown：链接收成文本、粗体剥除、空行保留', () => {
+    const out = simplifyChangelogMarkdown('- **功能 A** — 描述（[#1](https://example.com/1)）\n\n- 普通行\n')
+    expect(out[0]).toBe('- 功能 A — 描述（#1）')
+    expect(out[1]).toBe('')
+    expect(out[2]).toBe('- 普通行')
   })
 })
 

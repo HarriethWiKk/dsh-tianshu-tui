@@ -2520,6 +2520,43 @@ describe('TuiApp 命令面板（Ctrl+P overlay）', () => {
     await app.dispose()
   })
 
+  it('/changelog 默认回显当前版本条目（读仓库根 CHANGELOG.md）', async () => {
+    const { app, stdout } = await bootPaletteApp()
+
+    app.handleSubmit('/changelog')
+    await new Promise(resolve => setImmediate(resolve))
+
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('## 0.1.2-rc.19')
+    expect(written).toContain('/preset')
+    await app.dispose()
+  })
+
+  it('/changelog all 含 Unreleased 段；/changelog N 截断', async () => {
+    const { app, stdout } = await bootPaletteApp()
+
+    app.handleSubmit('/changelog all')
+    await new Promise(resolve => setImmediate(resolve))
+    app.handleSubmit('/changelog 1')
+    await new Promise(resolve => setImmediate(resolve))
+
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('## Unreleased')
+    expect(written).toContain('## 0.1.2-rc.18') // all 覆盖更早版本
+    await app.dispose()
+  })
+
+  it('/changelog 非法参数 → 用法提示', async () => {
+    const { app, stdout } = await bootPaletteApp()
+
+    app.handleSubmit('/changelog nope')
+    await new Promise(resolve => setImmediate(resolve))
+
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('用法: /changelog')
+    await app.dispose()
+  })
+
   it('面板过滤 + Enter 回填 /clear 到输入行，再回车执行命令', async () => {
     const { app, stdin, stdout } = await bootPaletteApp()
 
@@ -3560,7 +3597,7 @@ describe('TuiApp 会话交互 UX 对齐（显示层 = 实际能力）', () => {
     await app.attach()
     app.notifyPluginUpdated('0.1.0-rc.7')
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).toContain('插件已更新到 0.1.0-rc.7。输入 /restart 立即生效')
+    expect(written).toContain('插件已更新到 0.1.0-rc.7。输入 /changelog 查看本次更新内容')
     await app.dispose()
   })
 
@@ -3576,7 +3613,7 @@ describe('TuiApp 会话交互 UX 对齐（显示层 = 实际能力）', () => {
     expect(before).not.toContain('插件已更新到')
     await app.attach()
     const after = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(after).toContain('插件已更新到 0.1.0-rc.7。输入 /restart 立即生效')
+    expect(after).toContain('插件已更新到 0.1.0-rc.7。输入 /changelog 查看本次更新内容')
     await app.dispose()
   })
 

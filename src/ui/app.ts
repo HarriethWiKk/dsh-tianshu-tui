@@ -87,7 +87,7 @@ import {
 } from '../adapter/sessions.js'
 import { createForkedAgent } from '../adapter/fork-agent.js'
 import { sessionTitleFor } from '../adapter/session-title.js'
-import { updateNoticeText, autoRestartNoticeText, updateNoticePackage, readOwnVersion, checkForUpdate as runUpdateCheck, defaultUpdateCachePath, type UpdateCheckResult } from '../self-update.js'
+import { updateNoticeText, autoRestartNoticeText, updateNoticePackage, readOwnVersion, readOwnChangelog, parseChangelog, simplifyChangelogMarkdown, checkForUpdate as runUpdateCheck, defaultUpdateCachePath, type UpdateCheckResult } from '../self-update.js'
 import { supportsOsc52 } from '../term-caps.js'
 import { getTheme, getActiveThemeName, setTheme, type RivetTheme } from '../theme.js'
 import { displayWidth, ambiguousWideEnabled } from '../width.js'
@@ -999,6 +999,46 @@ export class TuiApp {
         this.persistPrefs()
         this.renderBatcher.schedule()
         echo(`输入区信息密度：${next}（${FOOTER_INFO_LEVELS.join(' / ')}）`)
+      },
+    })
+    // 版本更新内容（/changelog）：读包内 CHANGELOG.md，默认当前版本条目；
+    // 自动更新提示（updateNoticeText）已引导本命令——用户更新后即可知道改了什么。
+    this.slash.register({
+      name: 'changelog',
+      description: '查看版本更新内容（默认当前版本；all 全部；N 最近 N 版）',
+      argsHint: '[all|N]',
+      run: ({ text, echo }) => {
+        const arg = text.trim()
+        const changelog = readOwnChangelog(fileURLToPath(new URL('.', import.meta.url)))
+        if (changelog === null) {
+          echo('未找到 CHANGELOG.md（开发安装可能缺失，见仓库根）')
+          return
+        }
+        const entries = parseChangelog(changelog)
+        if (entries.length === 0) {
+          echo('CHANGELOG 暂无条目')
+          return
+        }
+        let selected: typeof entries
+        if (arg === '') {
+          const own = readOwnVersion(fileURLToPath(new URL('.', import.meta.url)))
+          const hit = own === undefined ? undefined : entries.find(e => e.version === own)
+          selected = hit === undefined ? entries.slice(0, 1) : [hit]
+        } else if (arg === 'all') {
+          selected = entries
+        } else if (/^\d+$/.test(arg)) {
+          selected = entries.slice(0, Math.min(Number(arg), entries.length))
+        } else {
+          echo('用法: /changelog（当前版本）  /changelog all（全部）  /changelog N（最近 N 版）')
+          return
+        }
+        for (const entry of selected) {
+          const title = entry.date === null ? `## ${entry.version}` : `## ${entry.version}（${entry.date}）`
+          echo(title)
+          for (const line of simplifyChangelogMarkdown(entry.body)) {
+            echo(line === '' ? '' : `  ${line}`)
+          }
+        }
       },
     })
     this.slash.register({

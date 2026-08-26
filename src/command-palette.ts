@@ -40,7 +40,7 @@ export const PALETTE_COMMAND_GROUPS: Readonly<Record<string, string>> = {
   status: '面板', todos: '面板', tasks: '面板', subagents: '面板', workflow: '面板',
   goal: '面板', skills: '面板', rewind: '面板', lsp: '面板',
   // 系统
-  mcp: '系统', doctor: '系统', update: '系统', cost: '系统', help: '系统',
+  mcp: '系统', doctor: '系统', update: '系统', cost: '系统', help: '系统', changelog: '系统',
 }
 
 /** 分组渲染顺序（稳定排序；表外组名追加到尾部）。 */

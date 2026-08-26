@@ -19,6 +19,7 @@
     "lib/invariant.js",
     "cordis.patch.yml",
     "lib/types/**/*.d.ts",
+    "CHANGELOG.md",
     "NOTICE",
     "SOURCE-MAP.md"
   ],
