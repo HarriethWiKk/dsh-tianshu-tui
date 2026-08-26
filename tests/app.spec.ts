@@ -6397,8 +6397,8 @@ describe('C4 概念稿 菜单快捷键与三行底部区（提交后审查补测
     await app.attach()
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     // footer 恒渲染（formatPromptFooter 单行）；metrics 需 glance 数据（此处无，
-    // 不占位——纯函数 spec 已覆盖渲染，此处断言装配不抛且 footer 在输出中）
-    expect(written).toContain('/ 命令')
+    // 不占位——纯函数 spec 已覆盖渲染，此处断言装配不抛且 footer 在输出中）。
+    // 提示段走 10s 轮播不固定文本——mode 段 normal 恒在，作为 footer 标记。
     expect(written).toContain('normal')
     await app.dispose()
   })
@@ -6441,12 +6441,12 @@ describe('C4 概念稿 菜单快捷键与三行底部区（提交后审查补测
     }
   })
 
-  it('B 布局：更窄时从右丢 API 段，仍单行雾蓝', async () => {
+  it('B 布局：窄宽仍单行雾蓝（丢段边界随轮播 tip 宽度浮动，行为由 format 层覆盖）', async () => {
     const savedKey = process.env.DEEPSEEK_API_KEY
     Reflect.deleteProperty(process.env, 'DEEPSEEK_API_KEY')
     try {
       const { stdout, app } = boot()
-      // 新 hint 集（无 Enter 发送）：40 列 → 有效 36 列，恰丢 API 段留模型段
+      // 40 列 → 有效 36 列：任意轮播 tip 下左段 + 右段（mock 恒在）不破版
       stdout.columns = 40
       await app.attach()
       stdout.write.mockClear()
@@ -6457,7 +6457,6 @@ describe('C4 概念稿 菜单快捷键与三行底部区（提交后审查补测
       expect(written).toMatch(/╭─+/)
       expect(written).toContain('normal')
       expect(written).toContain('mock')
-      expect(written).not.toContain('API ✗')
       expect(written).toContain('\x1B[38;2;170;178;194m')
       await app.dispose()
     } finally {

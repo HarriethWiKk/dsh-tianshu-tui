@@ -3,7 +3,10 @@
  *
  * 输入行下方的模式/快捷键提示行：mode 段（normal + [plan]/[plan…]/[auto]
  * 徽标，与 statusline 徽标词汇一致）在前，快捷键提示在后。窄宽从后往前
- * 丢段（ctrl+p 面板 → / 命令），mode 恒保留。
+ * 丢段（轮播 tip → mode），mode 恒保留。
+ * 空闲态提示走 10s 轮播（对齐 kimi-code footer tips）：基础操作高频出现，
+ * 新功能/配置命令按权重旋转，让用户持续可发现；审批/检查面板等上下文态
+ * 优先显示操作提示不轮播。
  * 右侧状态段（token/模型/API 等）右对齐合并进同一行；放不下从后往前丢右段，
  * 绝不另起 theme.primary 第二行。宽度守恒：任何输入下每行显示宽度 ≤ width。
  */
@@ -14,6 +17,52 @@ import { displayWidth } from '../width.js'
 import type { FooterInfoLevel } from '../prefs.js'
 import type { FormatGlanceBarInput } from './glance-bar.js'
 import { formatGlanceMetricsLine } from './glance-bar.js'
+
+/** 提示轮播周期（ms）；对齐 kimi-code footer tips 10s 旋转。 */
+export const FOOTER_TIP_ROTATE_MS = 10_000
+
+/** 轮播 tip：文本 + 权重（高权重更常出现）。 */
+export interface FooterTip {
+  text: string
+  weight: number
+}
+
+/**
+ * 轮播提示表（纯数据）：基础操作高频（weight 3），新功能/配置类 weight 2，
+ * 其余 1。新增命令时在此补一条即可让用户在空闲态可发现。
+ */
+export const FOOTER_TIPS: readonly FooterTip[] = [
+  { text: '/ 命令 · ctrl+p 面板', weight: 3 },
+  { text: '/info 输入区信息密度', weight: 2 },
+  { text: '/density 紧凑渲染', weight: 2 },
+  { text: 'shift+tab 模式循环', weight: 1 },
+  { text: '/glance 隐藏 metrics 段', weight: 1 },
+  { text: '/preset 切换 agent 面', weight: 1 },
+  { text: '/theme 换主题', weight: 1 },
+  { text: 'ctrl+o 展开推理', weight: 1 },
+  { text: 'ctrl+n 新会话 · ctrl+s 恢复', weight: 1 },
+  { text: '/help 全部命令', weight: 1 },
+]
+
+/** 权重展开序列（index 取模即得轮播序；展开缓存避免每次重算）。 */
+const TIP_SEQUENCE: readonly string[] = (() => {
+  const seq: string[] = []
+  for (const t of FOOTER_TIPS) {
+    for (let i = 0; i < t.weight; i++) seq.push(t.text)
+  }
+  return seq
+})()
+
+/** 按序号取轮播提示（确定性；index 取模权重序列）。 */
+export function footerTipForIndex(index: number): string {
+  if (TIP_SEQUENCE.length === 0) return ''
+  return TIP_SEQUENCE[((index % TIP_SEQUENCE.length) + TIP_SEQUENCE.length) % TIP_SEQUENCE.length]!
+}
+
+/** 当前轮播序号：now 按 FOOTER_TIP_ROTATE_MS 分片。 */
+export function footerTipIndex(now: number = Date.now()): number {
+  return Math.floor(now / FOOTER_TIP_ROTATE_MS)
+}
 
 /** formatFooterInfo 的渲染输入（行 1 输入 + 档位 + 行 2 指标数据源）。 */
 export interface FormatFooterInfoInput extends FormatPromptFooterInput {
@@ -56,11 +105,17 @@ export interface FormatPromptFooterInput {
   inspectOpen?: boolean
   /** 右侧状态段（token/模型/API 等）；右对齐合并进同一行，放不下从后丢段。 */
   rightSegments?: readonly string[]
+  /**
+   * 轮播序号（空闲态提示用；缺省按当前时间分片——测试注入固定值保证确定）。
+   * 上下文态（审批/检查面板）忽略此参数，始终显示操作提示。
+   */
+  tipIndex?: number
 }
 
 /**
  * 渲染底部 footer：mode 段 + 快捷键提示段，右侧状态段右对齐合并进同一行。
- * @param input - 宽度、模式徽标与右侧状态段。
+ * 空闲态提示按 tipIndex 轮播（10s 一片）；审批/检查面板等上下文态固定操作提示。
+ * @param input - 宽度、模式徽标、右侧状态段与轮播序号。
  * @param theme - 当前主题（plan/auto 徽标走 warning/error；其余用雾蓝 chrome）。
  * @returns 单行 ANSI；任何宽度下 ≤ width。
  */
@@ -76,7 +131,7 @@ export function formatPromptFooter(input: FormatPromptFooterInput, theme: RivetT
     ? ['y 允许', 'n 拒绝', 'a 放行', 'esc 取消']
     : input.inspectOpen === true
       ? ['esc 关闭', '/ 命令']
-      : ['/ 命令', 'ctrl+p 面板']
+      : [footerTipForIndex(input.tipIndex ?? footerTipIndex())]
   // 从后往前丢段直到放得下（mode 恒保留）。
   let segs = hints
   for (;;) {

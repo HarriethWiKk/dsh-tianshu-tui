@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest'
 import type { RivetTheme } from '../src/theme.js'
 import { displayWidth } from '../src/width.js'
-import { formatPromptFooter, formatFooterInfo, type FormatPromptFooterInput, type FormatFooterInfoInput } from '../src/format/prompt-footer.js'
+import { formatPromptFooter, formatFooterInfo, footerTipForIndex, footerTipIndex, FOOTER_TIP_ROTATE_MS, type FormatPromptFooterInput, type FormatFooterInfoInput } from '../src/format/prompt-footer.js'
 
 function fakeTheme(): RivetTheme {
   return {
@@ -26,7 +26,8 @@ function plain(lines: readonly string[]): string[] {
 }
 
 function base(over: Partial<FormatPromptFooterInput> = {}): FormatPromptFooterInput {
-  return { width: 100, ...over }
+  // tipIndex 0 固定为第一条轮播提示（'/ 命令 · ctrl+p 面板'）——测试确定性。
+  return { width: 100, tipIndex: 0, ...over }
 }
 
 describe('formatPromptFooter', () => {
@@ -66,15 +67,21 @@ describe('formatPromptFooter', () => {
     }
   })
 
-  it('窄宽丢段：mode 恒保留，快捷键段从后往前丢', () => {
-    // width 12：mode 段（normal=6）放得下，快捷键全部丢弃
+  it('窄宽丢段：mode 恒保留，轮播提示整条丢弃', () => {
+    // width 12：mode 段（normal=6）放得下，轮播提示整条丢弃
     const [line = ''] = plain(formatPromptFooter(base({ width: 12 }), fakeTheme()))
     expect(line).toContain('normal')
     expect(line).not.toContain('ctrl+p')
-    // width 20：mode + / 命令，ctrl+p 丢弃
+    // width 20：'/ 命令 · ctrl+p 面板' 14 列放不下（6+3+14=23>20）→ 丢弃
     const [mid = ''] = plain(formatPromptFooter(base({ width: 20 }), fakeTheme()))
-    expect(mid).toContain('/ 命令')
+    expect(mid).toContain('normal')
     expect(mid).not.toContain('ctrl+p')
+    // 短提示（'shift+tab 模式循环' 18 列）放得下：6+3+18=27
+    const shortIdx = Array.from({ length: 30 }, (_, i) => i).find(i => footerTipForIndex(i).includes('shift+tab'))
+    if (shortIdx !== undefined) {
+      const [short = ''] = plain(formatPromptFooter(base({ width: 27, tipIndex: shortIdx }), fakeTheme()))
+      expect(short).toContain('shift+tab')
+    }
   })
 
   it('极窄（mode 段也放不下）：退化为 mode 单段（mode 恒保留）', () => {
@@ -96,15 +103,17 @@ describe('formatPromptFooter', () => {
   })
 
   it('右侧段放不下：从后往前丢段，末尾段先丢', () => {
-    // 新 hint 集（无 Enter 发送）下左侧满档 29 列；width 78 → 恰好只丢 KK
+    // 左段 'normal · / 命令 · ctrl+p 面板' 29 列；width 46 → 右段可用 17 列，
+    // 'AA · BB · CC · DD'（17 列）恰好放下，EE 起全部丢弃
     const [narrow = ''] = plain(formatPromptFooter(base({
-      width: 78,
+      width: 46,
       rightSegments: ['AA', 'BB', 'CC', 'DD', 'EE', 'FF', 'GG', 'HH', 'II', 'JJ', 'KK'],
     }), fakeTheme()))
     expect(narrow).toContain('normal')
     expect(narrow).toContain('AA')
+    expect(narrow).toContain('DD')
+    expect(narrow).not.toContain('EE')
     expect(narrow).not.toContain('KK')
-    expect(narrow).not.toContain('AA · BB · CC · DD · EE · FF · GG · HH · II · JJ · KK')
   })
 
   it('任意宽度：右侧段合并进同一行，不另起第二行', () => {
@@ -219,5 +228,51 @@ describe('formatFooterInfo（分层 footer：行 1 状态行 + 行 2 指标行�
         expect(displayWidth(plain([line])[0]!)).toBeLessThanOrEqual(100)
       }
     }
+  })
+})
+
+describe('footer 提示轮播（10s 一片，kimi-code tips 语义）', () => {
+  it('footerTipForIndex 确定性且权重展开（高权重条目出现更多次）', () => {
+    // 权重展开：/ 命令 · ctrl+p 面板 weight 3 → 序列中占 3 个槽
+    expect(footerTipForIndex(0)).toBe('/ 命令 · ctrl+p 面板')
+    expect(footerTipForIndex(1)).toBe('/ 命令 · ctrl+p 面板')
+    expect(footerTipForIndex(2)).toBe('/ 命令 · ctrl+p 面板')
+    // 循环取模：回到序列首
+    const n = Array.from({ length: 40 }, (_, i) => i).filter(i => footerTipForIndex(i) === '/ 命令 · ctrl+p 面板').length
+    expect(n).toBeGreaterThanOrEqual(6) // 40 槽中至少 6 次（w3/14 ≈ 8.6 次，容差）
+  })
+
+  it('footerTipIndex 按 10s 分片，同一片内稳定', () => {
+    const t0 = 1_700_000_000_000
+    expect(footerTipIndex(t0)).toBe(footerTipIndex(t0 + 9_999))
+    expect(footerTipIndex(t0 + 10_000)).toBe(footerTipIndex(t0) + 1)
+    expect(FOOTER_TIP_ROTATE_MS).toBe(10_000)
+  })
+
+  it('空闲态提示随 tipIndex 轮播（不同序号不同文本）', () => {
+    const seq = Array.from({ length: 30 }, (_, i) => i)
+    const texts = new Set(seq.map(i => plain(formatPromptFooter(base({ tipIndex: i }), fakeTheme()))[0]!))
+    expect(texts.size).toBeGreaterThan(3) // 轮播表多条被取到
+  })
+
+  it('上下文态优先：approvalPending / inspectOpen 忽略 tipIndex 不轮播', () => {
+    for (const i of [0, 5, 9]) {
+      const [approval = ''] = plain(formatPromptFooter(base({ tipIndex: i, approvalPending: true }), fakeTheme()))
+      expect(approval).toContain('y 允许')
+      expect(approval).toContain('n 拒绝')
+      const [inspect = ''] = plain(formatPromptFooter(base({ tipIndex: i, inspectOpen: true }), fakeTheme()))
+      expect(inspect).toContain('esc 关闭')
+      expect(inspect).toContain('/ 命令')
+    }
+  })
+
+  it('缺省 tipIndex 走当前时间分片（可发现性：新功能 tip 会周期性出现）', () => {
+    // 采样 14 个连续时间片（每个 10s）：覆盖权重展开序列的全部槽位
+    const samples = new Set<string>()
+    for (let i = 0; i < 14; i++) {
+      const [line = ''] = plain(formatPromptFooter(base({ tipIndex: footerTipIndex(i * FOOTER_TIP_ROTATE_MS) }), fakeTheme()))
+      samples.add(line)
+    }
+    expect(samples.size).toBeGreaterThan(8)
   })
 })
