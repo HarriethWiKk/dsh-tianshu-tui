@@ -75,6 +75,8 @@ export declare class SkillSurfaceController {
     private readonly onEvent;
     /** skills/change 订阅 disposer（attach 订阅 / dispose 解绑；重复 attach 先解绑旧 disposer）。 */
     private eventDisposer;
+    /** /skills 面板选中下标（↑↓ 详情；刷新后钳制）。 */
+    private selectedIndex;
     constructor(options: SkillSurfaceOptions);
     /** attach 接线：订阅 skills/change（目录变更 → 刷新）+ 首刷一次（技能在
      *  首次输入前就绪，不再只有 /skills 命令触发）。 */
@@ -86,6 +88,11 @@ export declare class SkillSurfaceController {
      * resolve 后同步重新投影 slash 菜单条目（#39），并调度重绘。
      */
     refresh(): void;
+    /** 当前选中技能名（空列表 → undefined）。 */
+    selectedName(): string | undefined;
+    /** 移动选中；越界钳制。返回是否变化。 */
+    moveSelected(delta: number): boolean;
+    private clampSelected;
     /** 全部技能快照（/skills 浏览面板数据源；空数组 = 无技能或未加载）。 */
     all(): SkillSummaryInput[];
     /** userInvocable 技能（slash 菜单/命令面板数据源过滤）。

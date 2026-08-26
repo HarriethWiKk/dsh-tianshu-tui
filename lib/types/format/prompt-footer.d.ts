@@ -10,6 +10,8 @@ export interface FormatPromptFooterInput {
     alwaysApprove?: boolean;
     /** 审批挂起：快捷键换成 y/n/a/esc，避免仍提示「Enter 发送」。 */
     approvalPending?: boolean;
+    /** 检查类面板打开：提示 esc 关闭。 */
+    inspectOpen?: boolean;
     /** 右侧状态段（token/模型/API 等）；右对齐合并进同一行，放不下从后丢段。 */
     rightSegments?: readonly string[];
 }

@@ -188,8 +188,6 @@ export declare class TuiApp {
     private projectionCache;
     /** T4：任务窗格——sessionProjections 任务单元投影快照（服务缺失时为 null）。 */
     private taskItems;
-    /** T4：任务窗格显隐（/tasks 切换）。 */
-    private taskPanelVisible;
     /** T2.1：委派树面板显隐（/subagents 切换）。 */
     private subagentsPanelVisible;
     /** T2.2：workflow 运行中面板显隐（/workflow 切换）。 */
@@ -211,16 +209,12 @@ export declare class TuiApp {
     private taskSnapshots;
     /** T2.3：onTaskDone 完成通知（live 区提示行；一次性，渲染后清空）。 */
     private taskNotice;
-    /** T3.2：/config 设置面板显隐（/config 切换）。 */
-    private configPanelVisible;
     /** T3.2：/config 面板投影（打开后恒有终端段；null = 尚未刷新）。 */
     private configProjection;
-    /** T3.3：/skills 面板显隐（/skills 切换）。 */
-    private skillsPanelVisible;
     /** #39：技能展示面控制器（快照缓存 + userInvocable 过滤 + slash 菜单投影 + 手势 MRU）。 */
     private readonly skillSurface;
-    /** LSP：/lsp 面板显隐（/lsp 切换）。 */
-    private lspPanelVisible;
+    /** 检查类面板（/config /skills /status /lsp /tasks）互斥开闭。 */
+    private readonly inspect;
     /** LSP：诊断桥（懒创建——首次工具触碰文件或 /lsp 打开时实例化；dispose 销毁）。 */
     private lspBridge;
     /** LSP：装配配置（enabled/timeoutMs/spawnFor/which；缺省启用）。 */
@@ -249,8 +243,6 @@ export declare class TuiApp {
     private modelRef;
     /** C2 项 2：历史搜索 overlay（Ctrl+F；attach 时注册，消息快照激活时提供）。 */
     private searchOverlay;
-    /** T1.2：/status 面板显隐（/status 切换；数据源为投影缓存）。 */
-    private statusPanelVisible;
     /** /todos 紧凑待办面板显隐（/todos 切换；数据源为 todos 投影的保留快照）。 */
     private todosPanelVisible;
     /** /todos all 看全表（false = 默认最多 5 条）。 */
@@ -460,8 +452,6 @@ export declare class TuiApp {
      * （拉取中/无诊断/桥未创建/无 path 参数均不显示，不干扰标题）。
      */
     private lspBadgeFor;
-    /** /lsp：切换诊断面板显隐（懒创建 bridge；空态文案由面板纯函数承担）。 */
-    private toggleLspPanel;
     /**
      * Ctrl+S / 欢迎「恢复」：切到 listSessions 里最近的非当前会话（含 persistence）。
      * live store 没有时走 switchSession → resume。

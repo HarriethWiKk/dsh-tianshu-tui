@@ -136,7 +136,8 @@ Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.18`](https://www.npm
 - **Glance context bar** — `上下文 N%` is followed by an 8-cell used/free bar (`▓`/`░`; ASCII fallback `[====----]`)
 - **`/session` calendar groups** — picker and `/session list` group into today / yesterday / this week / earlier; ↑↓ skip group headers
 - **OS notifications** — desktop bubbles when a subagent, workflow, or background task finishes (not on `turn/end`); silenced under `DSH_TUI_SKIP_NOTIFY`, SSH, CI, and tests
-- **`/config` terminal section** — system-notify toggle at the top (empty-input `n` or `/config notify [on|off]`, persisted in `prefs.json`); empty host sections are omitted; the toggle still works when host settings/permission/credentials are missing
+- **`/config` terminal section** — OS notify (empty-input `n`) and compact rendering (empty-input `d`, both persist in `prefs.json`); `/config notify [on|off]` still works. Empty host sections are omitted
+- **Inspect-panel UX** — `/config` `/skills` `/status` `/lsp` `/tasks` are exclusive; `Esc` closes the inspect panel first (even with a draft; does not arm rewind); `/skills` uses ↑↓/j/k on an empty input to expand the selected skill
 
 ### 0.1.2-rc.18 (2026-08-26)
 
@@ -329,7 +330,7 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 - **Structured questions** — numeric selection, `Esc` cancels, overlap protection; plan-review feedback mode (`f` to enter, `Enter` submits Keep-planning + custom feedback).
 - **Approval cards** — `y`/`N`/`Ctrl+C` settle pending approvals; inline diff previews when the tool is diffable; blind-approval hint when the diff is invisible; non-current-session requests delegate to the next listener.
 - **Mode cycle** — `Shift+Tab` cycles normal → plan → always-approve; the plan state drives the footer badge, and always-approve is session-local (resets on switch/exit).
-- **Live panels** — `/status` (goal/todos/plan projection snapshot; the subagent domains surface under `/subagents`), `/config` (OS notify + host settings / permission / credentials), `/skills` browser, `/tasks` pane, `/subagents` delegation tree, `/workflow` runs. Missing host sections collapse; `/config`'s notify toggle does not need the host. Other panels echo a `⚠` warning when their backing service is absent instead of going silently blank.
+- **Live panels** — `/status` (goal/todos/plan projection snapshot; the subagent domains surface under `/subagents`), `/config` (OS notify / compact rendering + host settings / permission / credentials), `/skills` browser (↑↓ details), `/tasks` pane, `/subagents` delegation tree, `/workflow` runs. Inspect panels are exclusive; `Esc` closes them. Missing host sections collapse; `/config`'s terminal section does not need the host. Other panels echo a `⚠` warning when their backing service is absent instead of going silently blank.
 - **Command palette (`Ctrl+P`) / keymap (`Ctrl+.`) / history search (`Ctrl+F`) overlays**.
 
 ### Models & vision
@@ -356,7 +357,7 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 | `/theme [name]` | Switch theme |
 | `/density` | Toggle compact tool-card rendering |
 | `/status` | Toggle the status panel (goal/todos/plan projections + session totals) |
-| `/config [notify [on\|off]]` | Toggle the settings panel (OS notify; empty-input `n` toggles). No-arg opens/closes the panel |
+| `/config [notify [on\|off]]` | Toggle the settings panel (empty-input `n` notify, `d` density). No-arg opens/closes the panel |
 | `/skills` | Toggle the skills browser |
 | `/tasks` | Task pane (background tasks) |
 | `/goal` | Goal management (create / pause / resume / complete / block) |
@@ -388,7 +389,7 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 | `Tab` | `@`-path completion; accept the slash-menu selection |
 | `↑`/`↓` | Input history (selection while the slash menu is open) |
 | `PageUp`/`PageDown` | Slash menu paging |
-| `Esc` | Close menu/overlay; cancel a pending question |
+| `Esc` | Close menu/overlay/inspect panel; cancel a pending question; double-Esc rewind when idle |
 | `a` | Approval card: allow this session (always-approve + settle the current request) |
 
 ## Assembly

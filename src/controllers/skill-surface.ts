@@ -78,6 +78,8 @@ export class SkillSurfaceController {
   private readonly onEvent: (event: string, cb: () => void) => () => void
   /** skills/change 订阅 disposer（attach 订阅 / dispose 解绑；重复 attach 先解绑旧 disposer）。 */
   private eventDisposer: (() => void) | null = null
+  /** /skills 面板选中下标（↑↓ 详情；刷新后钳制）。 */
+  private selectedIndex = 0
 
   constructor(options: SkillSurfaceOptions) {
     this.getService = options.getService
@@ -113,6 +115,7 @@ export class SkillSurfaceController {
       | { list(opts?: { cwd?: string }): Promise<SkillSummaryInput[]> } | undefined
     if (skills === undefined) {
       this.items = []
+      this.clampSelected()
       this.refreshEntries()
       return
     }
@@ -123,14 +126,38 @@ export class SkillSurfaceController {
       /* v8 ignore next -- dispose 后 promise 才 resolve 的场景无法在同步测试中构造 */
       if (this.isDisposed()) return
       this.items = items
+      this.clampSelected()
       this.refreshEntries()
       this.scheduleRender()
     }).catch(() => {
       /* v8 ignore next -- 同上：dispose 后 reject 的竞态守卫 */
       if (this.isDisposed()) return
       this.items = []
+      this.clampSelected()
       this.refreshEntries()
     })
+  }
+
+  /** 当前选中技能名（空列表 → undefined）。 */
+  selectedName(): string | undefined {
+    return this.items[this.selectedIndex]?.name
+  }
+
+  /** 移动选中；越界钳制。返回是否变化。 */
+  moveSelected(delta: number): boolean {
+    if (this.items.length === 0) return false
+    const next = Math.max(0, Math.min(this.items.length - 1, this.selectedIndex + delta))
+    if (next === this.selectedIndex) return false
+    this.selectedIndex = next
+    return true
+  }
+
+  private clampSelected(): void {
+    if (this.items.length === 0) {
+      this.selectedIndex = 0
+      return
+    }
+    this.selectedIndex = Math.min(this.selectedIndex, this.items.length - 1)
   }
 
   /** 全部技能快照（/skills 浏览面板数据源；空数组 = 无技能或未加载）。 */

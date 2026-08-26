@@ -58,9 +58,9 @@ TUI 的启动默认存在 `prefs.json`;带参 `/theme` `/density` `/preset` 默�
 
 `/config` 打开设置面板。终端段始终在最前;空的宿主段不渲染。
 
-- **终端**:系统通知开关(`●` 开 / `○` 关)。空输入按 `n` 切换,或
-  `/config notify` / `notify on` / `notify off`(写入 `prefs.json`)。
-  `DSH_TUI_SKIP_NOTIFY` 锁定时显示关且不可切。
+- **终端**:系统通知开关(`●` 开 / `○` 关)与紧凑渲染。空输入按 `n` 切通知、
+  `d` 切密度(写入 `prefs.json`);或 `/config notify` / `notify on` / `notify off`。
+  `DSH_TUI_SKIP_NOTIFY` 锁定时通知显示关且不可切,`d` 仍可用。
 - **宿主设置**:宿主 settings 服务 describe 输出(空则折叠)
 - **权限预设**:组合了 `dsh-permission` 的 PermissionSelect;
   服务缺失时该段不渲染

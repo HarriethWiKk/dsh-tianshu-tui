@@ -146,6 +146,13 @@ describe('formatPromptFooter', () => {
     }), fakeTheme())[0] ?? '')).toBe(41)
   })
 
+  it('inspectOpen：快捷键换成 esc 关闭', () => {
+    const [line = ''] = plain(formatPromptFooter(base({ inspectOpen: true }), fakeTheme()))
+    expect(line).toContain('esc 关闭')
+    expect(line).toContain('/ 命令')
+    expect(line).not.toContain('ctrl+p')
+  })
+
   it('空右侧段：与缺省行为一致', () => {
     const [line = ''] = plain(formatPromptFooter(base({ width: 100, rightSegments: [] }), fakeTheme()))
     expect(line).toContain('normal')

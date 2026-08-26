@@ -2141,11 +2141,12 @@ describe('TuiApp Phase 6.1 slash 命令系统', () => {
     await app.attach()
 
     app.handleSubmit('/config')
+    await new Promise(resolve => setTimeout(resolve, 40))
+    expect(stdout.write.mock.calls.map(c => `${c[0]}`).join('')).toContain('⚙ 配置')
     app.handleSubmit('/skills')
     await new Promise(resolve => setTimeout(resolve, 40))
     let written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).toContain('⚙ 配置') // 配置面板已渲染
-    expect(written).toContain('code-review') // 技能面板已渲染
+    expect(written).toContain('code-review')
 
     app.handleSubmit('/clear')
     await new Promise(resolve => setTimeout(resolve, 40))
@@ -5488,6 +5489,115 @@ describe('TuiApp /config 服务组合分支', () => {
     await new Promise(resolve => setImmediate(resolve))
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     expect(written).toContain('系统通知已开')
+    await app.dispose()
+  })
+
+  it('Esc 关闭 /config（有草稿也关，不布防 rewind）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('cfg-esc')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+    const stdin = makeStdin()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    app.handleSubmit('/config')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(stdout.write.mock.calls.map(c => `${c[0]}`).join('')).toContain('⚙ 配置')
+    stdin.emit('data', 'hello')
+    await new Promise(resolve => setImmediate(resolve))
+    stdout.write.mockClear()
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 150))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).not.toContain('⚙ 配置')
+    expect(written).not.toContain('⟲ rewind')
+    expect(written).toContain('hello')
+    await app.dispose()
+  })
+
+  it('/skills 后再 /config：检查面板互斥，只留配置', async () => {
+    const ctx = makeCtx()
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'skills') return {
+        list: vi.fn(async () => [{
+          name: 'code-review', description: '代码审查', provider: 'mock', source: 'bundled',
+          invocation: { modelInvocable: true, userInvocable: true },
+        }]),
+      }
+      return undefined
+    })
+    const agent = makeAgent('cfg-xor')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    await app.attach()
+    app.handleSubmit('/skills')
+    await new Promise(resolve => setTimeout(resolve, 40))
+    expect(stdout.write.mock.calls.map(c => `${c[0]}`).join('')).toContain('code-review')
+    stdout.write.mockClear()
+    app.handleSubmit('/config')
+    await new Promise(resolve => setImmediate(resolve))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('⚙ 配置')
+    expect(written).not.toContain('code-review')
+    await app.dispose()
+  })
+
+  it('/config 空输入 d 切换紧凑渲染并写入 prefs', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('cfg-d')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+    const stdin = makeStdin()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    app.handleSubmit('/config')
+    await new Promise(resolve => setTimeout(resolve, 40))
+    expect(stdout.write.mock.calls.map(c => `${c[0]}`).join('')).toContain('紧凑渲染 · 关')
+    stdout.write.mockClear()
+    stdin.emit('data', 'd')
+    await new Promise(resolve => setTimeout(resolve, 40))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('紧凑渲染 · 开')
+    await app.dispose()
+  })
+
+  it('/skills 空输入 ↓ 移动选中并展开详情', async () => {
+    const ctx = makeCtx()
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'skills') return {
+        list: vi.fn(async () => [
+          {
+            name: 'alpha', description: '甲', provider: 'local', source: 'bundled',
+            invocation: { modelInvocable: true, userInvocable: true }, whenToUse: '先看这个',
+          },
+          {
+            name: 'beta', description: '乙', provider: 'local', source: 'bundled',
+            invocation: { modelInvocable: true, userInvocable: true }, whenToUse: '再看那个',
+          },
+        ]),
+      }
+      return undefined
+    })
+    const agent = makeAgent('skill-move')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+    const stdin = makeStdin()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    app.handleSubmit('/skills')
+    await new Promise(resolve => setTimeout(resolve, 40))
+    expect(stdout.write.mock.calls.map(c => `${c[0]}`).join('')).toContain('先看这个')
+    stdout.write.mockClear()
+    stdin.emit('data', '\x1b[B')
+    await new Promise(resolve => setImmediate(resolve))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('再看那个')
+    expect(written).not.toContain('先看这个')
     await app.dispose()
   })
 })

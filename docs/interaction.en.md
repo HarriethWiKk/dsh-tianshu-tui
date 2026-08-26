@@ -30,14 +30,15 @@ When there is more than one session, a **session tab bar** appears above the inp
 | `Tab` | `@`-path completion; accept the slash-menu selection |
 | `↑`/`↓` | Input history (menu selection when the slash menu is open) |
 | `PageUp`/`PageDown` | Page through the slash menu |
-| `Esc` | Close menus/overlays; cancel a pending question |
+| `Esc` | Close menus/overlays/inspect panels; cancel a pending question |
 
 ### Replies & Tools
 
 | Key | Action |
 |---|---|
 | `Ctrl+C` | Interrupt the in-flight turn (immediate) |
-| `Esc` (in flight) | Interrupt the in-flight turn (Claude Code-style single Esc; lone ESC has an 80ms debounce; overlays/menus still close first when open) |
+| `Esc` (in flight) | Interrupt the in-flight turn (Claude Code-style single Esc; lone ESC has an 80ms debounce; overlays/menus/inspect panels still close first when open) |
+| `Esc` (inspect panel) | Close `/config` `/skills` `/status` `/lsp` `/tasks` (even with a draft; does not arm rewind) |
 | `Esc`+`Esc` (idle) | Open the rewind panel (Claude Code's Esc+Esc time travel; 1s double-press window, same as `/rewind`) |
 | `Ctrl+O` | Expand/collapse the most recent reasoning block |
 | `Enter` (empty input) | Toggle expansion of the last in-flight tool card (shows argument JSON) |
@@ -86,8 +87,8 @@ Above the input track, running work folds into one activity band (`◐ N subagen
 |---|---|
 | `/status` | Status panel (goal/todos/plan projection + session totals) |
 | `/todos [all]` | Todo card above the input rail (no-arg toggles; `all` shows the full list). Default: in-progress first, up to 5 items; all-completed collapses to one line. First non-empty model write auto-opens it; closing or `/clear` disables auto-open for the rest of the session |
-| `/config [notify [on\|off]]` | Settings panel (OS notify on top; empty-input `n` toggles. Empty host sections are omitted) |
-| `/skills` | Skill browser panel |
+| `/config [notify [on\|off]]` | Settings panel (OS notify/density on top; empty-input `n`/`d`. Inspect panels are exclusive; Esc closes) |
+| `/skills` | Skill browser (empty-input ↑↓/j/k expands the selected skill) |
 | `/tasks [kill <id>]` | Task panel |
 | `/goal` | Goal management (create/pause/resume/complete/block) |
 | `/subagents` | Delegation-tree live cards (in-flight body, failed state; optional “⤷ external subagent” section) |

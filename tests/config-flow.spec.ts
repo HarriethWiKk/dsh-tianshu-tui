@@ -14,7 +14,17 @@ describe('loadConfigProjection', () => {
     expect(p.settings).toEqual([])
     expect(p.permission).toBeNull()
     expect(p.credentials).toEqual([])
-    expect(p.tui).toEqual({ notifyOs: true, notifyLocked: false })
+    expect(p.tui).toEqual({ notifyOs: true, notifyLocked: false, compactMode: false })
+  })
+
+  it('compactMode 写入终端段', async () => {
+    const p = await loadConfigProjection({
+      reflect: { get: () => undefined },
+      prefs: {},
+      env: { PATH: '/bin' },
+      compactMode: true,
+    })
+    expect(p.tui?.compactMode).toBe(true)
   })
 
   it('settings/permission 投影 + prefs 关通知', async () => {

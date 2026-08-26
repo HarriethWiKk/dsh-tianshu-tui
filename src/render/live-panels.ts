@@ -31,6 +31,7 @@ import {
 import { projectWorkflow, type WorkflowChildState, type WorkflowRunView } from '../workflow-panel.js'
 import { shortSessionLabel } from '../session-label.js'
 import { projectConfigPanel } from '../config-panel.js'
+import { inspectHint } from '../ui/inspect-panels.js'
 import { projectSkillPanel } from '../skill-panel.js'
 import { projectLspPanel, groupLspDiagnostics } from '../format/lsp-diagnostics.js'
 import { formatLiveCard, liveCardGlyph, type LiveCardStatus } from '../format/live-card.js'
@@ -84,6 +85,7 @@ export function renderTasksPanel(snapshot: LiveSnapshot): string[] {
       theme: snapshot.theme,
     }))
   }
+  if (rows.length > 0) rows.push(inspectHint(snapshot.cols))
   return rows
 }
 
@@ -133,7 +135,13 @@ export function renderTodosPanel(snapshot: LiveSnapshot): string[] {
  */
 export function renderSkillsPanel(snapshot: LiveSnapshot): string[] {
   if (!snapshot.skillsPanelVisible) return []
-  return projectSkillPanel(snapshot.skillItems, { width: snapshot.cols })
+  const rows = projectSkillPanel(snapshot.skillItems, {
+    width: snapshot.cols,
+    ...(snapshot.skillSelected === undefined ? {} : { selected: snapshot.skillSelected }),
+  })
+  if (snapshot.skillItems.length > 0) rows.push(inspectHint(snapshot.cols, ['↑↓ 详情']))
+  else rows.push(inspectHint(snapshot.cols))
+  return rows
 }
 
 /**
@@ -240,8 +248,10 @@ function withVisibleRunId(run: WorkflowRunView): WorkflowRunView {
  */
 export function renderStatusPanel(snapshot: LiveSnapshot): string[] {
   if (!snapshot.statusPanelVisible) return []
-  return projectStatusPanel(snapshot.goal, snapshot.todos ?? [], snapshot.plan,
+  const rows = projectStatusPanel(snapshot.goal, snapshot.todos ?? [], snapshot.plan,
     { width: snapshot.cols, sessionTotals: snapshot.sessionTotals })
+  rows.push(inspectHint(snapshot.cols))
+  return rows
 }
 
 /**
@@ -252,5 +262,7 @@ export function renderStatusPanel(snapshot: LiveSnapshot): string[] {
  */
 export function renderLspPanel(snapshot: LiveSnapshot): string[] {
   if (!snapshot.lspPanelVisible) return []
-  return projectLspPanel(groupLspDiagnostics(snapshot.lspDiagnostics), snapshot.theme, snapshot.lspAvailable)
+  const rows = projectLspPanel(groupLspDiagnostics(snapshot.lspDiagnostics), snapshot.theme, snapshot.lspAvailable)
+  rows.push(inspectHint(snapshot.cols))
+  return rows
 }

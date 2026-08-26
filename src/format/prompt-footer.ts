@@ -3,16 +3,9 @@
  *
  * 输入行下方的模式/快捷键提示行：mode 段（normal + [plan]/[plan…]/[auto]
  * 徽标，与 statusline 徽标词汇一致）在前，快捷键提示在后。窄宽从后往前
-<<<<<<< HEAD
- * 丢段（ctrl+p 面板 → / 命令 → Enter 发送），mode 恒保留。
+ * 丢段（ctrl+p 面板 → / 命令），mode 恒保留。
  * 右侧状态段（token/模型/API 等）右对齐合并进同一行；放不下从后往前丢右段，
  * 绝不另起 theme.primary 第二行。宽度守恒：任何输入下每行显示宽度 ≤ width。
-=======
- * 丢段（ctrl+p 面板 → / 命令），mode 恒保留。
- * 概念稿 B 布局：宽终端（≥ FOOTER_RIGHT_MERGE_MIN_WIDTH）时右侧状态段
- * （token/模型/API 等）右对齐合并进同一行，放不下从后往前丢右段；
- * 窄终端不合并（调用方纵排两行）。宽度守恒：任何输入下每行显示宽度 ≤ width。
->>>>>>> pr-28
  */
 import { color } from '../engine/ansi.js'
 import { CHROME_INACTIVE_SHIMMER, CHROME_SUBTLE } from './chrome-colors.js'
@@ -30,6 +23,8 @@ export interface FormatPromptFooterInput {
   alwaysApprove?: boolean
   /** 审批挂起：快捷键换成 y/n/a/esc，避免仍提示「Enter 发送」。 */
   approvalPending?: boolean
+  /** 检查类面板打开：提示 esc 关闭。 */
+  inspectOpen?: boolean
   /** 右侧状态段（token/模型/API 等）；右对齐合并进同一行，放不下从后丢段。 */
   rightSegments?: readonly string[]
 }
@@ -50,7 +45,9 @@ export function formatPromptFooter(input: FormatPromptFooterInput, theme: RivetT
     : alwaysApprove === true ? theme.error : CHROME_INACTIVE_SHIMMER
   const hints = input.approvalPending === true
     ? ['y 允许', 'n 拒绝', 'a 放行', 'esc 取消']
-    : ['/ 命令', 'ctrl+p 面板']
+    : input.inspectOpen === true
+      ? ['esc 关闭', '/ 命令']
+      : ['/ 命令', 'ctrl+p 面板']
   // 从后往前丢段直到放得下（mode 恒保留）。
   let segs = hints
   for (;;) {

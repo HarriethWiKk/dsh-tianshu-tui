@@ -91,6 +91,8 @@ export interface LiveSnapshot {
     skillsPanelVisible: boolean;
     /** skill 快照缓存（ctx.skills.list；空数组 = 无技能或未加载）。 */
     skillItems: SkillSummaryInput[];
+    /** /skills 面板选中技能名（缺省不展开详情）。 */
+    skillSelected?: string;
     /** /lsp 面板显隐。 */
     lspPanelVisible: boolean;
     /** 全量诊断视图（bridge 缓存折叠；空数组 = 无诊断）。 */

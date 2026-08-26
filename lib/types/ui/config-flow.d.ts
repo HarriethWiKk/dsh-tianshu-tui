@@ -16,6 +16,8 @@ export interface LoadConfigProjectionInput {
     reflect: ConfigFlowReflect;
     prefs: TuiPrefs;
     env?: NodeJS.ProcessEnv;
+    /** 当前会话紧凑渲染（与 /density 同步；写入 tui.compactMode）。 */
+    compactMode?: boolean;
     /** describe 返回后若已关闭面板 / 已 dispose → 不填凭据。 */
     shouldAbort?: () => boolean;
 }

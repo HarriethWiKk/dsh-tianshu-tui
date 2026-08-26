@@ -105,7 +105,7 @@ describe('projectConfigPanel 空态与终端段', () => {
     )
     expect(rows[1]).toBe('◆ 终端')
     expect(rows).toContain('  ● 系统通知 · 开')
-    expect(rows[rows.length - 1]).toBe('n 切换系统通知 · /config 关闭')
+    expect(rows[rows.length - 1]).toBe('n 通知 · d 密度 · Esc 关闭')
   })
 
   it('通知关与环境变量锁定', () => {
@@ -119,7 +119,20 @@ describe('projectConfigPanel 空态与终端段', () => {
       { width: 80 },
     )
     expect(locked).toContain('  ○ 系统通知 · 关（DSH_TUI_SKIP_NOTIFY）')
-    expect(locked[locked.length - 1]).toBe('n 环境变量已关闭通知')
+    expect(locked[locked.length - 1]).toBe('n 锁定 · d 密度 · Esc 关闭')
+  })
+
+  it('紧凑渲染行随 tui.compactMode 开/关', () => {
+    const on = projectConfigPanel(
+      { ...emptyProjection, tui: { notifyOs: true, notifyLocked: false, compactMode: true } },
+      { width: 80 },
+    )
+    expect(on).toContain('  ● 紧凑渲染 · 开')
+    const off = projectConfigPanel(
+      { ...emptyProjection, tui: { notifyOs: true, notifyLocked: false, compactMode: false } },
+      { width: 80 },
+    )
+    expect(off).toContain('  ○ 紧凑渲染 · 关')
   })
 })
 

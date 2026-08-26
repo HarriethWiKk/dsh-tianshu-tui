@@ -28,14 +28,15 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
 | `Tab` | `@`-路径补全;接受 slash 菜单选中项 |
 | `↑`/`↓` | 输入历史(slash 菜单打开时为选择) |
 | `PageUp`/`PageDown` | slash 菜单翻页;长草稿输入视窗翻页 |
-| `Esc` | 关闭菜单/overlay;取消挂起提问 |
+| `Esc` | 关闭菜单/overlay/检查面板;取消挂起提问 |
 
 ### 回复与工具
 
 | 按键 | 作用 |
 |---|---|
 | `Ctrl+C` | 打断在途回合(即时) |
-| `Esc`(在途) | 打断在途回合(对齐 Claude Code 单次 Esc;lone ESC 80ms 防误触;overlay/菜单打开时仍先关闭面板) |
+| `Esc`(在途) | 打断在途回合(对齐 Claude Code 单次 Esc;lone ESC 80ms 防误触;overlay/菜单/检查面板打开时仍先关闭) |
+| `Esc`(检查面板) | 关闭 `/config` `/skills` `/status` `/lsp` `/tasks`(有草稿也关,不布防 rewind) |
 | `Esc`+`Esc`(空闲) | 打开 rewind 回退面板(Claude Code 的 Esc+Esc 时间回溯;1s 双击窗口,同 `/rewind`) |
 | `Ctrl+O` | 展开/收起最近推理块 |
 | `Enter`(空输入) | 切换最后一张进行中工具卡的展开(显示参数 JSON) |
@@ -85,8 +86,8 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
 |---|---|
 | `/status` | 状态面板(goal/todos/plan 投影 + 会话汇总) |
 | `/todos [all]` | 待办卡画在输入轨上方(无参显隐; `all` 看全表)。默认列出进行中置顶的最多 5 条;全完成缩回一行。模型首次写入非空待办会自动出现;关掉或 `/clear` 后本会话不再自动开 |
-| `/config [notify [on\|off]]` | 设置面板(终端通知置顶;空输入 `n` 切换。无宿主设置/凭据时不占位) |
-| `/skills` | 技能浏览面板 |
+| `/config [notify [on\|off]]` | 设置面板(终端通知/密度置顶;空输入 `n`/`d`。检查面板互斥,Esc 关闭) |
+| `/skills` | 技能浏览(空输入 ↑↓/j/k 展开选中详情) |
 | `/tasks [kill <id>]` | 任务窗格 |
 | `/goal` | 目标管理(创建/暂停/恢复/完成/阻塞) |
 | `/subagents` | 委派树活区卡(进行中第二行、失败态;宿主有外部 run 时追加「⤷ 外部子代理」) |

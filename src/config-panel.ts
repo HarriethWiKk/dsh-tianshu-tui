@@ -32,9 +32,9 @@ const PERMISSION_TITLE = '◆ 权限预设'
 /** 凭据段标题。 */
 const CREDENTIALS_TITLE = '◆ 凭据'
 /** 底栏：可切换。 */
-const HINT_TOGGLE = 'n 切换系统通知 · /config 关闭'
+const HINT_TOGGLE = 'n 通知 · d 密度 · Esc 关闭'
 /** 底栏：环境变量锁定。 */
-const HINT_LOCKED = 'n 环境变量已关闭通知'
+const HINT_LOCKED = 'n 锁定 · d 密度 · Esc 关闭'
 /** 置灰（细体/暗色）转义序列：只读凭据行整行包裹。 */
 const DIM = '\x1B[2m'
 /** SGR 重置转义序列。 */
@@ -133,14 +133,19 @@ export function projectConfigPanel(projection: ConfigPanelProjection, opts: Conf
   return rows
 }
 
-/** 终端段：系统通知 ●开 / ○关；锁定时附环境变量名。 */
+/** 终端段：系统通知 + 可选紧凑渲染。 */
 function projectTuiSection(tui: ConfigTuiInput, width: number): string[] {
   const mark = tui.notifyOs ? '●' : CIRCLE
   const state = tui.notifyLocked ? '关（DSH_TUI_SKIP_NOTIFY）' : tui.notifyOs ? '开' : '关'
-  return [
+  const rows = [
     truncateByWidth(TUI_TITLE, width),
     truncateByWidth(`  ${mark} 系统通知 · ${state}`, width),
   ]
+  if (tui.compactMode !== undefined) {
+    const dMark = tui.compactMode ? '●' : CIRCLE
+    rows.push(truncateByWidth(`  ${dMark} 紧凑渲染 · ${tui.compactMode ? '开' : '关'}`, width))
+  }
+  return rows
 }
 
 /** 宿主设置段：空数组不渲染。 */

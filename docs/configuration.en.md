@@ -37,7 +37,7 @@ All fields are optional and injected by whoever assembles the plugin:
 
 `/config` opens the settings panel. The terminal section is always first; empty host sections are omitted.
 
-- **terminal**: OS notify toggle (`●` on / `○` off). Empty-input `n`, or `/config notify` / `notify on` / `notify off` (writes `prefs.json`). Locked off when `DSH_TUI_SKIP_NOTIFY` is set.
+- **terminal**: OS notify (`●` on / `○` off) and compact rendering. Empty-input `n` toggles notify, `d` toggles density (both write `prefs.json`); or `/config notify` / `notify on` / `notify off`. Notify is locked off when `DSH_TUI_SKIP_NOTIFY` is set; `d` still works.
 - **host settings**: output of the host settings service's `describe` (omitted when empty)
 - **permission**: permission-preset selector (composes `dsh-permission`'s `PermissionSelect`; omitted when the service is missing)
 - **credentials**: credential presence (existence only, never plaintext; omitted when empty)

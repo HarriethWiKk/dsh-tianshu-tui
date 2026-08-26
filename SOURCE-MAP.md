@@ -40,6 +40,7 @@
 | src/controllers/btw-controller.ts | — | new |
 | src/controllers/question-controller.ts | — | new |
 | src/controllers/session-manager.ts | — | new |
+| src/controllers/inspect-surface.ts | — | new（检查类 live 面板互斥开闭与键分发，从 ui/app.ts 抽出保棘轮） |
 | src/controllers/skill-surface.ts | — | new（#39 技能展示面：快照缓存 + userInvocable 过滤 + slash 菜单投影 + 手势 MRU + skills/change 订阅，从 ui/app.ts 提取） |
 | src/delegation-panel.ts | — | new（activity 状态形对齐活区卡语言：running ⠋ / inactive ›；截断走 live-card truncateToLiveWidth） |
 | src/engine/ansi.ts | engine/ansi.ts | modified（新增 DECSCUSR 光标形状常量：稳态竖条 + 默认恢复，overlay 输入光标用） |
@@ -161,6 +162,7 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 | src/ui/activity-flow.ts | — | new（子代理/工作流活动带装配：fold/摘要/委派合并/外部 run 降级，自 app.ts 抽出保棘轮） |
 | src/ui/app.ts | — | new（角色对应上游 engine/app.ts，为面向 dsh cordis 服务的独立装配实现，非逐行移植） |
 | src/ui/config-flow.ts | — | new（/config 投影装配：宿主 settings/permission/credentials 可缺；终端通知段始终带上） |
+| src/ui/inspect-panels.ts | — | new（检查类面板互斥标志、键语义与底栏 hint） |
 | src/ui/startup-pickers.ts | — | new（/model /theme /effort 选择器：Enter 本会话、S 写启动默认，自 app.ts 抽出保棘轮） |
 | src/ui/key-dialog.ts | ui/key-dialog.ts | ported（2026-08 回流：供应商 API Key 掩码输入对话框状态机） |
 | src/ui/key-flow.ts | — | new（装配提取层：上游 TuiApp 的 openKeyDialog 系列提取，棘轮对冲；key-wizard/key-dialog 之上） |

@@ -135,7 +135,8 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 - **glance 上下文占用条** — `上下文 N%` 后跟 8 格占用/剩余条（`▓`/`░`；ascii 回退 `[====----]`）
 - **`/session` 按日历分组** — 选择器与 `/session list` 按今天 / 昨天 / 本周 / 更早分组；↑↓ 跳过分组头
 - **系统通知** — 子代理 / 工作流 / 任务完成弹系统气泡（不打断 `turn/end`）；`DSH_TUI_SKIP_NOTIFY`、SSH、CI、测试环境静默
-- **`/config` 终端段** — 面板置顶系统通知开关（空输入 `n` 或 `/config notify [on|off]`，写入 `prefs.json`）；无宿主设置/凭据不再占位，宿主服务全缺仍可配通知
+- **`/config` 终端段** — 面板置顶系统通知（空输入 `n`）与紧凑渲染（空输入 `d`，写入 `prefs.json`）；`/config notify [on|off]` 仍可用。无宿主设置/凭据不再占位
+- **检查面板交互** — `/config` `/skills` `/status` `/lsp` `/tasks` 互斥（打开一项关掉其余）；`Esc` 先关检查面板（有草稿也关，不布防 rewind）；`/skills` 空输入 ↑↓/j/k 展开选中详情
 
 ### 0.1.2-rc.18（2026-08-26）
 
@@ -367,7 +368,7 @@ npx -y @deepseek-ai/dsh --profile tui
 - **结构化提问** — 数字键选择、`Esc` 取消、重叠保护；plan-review 反馈模式（`f` 进入、`Enter` 提交 Keep planning + 自定义反馈）。
 - **审批卡片** — `y`/`N`/`Ctrl+C` 结算挂起审批；工具可 diff 时内联差异预览；diff 不可见时盲批提示；非当前会话请求委托给下一个监听者。
 - **模式循环** — `Shift+Tab` 循环 normal → plan → always-approve；plan 状态驱动 footer 徽标，always-approve 为会话级本地态（切换/退出时复位）。
-- **实时面板** — `/status`（goal/todos/plan 投影快照；subagent 域见 `/subagents`）、`/config`（终端通知 + 宿主 settings / permission / credentials）、`/skills` 浏览、`/tasks` 窗格、`/subagents` 委派树、`/workflow` 运行。宿主服务未装配时对应段折叠；`/config` 的终端通知不依赖宿主。其它面板在 backing 服务缺失时回显 `⚠` 警告（不静默空白）。
+- **实时面板** — `/status`（goal/todos/plan 投影快照；subagent 域见 `/subagents`）、`/config`（终端通知/紧凑渲染 + 宿主 settings / permission / credentials）、`/skills` 浏览（↑↓ 详情）、`/tasks` 窗格、`/subagents` 委派树、`/workflow` 运行。检查类面板互斥，`Esc` 关闭。宿主服务未装配时对应段折叠；`/config` 的终端段不依赖宿主。其它面板在 backing 服务缺失时回显 `⚠` 警告（不静默空白）。
 - **命令面板（`Ctrl+P`）/ 键位表（`Ctrl+.`）/ 历史搜索（`Ctrl+F`）overlay**。
 
 ### 模型与视觉
@@ -396,7 +397,7 @@ npx -y @deepseek-ai/dsh --profile tui
 | `/lsp` | 切换 LSP 诊断面板（agent 触碰文件时自动拉取该文件诊断；诊断徽标上工具卡） |
 | `lsp_goto_definition` · `lsp_find_references` · `lsp_diagnostics` | LSP 模型工具面（伴生插件 `lsp/` 注册；定义跳转 / 引用查找 / 文件诊断） |
 | `/status` | 切换状态面板（goal/todos/plan 投影 + 会话汇总段） |
-| `/config [notify [on\|off]]` | 切换设置面板（终端通知；空输入 `n` 切换）。无参开关面板 |
+| `/config [notify [on\|off]]` | 切换设置面板（空输入 `n` 通知、`d` 密度）。无参开关面板 |
 | `/skills` | 切换技能浏览面板 |
 | `/tasks` | 任务窗格（后台任务） |
 | `/goal` | 目标管理（创建 / 暂停 / 恢复 / 完成 / 阻塞） |
@@ -428,7 +429,7 @@ npx -y @deepseek-ai/dsh --profile tui
 | `Tab` | `@`-路径补全；接受 slash 菜单选中项 |
 | `↑`/`↓` | 输入历史（slash 菜单打开时为选择） |
 | `PageUp`/`PageDown` | slash 菜单翻页 |
-| `Esc` | 关闭菜单/overlay；取消挂起提问 |
+| `Esc` | 关闭菜单/overlay/检查面板；取消挂起提问；空闲双击 rewind |
 | `a` | 审批卡：本会话放行（always-approve + 结算当前请求） |
 
 ## 装配

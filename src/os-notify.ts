@@ -40,6 +40,8 @@ export type NotifyOsAction = 'on' | 'off' | 'toggle'
 export interface ConfigTuiInput {
   notifyOs: boolean
   notifyLocked: boolean
+  /** 紧凑工具卡；缺省不渲染该行。 */
+  compactMode?: boolean
 }
 
 /** 压扁控制字符并截断，避免通知中心/脚本被换行拆开。 */

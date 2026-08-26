@@ -288,6 +288,8 @@ import {
 import { QuestionController } from '../controllers/question-controller.js'
 import { BtwController } from '../controllers/btw-controller.js'
 import { SessionManager, resumeModelSelection } from '../controllers/session-manager.js'
+import { InspectSurfaceController } from '../controllers/inspect-surface.js'
+import { inspectKeyAction } from './inspect-panels.js'
 import { renderBtwPanel } from '../format/btw-panel.js'
 import { CHROME_GUTTER, formatWelcomeHero, type WelcomeEnvCheck, type WelcomeTipItem } from '../format/welcome.js'
 import { formatWhaleLogo, WHALE_MIN_ROWS } from '../format/whale.js'
@@ -607,8 +609,6 @@ export class TuiApp {
   private projectionCache: Partial<Record<ProjectionKey, unknown>> | null = null
   /** T4：任务窗格——sessionProjections 任务单元投影快照（服务缺失时为 null）。 */
   private taskItems: TaskItem[] | null = null
-  /** T4：任务窗格显隐（/tasks 切换）。 */
-  private taskPanelVisible = false
   /** T2.1：委派树面板显隐（/subagents 切换）。 */
   private subagentsPanelVisible = false
   /** T2.2：workflow 运行中面板显隐（/workflow 切换）。 */
@@ -630,16 +630,12 @@ export class TuiApp {
   private taskSnapshots: TaskSnapshotView[] = []
   /** T2.3：onTaskDone 完成通知（live 区提示行；一次性，渲染后清空）。 */
   private taskNotice: string | null = null
-  /** T3.2：/config 设置面板显隐（/config 切换）。 */
-  private configPanelVisible = false
   /** T3.2：/config 面板投影（打开后恒有终端段；null = 尚未刷新）。 */
   private configProjection: ConfigPanelProjection | null = null
-  /** T3.3：/skills 面板显隐（/skills 切换）。 */
-  private skillsPanelVisible = false
   /** #39：技能展示面控制器（快照缓存 + userInvocable 过滤 + slash 菜单投影 + 手势 MRU）。 */
   private readonly skillSurface: SkillSurfaceController
-  /** LSP：/lsp 面板显隐（/lsp 切换）。 */
-  private lspPanelVisible = false
+  /** 检查类面板（/config /skills /status /lsp /tasks）互斥开闭。 */
+  private readonly inspect: InspectSurfaceController
   /** LSP：诊断桥（懒创建——首次工具触碰文件或 /lsp 打开时实例化；dispose 销毁）。 */
   private lspBridge: LspBridge | null = null
   /** LSP：装配配置（enabled/timeoutMs/spawnFor/which；缺省启用）。 */
@@ -673,8 +669,6 @@ export class TuiApp {
   private modelRef: ModelSelectionRef | null = null
   /** C2 项 2：历史搜索 overlay（Ctrl+F；attach 时注册，消息快照激活时提供）。 */
   private searchOverlay: HistorySearchOverlay | null = null
-  /** T1.2：/status 面板显隐（/status 切换；数据源为投影缓存）。 */
-  private statusPanelVisible = false
   /** /todos 紧凑待办面板显隐（/todos 切换；数据源为 todos 投影的保留快照）。 */
   private todosPanelVisible = false
   /** /todos all 看全表（false = 默认最多 5 条）。 */
@@ -849,11 +843,7 @@ export class TuiApp {
         // 内容原样画回来——用户看到的便是「/clear 清不掉命令输出」（如
         // /config 的配置面板残留）。与既有语义一致：会话切换时 task/status
         // 面板同样被重置（见 mountSession）。
-        this.configPanelVisible = false
-        this.skillsPanelVisible = false
-        this.lspPanelVisible = false
-        this.taskPanelVisible = false
-        this.statusPanelVisible = false
+        this.inspect.close()
         this.todosPanelVisible = false
         this.todosAutoArmed = false
         this.subagentsPanelVisible = false
@@ -866,15 +856,7 @@ export class TuiApp {
         this.stdout.write(`${ANSI.ERASE_SCREEN}\x1b[3J\x1b[H`)
         this.flushLiveRender()
       },
-      toggleTaskPanel: () => {
-        this.taskPanelVisible = !this.taskPanelVisible
-        // 任务窗格的数据源是 sessionProjections 总线；服务缺失时窗格恒空白，
-        // 回显警告让用户知道为什么（后台任务区由 tasks 服务独立供给，不受影响）。
-        if (this.taskPanelVisible && this.ctx.reflect.get('sessionProjections', false) === undefined) {
-          this.echoWarn('⚠ sessionProjections 服务不可用（未装配 session-projection 插件），任务窗格无数据')
-        }
-        this.renderBatcher.schedule()
-      },
+      toggleTaskPanel: () => { void this.inspect.toggle('tasks') },
       toggleSubagentsPanel: () => {
         this.subagentsPanelVisible = !this.subagentsPanelVisible
         if (this.subagentsPanelVisible && this.ctx.reflect.get('subagents', false) === undefined) {
@@ -937,13 +919,7 @@ export class TuiApp {
     this.slash.register({
       name: 'status',
       description: '切换状态面板（goal/todos/plan 投影快照）',
-      run: () => {
-        this.statusPanelVisible = !this.statusPanelVisible
-        if (this.statusPanelVisible && this.ctx.reflect.get('sessionProjections', false) === undefined) {
-          this.echoWarn('⚠ sessionProjections 服务不可用（未装配 session-projection 插件），目标/任务/计划投影段无数据（会话汇总段为本地投影，不受影响）')
-        }
-        this.renderBatcher.schedule()
-      },
+      run: () => { void this.inspect.toggle('status') },
     })
     // todos 紧凑待办面板显隐切换：无参切换显隐，all 展开/收起明细。数据源是
     // todos 投影的保留快照（turn/start 清空不回退显示），与 /status 的完整
@@ -975,7 +951,7 @@ export class TuiApp {
     // T3.2：/config 设置面板（终端通知可配；宿主段缺失则折叠）。
     this.slash.register({
       name: 'config',
-      description: '切换设置面板（n 切换系统通知）',
+      description: '切换设置面板（n 通知 · d 密度）',
       argsHint: '[notify [on|off]]',
       run: async ({ text, echo }) => {
         const action = parseConfigNotifyArg(text)
@@ -987,9 +963,7 @@ export class TuiApp {
           this.applyNotifyPref(action, echo)
           return
         }
-        this.configPanelVisible = !this.configPanelVisible
-        if (this.configPanelVisible) await this.refreshConfigProjection()
-        this.renderBatcher.schedule()
+        await this.inspect.toggle('config')
       },
     })
     // T3.3：/skills 技能浏览面板显隐切换（数据源为 ctx.skills.list 快照；
@@ -997,26 +971,14 @@ export class TuiApp {
     this.slash.register({
       name: 'skills',
       description: '切换技能浏览面板',
-      run: () => {
-        this.skillsPanelVisible = !this.skillsPanelVisible
-        if (this.skillsPanelVisible) {
-          if (this.ctx.reflect.get('skills', false) === undefined) {
-            this.echoWarn('⚠ skills 服务不可用（未装配 skill 插件），技能面板无数据')
-          }
-          this.skillSurface.refresh()
-        }
-        this.renderBatcher.schedule()
-      },
+      run: () => { void this.inspect.toggle('skills') },
     })
     // LSP：/lsp 诊断面板显隐切换（本地语言服务；懒创建 bridge——打开面板
     // 即实例化；server 未安装时回显警告，面板渲染「未安装」空态）。
     this.slash.register({
       name: 'lsp',
       description: '切换 LSP 诊断面板（本地语言服务）',
-      run: () => {
-        this.toggleLspPanel()
-        this.renderBatcher.schedule()
-      },
+      run: () => { void this.inspect.toggle('lsp') },
     })
     // T5：/density 紧凑渲染开关（grok-build /compact-mode 语义；命令名避开
     // /compact 前缀歧义——resolveSlashCommand 最小唯一前缀会拒掉歧义输入）。
@@ -1033,6 +995,9 @@ export class TuiApp {
           return
         }
         this.compactMode = !this.compactMode
+        if (this.configProjection !== null) {
+          this.configProjection = { ...this.configProjection, tui: { ...configTuiFromPrefs(this.prefs), compactMode: this.compactMode } }
+        }
         this.renderBatcher.schedule()
         echo(echoSessionOnly('density', this.compactMode ? '紧凑' : '宽松'))
       },
@@ -1076,6 +1041,27 @@ export class TuiApp {
     })
     // 命令提示数据源投影到 InputController（slash hint / Tab 补全目标）。
     this.skillSurface.refreshEntries()
+    this.inspect = new InspectSurfaceController({
+      hasService: name => this.ctx.reflect.get(name, false) !== undefined,
+      echoWarn: text => this.echoWarn(text),
+      refreshConfig: () => this.refreshConfigProjection(),
+      refreshSkills: () => { this.skillSurface.refresh() },
+      ensureLsp: () => { this.ensureLspBridge() },
+      schedule: () => { this.renderBatcher.schedule() },
+      flush: () => { this.flushLiveRender() },
+      toggleNotify: () => {
+        this.applyNotifyPref('toggle', text => { this.commitToScrollback({ text, trailingNewline: true }) })
+      },
+      toggleDensity: () => {
+        this.compactMode = !this.compactMode
+        this.prefs.compactMode = this.compactMode
+        this.persistPrefs()
+        if (this.configProjection !== null) {
+          this.configProjection = { ...this.configProjection, tui: { ...configTuiFromPrefs(this.prefs), compactMode: this.compactMode } }
+        }
+      },
+      moveSkills: delta => this.skillSurface.moveSelected(delta),
+    })
     this.ctx.provide('tui.commands', this.slash)
     // Phase 5.3：glance 数据源是惰性闭包（statusLine/liveAgent 随会话挂载），
     // 构造期只固定取数路径，会话切换后自动读到新投影。throttleMs: 0——
@@ -1744,12 +1730,6 @@ export class TuiApp {
     return null
   }
 
-  /** /lsp：切换诊断面板显隐（懒创建 bridge；空态文案由面板纯函数承担）。 */
-  private toggleLspPanel(): void {
-    this.lspPanelVisible = !this.lspPanelVisible
-    if (this.lspPanelVisible) this.ensureLspBridge()
-  }
-
   /**
    * Ctrl+S / 欢迎「恢复」：切到 listSessions 里最近的非当前会话（含 persistence）。
    * live store 没有时走 switchSession → resume。
@@ -2300,8 +2280,8 @@ export class TuiApp {
     // onChanged 按 key 分流缓存。经 ctx.reflect.get 读取（Cordis 4 注入代理：
     // 属性访问未注册服务抛 "without inject"——真实装配已复现）；服务缺失时
     // 整体降级：任务窗格/status 面板在切换时回显警告（fails loud），plan 徽标不显示。
-    this.taskPanelVisible = false
-    this.statusPanelVisible = false
+    this.inspect.hide('tasks')
+    this.inspect.hide('status')
     this.todosPanelVisible = false
     this.todosAutoArmed = true
     this.taskItems = null
@@ -2515,9 +2495,10 @@ export class TuiApp {
     const next = await loadConfigProjection({
       reflect: this.ctx.reflect,
       prefs: this.prefs,
-      shouldAbort: () => this.disposed || !this.configPanelVisible,
+      compactMode: this.compactMode,
+      shouldAbort: () => this.disposed || !this.inspect.is('config'),
     })
-    if (this.disposed || !this.configPanelVisible) return
+    if (this.disposed || !this.inspect.is('config')) return
     this.configProjection = next
   }
 
@@ -2527,7 +2508,7 @@ export class TuiApp {
     if (r.warn !== undefined) this.echoWarn(r.warn)
     else { this.persistPrefs(); echo(r.echo as string) }
     if (this.configProjection !== null) {
-      this.configProjection = { ...this.configProjection, tui: configTuiFromPrefs(this.prefs) }
+      this.configProjection = { ...this.configProjection, tui: { ...configTuiFromPrefs(this.prefs), compactMode: this.compactMode } }
     }
     this.renderBatcher.schedule()
   }
@@ -3291,6 +3272,11 @@ export class TuiApp {
         this.handleAbort()
         return
       }
+      if (this.inspect.any()) {
+        this.inspect.dispatch({ type: 'close' })
+        this.escRewindPendingSince = 0
+        return
+      }
       // 空闲：双击 Esc（窗口内第二次）触发 rewind（CC 的 Esc+Esc 时间回溯）；
       // 第一次只记时间戳并继续流向后续分支（vim 等空闲 Esc 语义保留），
       // 窗口过期后第二次仅刷新时间戳。
@@ -3414,10 +3400,14 @@ export class TuiApp {
         return
       }
     }
-    // /config 打开且输入为空：n 切换系统通知（不进输入行；审批/搜索 overlay 已先拦截）。
-    if (this.configPanelVisible && this.inputLine.value === '' && (key.char === 'n' || key.char === 'N')
-      && this.inputLine.vimMode === 'insert') {
-      this.applyNotifyPref('toggle', text => { this.commitToScrollback({ text, trailingNewline: true }) })
+    const inspectAct = inspectKeyAction({
+      name: key.name, char: key.char,
+      empty: this.inputLine.value === '',
+      vimInsert: this.inputLine.vimMode === 'insert',
+      flags: this.inspect.flags(),
+    })
+    if (inspectAct !== null && inspectAct.type !== 'close') {
+      this.inspect.dispatch(inspectAct)
       return
     }
     // 空输入框 Tab → 命令菜单（palette execute 模式，#31 参考 Claude Code）：
@@ -3807,11 +3797,11 @@ export class TuiApp {
       theme,
       glanceStatus: turnStatusLines[0] ?? null,
       glanceError: glance.error,
-      taskPanelVisible: this.taskPanelVisible,
+      taskPanelVisible: this.inspect.is('tasks'),
       taskItems: this.taskItems,
       taskSnapshots: this.taskSnapshots,
       taskNotice: this.taskNotice,
-      statusPanelVisible: this.statusPanelVisible,
+      statusPanelVisible: this.inspect.is('status'),
       goal: (this.projectionCache?.goal as GoalProjectionInput | undefined) ?? null,
       todos: (this.projectionCache?.todos as TaskItem[] | null | undefined) ?? null,
       plan: (this.projectionCache?.plan as PlanProjectionInput | undefined) ?? null,
@@ -3831,12 +3821,13 @@ export class TuiApp {
       }),
       workflowPanelVisible: this.workflowPanelVisible,
       workflowRuns,
-      configPanelVisible: this.configPanelVisible,
+      configPanelVisible: this.inspect.is('config'),
       configProjection: this.configProjection,
-      skillsPanelVisible: this.skillsPanelVisible,
+      skillsPanelVisible: this.inspect.is('skills'),
       skillItems: this.skillSurface.all(),
+      skillSelected: this.skillSurface.selectedName(),
       // LSP 面板（本地语言服务诊断；bridge 缓存折叠——桥未创建时视为无诊断）
-      lspPanelVisible: this.lspPanelVisible,
+      lspPanelVisible: this.inspect.is('lsp'),
       lspDiagnostics: this.lspDiagnosticsView(),
       lspAvailable: this.lspBridge === null ? true : this.lspBridge.isAvailable(),
     }
@@ -3850,7 +3841,7 @@ export class TuiApp {
     // T1.2：/status 状态面板——goal/todos/plan 段在投影缓存缺失时折叠为 null
     // 由纯函数逐段降级（切换时已回显警告）；会话汇总段是 TUI 本地 fold
     // （summary-state），不依赖投影总线，总线缺失时仍有数据。
-    if (this.statusPanelVisible) {
+    if (this.inspect.is('status')) {
       for (const line of renderStatusPanel(snapshot)) lines.push({ text: line })
     }
     // T2.1：委派树面板（delegationEntries null 降级在 renderDelegationPanel 内）。
@@ -4111,6 +4102,7 @@ export class TuiApp {
       planPending: planProj?.pending === true,
       alwaysApprove: this.approval.alwaysApprove,
       approvalPending: this.approval.isPending,
+      inspectOpen: this.inspect.any(),
       ...(rightSegments !== undefined ? { rightSegments } : {}),
     }, theme)
     for (const line of footerLines) lines.push({ text: line })
@@ -4217,8 +4209,8 @@ export class TuiApp {
     // B 仍渲染，B 的按键决定 A 的 ask promise（跨会话残留 bug；与 approval
     // settle('cancelled') 对称，cancel 按 provider 契约 reject ASK_CANCELLED）。
     if (this.question.isPending) this.question.cancel()
-    this.taskPanelVisible = false
-    this.statusPanelVisible = false
+    this.inspect.hide('tasks')
+    this.inspect.hide('status')
     // 切会话/退出共用：旧会话的流式残文不得带进下一段输出
     this.blockWriter.discard()
     this.streamRenderer.reset()

@@ -95,6 +95,7 @@ describe('renderTasksPanel', () => {
     expect(rows[0]).toContain('📋 任务')
     expect(rows.join('\n')).toContain('⏳ 写测试')
     expect(rows.join('\n')).toContain('[x] 跑绿')
+    expect(rows.at(-1)).toContain('Esc 关闭')
   })
 
   it('面板打开 + taskItems null（服务缺失）→ 不渲染（projectTaskPanel 语义）', () => {
@@ -209,6 +210,8 @@ describe('renderSkillsPanel', () => {
     }
     const rows = renderSkillsPanel(snap)
     expect(rows.join('\n')).toContain('galaxy')
+    expect(rows.at(-1)).toContain('↑↓ 详情')
+    expect(rows.at(-1)).toContain('Esc 关闭')
   })
 })
 
@@ -332,6 +335,7 @@ describe('renderStatusPanel', () => {
     const rows = renderStatusPanel({ ...baseSnapshot(), statusPanelVisible: true })
     expect(rows.join('\n')).toContain('（无任务）')
     expect(rows.join('\n')).not.toContain('◆ 目标')
+    expect(rows.at(-1)).toContain('Esc 关闭')
   })
 })
 
