@@ -2527,8 +2527,10 @@ describe('TuiApp 命令面板（Ctrl+P overlay）', () => {
     await new Promise(resolve => setImmediate(resolve))
 
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).toContain('## 0.1.2-rc.20')
-    expect(written).toContain('/info')
+    // 当前版本动态取自 package.json——发版 bump 不再破测试（版本头来自解析出的
+    // 当前条目，头在场即证明正文已渲染）。
+    const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }
+    expect(written).toContain(`## ${version}`)
     await app.dispose()
   })
 
@@ -2541,7 +2543,8 @@ describe('TuiApp 命令面板（Ctrl+P overlay）', () => {
     await new Promise(resolve => setImmediate(resolve))
 
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).toContain('## 0.1.2-rc.20')
+    const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }
+    expect(written).toContain(`## ${version}`)
     expect(written).toContain('## 0.1.1-rc.6') // all 覆盖最早版本
     await app.dispose()
   })

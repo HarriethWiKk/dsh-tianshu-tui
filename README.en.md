@@ -123,9 +123,9 @@ The companion vision plugin lives in `vision-ask/` if you need image re-interrog
 
 ## Release notes
 
-Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.20`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.20)).
+Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.21`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.21)).
 
-**0.1.2-rc.20 (2026-08-27)**: interaction guidance loop — `/info` input-area density (full/compact/off) with a two-line footer, 10s rotating footer tips, grouped command palette, dynamic welcome tips with first-run onboarding, unknown-command suggestions, slash empty-state hint, `/help` opens the palette, `/changelog` shows what changed.
+**0.1.2-rc.21 (2026-08-27)**: three community fixes — inverse-video input caret (moving the cursor no longer shifts characters; CJK width preserved, #50), preset defaults to `standard` so updates no longer yield a tool-less agent (#48), and root-cause analysis + upstream report for `malformed SSE payload` (#49).
 
 Full release history: [CHANGELOG.md](CHANGELOG.md) (zh) and [GitHub Releases](https://github.com/huiliyi37/dsh-tianshu-tui/releases). In the TUI, `/changelog` shows the current release (`/changelog all` for everything).
 

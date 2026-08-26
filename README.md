@@ -122,9 +122,9 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 
 ## 更新说明
 
-当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.20`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.20)）。
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.21`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.21)）。
 
-**0.1.2-rc.20（2026-08-27）**：交互引导闭环——`/info` 输入区信息密度三档 + footer 两行分层、footer 提示 10s 轮播、命令面板按域分组、欢迎页动态 Tips 与首次运行引导、未知命令智能建议、slash 空态提示、`/help` 面板化、`/changelog` 查看更新内容。
+**0.1.2-rc.21（2026-08-27）**：社区反馈三连修——输入框光标反色化（移动光标不再带动字符、中文宽度守恒，#50）、preset 缺省 standard（更新后不再进入无工具面 agent，#48）、`malformed SSE payload` 根因定位并上报官方公测仓（#49）。
 
 完整版本历史见 [CHANGELOG.md](CHANGELOG.md)；TUI 内 `/changelog` 查看（`/changelog all` 全部）。
 

@@ -3,6 +3,15 @@
 版本更新记录。安装与当前版本见 [README](README.md)；完整历史在此。
 `/changelog` 在 TUI 内查看（默认当前版本，`/changelog all` 全部，`/changelog N` 最近 N 版）。
 
+## [0.1.2-rc.21] - 2026-08-27
+
+社区反馈三连修：光标体验、更新后 preset 缺省、SSE 畸形载荷根因定位。
+
+- **输入框光标反色化（[#50](https://github.com/huiliyi37/dsh-tianshu-tui/issues/50)）** — 行中光标改为原字符反色高亮，不再插入占位块 █：移动光标不再推移左右字符，中文宽度守恒（旧实现占 1 格，CJK 帧还会缩行）；行尾无字符时保留块 █；选区覆盖光标格不嵌套包裹；IME 硬件光标锚定契约不变
+- **preset 缺省 standard（[#48](https://github.com/huiliyi37/dsh-tianshu-tui/issues/48)）** — 新会话与旧会话恢复未指定预设时插件侧显式 mount `standard`，不再依赖 bundle patch 的 `config.default`（旧 profile 装配会忽略该键，更新后新会话直接进入无工具面 agent）；`agent-presets` 服务缺失时启动即 ⚠ 提示重装命令，不再静默跳过
+- **malformed SSE payload 根因定位（[#49](https://github.com/huiliyi37/dsh-tianshu-tui/issues/49)）** — 缺陷在宿主包 `dsh-llm-deepseek`（最新 0.1.1-rc.2 仍在）：SSE 翻译层把空值 `data:` 心跳帧当 JSON 解析即抛，大上下文恢复会话的长静默窗口必现；已提交官方公测反馈仓 [dsh-external/issues#609](https://github.com/dsh-external/issues/issues/609)，等宿主发版解决
+
+
 ## [0.1.2-rc.20] - 2026-08-27
 
 交互引导闭环版本：信息密度可调、新功能可发现、错误有纠错引导、更新内容可查。
