@@ -4055,7 +4055,7 @@ describe('TuiApp /config /skills /density 面板命令', () => {
     await app.dispose()
   })
 
-  it('/info 分层接线：off 档 footer 全关（ctrl+p 提示消失）', async () => {
+  it('/info 分层接线：off 档 footer 全关（mode 段消失）', async () => {
     const ctx = makeCtx()
     const agent = makeAgent('info-2')
     ctx.agents.create.mockResolvedValue(makeHandle(agent))
@@ -4067,7 +4067,7 @@ describe('TuiApp /config /skills /density 面板命令', () => {
     app.handleSubmit('hi')
     await new Promise(resolve => setImmediate(resolve))
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).toContain('ctrl+p') // full 档 footer 行 1 快捷键提示
+    expect(written).toContain('normal') // full 档 footer 行 1 mode 段
 
     app.handleSubmit('/info')
     await new Promise(resolve => setImmediate(resolve))
@@ -4076,9 +4076,9 @@ describe('TuiApp /config /skills /density 面板命令', () => {
     const before = stdout.write.mock.calls.length
     app.handleSubmit('hi2')
     await new Promise(resolve => setImmediate(resolve))
-    // 只看 hi2 之后新增的帧：off 档 footer 全关
+    // 只看 hi2 之后新增的帧：off 档 footer 全关（mode 段消失）
     const afterOff = stdout.write.mock.calls.slice(before).map(c => `${c[0]}`).join('')
-    expect(afterOff).not.toContain('ctrl+p')
+    expect(afterOff).not.toContain('normal')
     await app.dispose()
   })
 })
