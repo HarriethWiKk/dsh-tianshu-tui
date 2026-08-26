@@ -176,10 +176,10 @@ export declare class InputLine {
     /**
      * displayLines + 光标 cell 坐标（2026-07-23 IME 硬件光标归位）。
      *
-     * 返回的 caret 是「█ 左侧」在显示行内的位置：line 为返回数组下标，
+     * 返回的 caret 是「光标格左缘」位置（#50 反色光标：行中为反色原字符格，行尾为块 █）：line 为返回数组下标，
      * col 为 0-based cell 数（含 `❯ ` 前缀，按 ambiguousAsWide 口径度量，
      * 与 renderInputRow/rowsForLine 同尺）。调用方把硬件光标搬到该行该列，
-     * 终端 IME 候选窗即锚定在输入框内（自绘 █ 终端不可见）。
+     * 终端 IME 候选窗即锚定在输入框内（自绘光标终端不可见）。
      * @param options - 视窗裁剪参数（maxLines/maxWidth）
      * @returns 显示行数组 + 光标 cell 坐标（line 为数组下标，col 为 0-based cell）
      */

@@ -197,6 +197,24 @@ describe('density / 常驻面板 / glance 段持久化', () => {
     await b.app.dispose()
   })
 
+  it('prefs 无默认预设 → newSession mount 显式 standard（#48：更新后不再依赖宿主 patch default）', async () => {
+    const prefsPath = tmpPath('prefs.json')
+    const mount = vi.fn(async () => ({ id: 'standard', name: '标准模式' }))
+    const b = bootApp(prefsPath, null)
+    b.ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'agentPresets') return { mount }
+      return undefined
+    })
+    b.ctx.agents.create.mockImplementation(async (opts: { setup?: (c: unknown) => void | Promise<void> }) => {
+      await opts.setup?.({ on: vi.fn(() => () => {}) })
+      return { agent: b.agent, dispose: vi.fn() }
+    })
+    await b.app.attach()
+    expect(mount).toHaveBeenCalledWith(expect.anything(), 'standard')
+    expect(b.agent.session.append).toHaveBeenCalledWith('agent-preset/selected', { agentPreset: 'standard' })
+    await b.app.dispose()
+  })
+
   it('prefsPath=null（VITEST 缺省）不落盘', async () => {
     const b = await boot(null, null)
     await b.app.handleSubmit('/density')

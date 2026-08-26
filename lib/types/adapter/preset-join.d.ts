@@ -37,9 +37,12 @@ export declare function presetJoinFacet(ctx: {
         get(name: string, required?: boolean): unknown;
     };
 }): PresetJoinFacet | undefined;
+/** create/resume 未指定预设时的缺省 id（#48：与 bundle patch 的 config.default 对齐；旧装配/旧 host 忽略该键时由插件侧兜底）。 */
+export declare const DEFAULT_PRESET_ID = "standard";
 /**
  * 按模式加入预设面。无花名册 skipped。
- * create/resume：mount。child：先 composeFrom，父未 join 再 mount。
+ * create/resume：mount（未指定 id 时缺省 {@link DEFAULT_PRESET_ID}）。
+ * child：先 composeFrom，父未 join 再 mount。
  */
 export declare function joinPreset(input: JoinPresetInput): Promise<JoinPresetResult>;
 /** newSession setup：mount prefs/default；失败回 warn，不阻断铸造。 */

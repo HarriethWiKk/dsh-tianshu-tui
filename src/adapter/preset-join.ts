@@ -44,13 +44,20 @@ export function presetJoinFacet(ctx: {
   return facet as PresetJoinFacet
 }
 
-function mountId(preferredId: string | undefined): string | undefined {
-  return preferredId === undefined || preferredId === '' ? undefined : preferredId
+/** create/resume 未指定预设时的缺省 id（#48：与 bundle patch 的 config.default 对齐；旧装配/旧 host 忽略该键时由插件侧兜底）。 */
+export const DEFAULT_PRESET_ID = 'standard'
+
+function mountId(preferredId: string | undefined, mode: PresetJoinMode): string | undefined {
+  if (preferredId !== undefined && preferredId !== '') return preferredId
+  // create/resume 缺省 standard（#48：更新后新会话/旧会话恢复不得落入无工具面
+  // agent）；child 保持 undefined——继承语义由 composeFrom/宿主决定。
+  return mode === 'child' ? undefined : DEFAULT_PRESET_ID
 }
 
 /**
  * 按模式加入预设面。无花名册 skipped。
- * create/resume：mount。child：先 composeFrom，父未 join 再 mount。
+ * create/resume：mount（未指定 id 时缺省 {@link DEFAULT_PRESET_ID}）。
+ * child：先 composeFrom，父未 join 再 mount。
  */
 export async function joinPreset(input: JoinPresetInput): Promise<JoinPresetResult> {
   const { facet, agentCtx, mode } = input
@@ -59,7 +66,7 @@ export async function joinPreset(input: JoinPresetInput): Promise<JoinPresetResu
     const inherited = facet.composeFrom(agentCtx, input.parentCtx)
     if (inherited !== undefined && inherited !== '') return { skipped: false, id: inherited }
   }
-  const preset = await facet.mount(agentCtx, mountId(input.preferredId))
+  const preset = await facet.mount(agentCtx, mountId(input.preferredId, mode))
   return { skipped: false, id: preset.id }
 }
 
@@ -70,10 +77,16 @@ export async function joinCreateOrWarn(
   preferredId: string | undefined,
   warn: (msg: string) => void,
 ): Promise<string | undefined> {
+  const facet = presetJoinFacet(ctx)
+  // #48 fails-loud（2026-08-27）：facet 缺失（profile 装配过期、agent-presets
+  // 未挂）时旧实现静默跳过——用户拿到的是无工具面 agent 且无任何提示。
+  // 装配缺失必须可见：提示重跑安装命令让 bundle patch 重新生效。
+  if (facet === undefined) {
+    warn('⚠ agent-presets 未装配：本会话没有工具面。请重跑安装命令更新装配（dsh plugin --profile tui add @huiliyi37/dsh-tianshu-tui）')
+    return undefined
+  }
   try {
-    return (await joinPreset({
-      facet: presetJoinFacet(ctx), agentCtx, mode: 'create', preferredId,
-    })).id
+    return (await joinPreset({ facet, agentCtx, mode: 'create', preferredId })).id
   } catch (error) {
     warn(`⚠ 启动默认预设未生效: ${error instanceof Error ? error.message : String(error)}`)
     return undefined

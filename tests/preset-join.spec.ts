@@ -39,9 +39,21 @@ describe('joinPreset', () => {
     expect(result).toEqual({ skipped: false, id: 'minimal' })
   })
 
-  it('create：preferredId 空则 mount 不传 id（花名册 defaultId）', async () => {
+  it('create：preferredId 空则缺省 standard（#48：不依赖宿主 patch default）', async () => {
     const mount = vi.fn(async () => ({ id: 'standard' }))
     await joinPreset({ facet: { mount }, agentCtx: {}, mode: 'create', preferredId: '' })
+    expect(mount).toHaveBeenCalledWith({}, 'standard')
+  })
+
+  it('resume：preferredId 空 → 同样缺省 standard（#48：旧会话恢复有工具面）', async () => {
+    const mount = vi.fn(async () => ({ id: 'standard' }))
+    await joinPreset({ facet: { mount }, agentCtx: {}, mode: 'resume', preferredId: undefined })
+    expect(mount).toHaveBeenCalledWith({}, 'standard')
+  })
+
+  it('child：preferredId 空 → 保持 undefined（继承语义由 composeFrom/宿主决定）', async () => {
+    const mount = vi.fn(async () => ({ id: 'standard' }))
+    await joinPreset({ facet: { mount }, agentCtx: {}, mode: 'child', preferredId: '', parentCtx: {} })
     expect(mount).toHaveBeenCalledWith({}, undefined)
   })
 
@@ -91,6 +103,12 @@ describe('joinPreset', () => {
     const bad = { reflect: { get: () => ({ mount: async () => { throw new Error('gone') } }) } }
     expect(await joinCreateOrWarn(bad, {}, 'gone', warn)).toBeUndefined()
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('gone'))
+  })
+
+  it('joinCreateOrWarn：facet 缺失 → warn（fails-loud，#48 装配过期静默无工具面回归）', async () => {
+    const warn = vi.fn()
+    expect(await joinCreateOrWarn({ reflect: { get: () => undefined } }, {}, 'standard', warn)).toBeUndefined()
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('agent-presets 未装配'))
   })
 
   it('joinResume：转调 mount', async () => {

@@ -9,6 +9,8 @@
 
 import { describe, expect, it } from 'vitest'
 import { InputLine } from '../src/engine/input-line.js'
+import { ANSI } from '../src/engine/ansi.js'
+import { displayWidth } from '../src/width.js'
 
 function plain(line: string): string {
   return line.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '')
@@ -78,6 +80,62 @@ describe('InputLine ghost 预览', () => {
     il.setGhost('gh')
     il.setGhost(null)
     expect(changes).toBe(0)
+  })
+})
+
+describe('#50 反色光标（字符原位反色，不占格不推移）', () => {
+  it('行中光标：字符反色、无占位块，帧文本与无光标帧逐字一致（ASCII）', () => {
+    const il = new InputLine({ value: 'abc' })
+    il.setValue('abc', 1) // 光标在 a|b 之间
+    const [line = ''] = il.displayLines()
+    expect(line).toContain(`${ANSI.REVERSE}b${ANSI.RESET}`)
+    expect(line).not.toContain('█')
+    expect(plain(line)).toBe('❯ abc')
+  })
+
+  it('行中光标：CJK 宽度守恒——反色格宽度 = 原字符宽度（2 cell）', () => {
+    const il = new InputLine({ value: '中文' })
+    il.setValue('中文', 1) // 中|文 之间
+    const [line = ''] = il.displayLines()
+    expect(line).toContain(`${ANSI.REVERSE}文${ANSI.RESET}`)
+    // 旧实现插入 1 cell █ 时帧宽为 2+4+1；反色光标帧宽必须与纯文本一致
+    expect(displayWidth(plain(line))).toBe(displayWidth('❯ 中文'))
+  })
+
+  it('行尾光标：保留块 █（其后无字符，不产生推移）', () => {
+    const il = new InputLine({ value: 'abc' })
+    il.setValue('abc', 3)
+    const [line = ''] = il.displayLines()
+    expect(plain(line)).toBe('❯ abc█')
+  })
+
+  it('选区覆盖光标格：单层 REVERSE 不嵌套（内层 RESET 会拆散选区高亮）', () => {
+    const il = new InputLine({ value: 'abc' })
+    il.setValue('abc', 1)
+    il.handleKey('right', '', false, false, true) // shift+right 选中 b，光标在 b|c
+    const [line = ''] = il.displayLines()
+    expect(line).not.toContain('█')
+    expect(plain(line)).toBe('❯ abc')
+    expect(line.split(ANSI.REVERSE).length - 1).toBe(1)
+  })
+
+  it('wrap 路径行中光标：同样反色不插块，wrap 宽度不受光标影响', () => {
+    const il = new InputLine({ value: 'abcdefgh' })
+    il.setValue('abcdefgh', 3)
+    const lines = il.displayLines({ maxWidth: 10 })
+    const joined = lines.join('\n')
+    expect(joined).toContain(`${ANSI.REVERSE}d${ANSI.RESET}`)
+    expect(joined).not.toContain('█')
+    expect(plain(joined)).toBe('❯ abcdefgh')
+  })
+
+  it('多行非 wrap 路径：光标行反色，非光标行不受影响', () => {
+    const il = new InputLine({ value: 'ab\ncd' })
+    il.setValue('ab\ncd', 3) // 次行 c|d（光标行前缀恒为 ❯ ）
+    const lines = il.displayLines()
+    expect(plain(lines[0] ?? '')).toBe('  ab')
+    expect(lines[1]).toContain(`${ANSI.REVERSE}c${ANSI.RESET}`)
+    expect(plain(lines[1] ?? '')).toBe('❯ cd')
   })
 })
 

@@ -170,7 +170,7 @@ function pushWrappedSegment(
   maxContentWidth: number,
   cursorOffset: number | null,
   ambiguousAsWide: boolean,
-  /** 输出参数：记录 █ 插入点左侧的 cell 数（不含前缀）。仅在插入时写入。 */
+  /** 输出参数：记录光标格左缘的 cell 数（不含前缀）。仅在插入时写入。 */
   caretCol?: { value: number },
   /** segment 在 buffer 中的绝对起始偏移（选区高亮定位用）。 */
   segAbsStart?: number,
@@ -198,18 +198,15 @@ function pushWrappedSegment(
     const absOff = (segAbsStart ?? 0) + offset
     if (sel && inSel && absOff === sel.end) { current += ANSI.RESET; inSel = false }
     if (sel && !inSel && absOff === sel.start) { current += ANSI.REVERSE; inSel = true }
-    if (cursorOffset !== null && offset === cursorOffset) {
-      const markerWidth = inputDisplayWidth('█', ambiguousAsWide)
-      if (currentWidth > 0 && currentWidth + markerWidth > maxContentWidth) flush()
-      if (caretCol) caretCol.value = currentWidth
-      current += '█'
-      currentWidth += markerWidth
-      currentHasCursor = true
-    }
-
+    const atCaret = cursorOffset !== null && offset === cursorOffset
     const chWidth = Math.max(1, charDisplayWidth(ch, ambiguousAsWide))
     if (currentWidth > 0 && currentWidth + chWidth > maxContentWidth) flush()
-    current += ch
+    if (atCaret) {
+      // #50 反色光标：字符原位反色不占格（选区覆盖时免包裹防 RESET 拆高亮）。
+      if (caretCol) caretCol.value = currentWidth
+      currentHasCursor = true
+      current += inSel ? ch : `${ANSI.REVERSE}${ch}${ANSI.RESET}`
+    } else { current += ch }
     currentWidth += chWidth
     offset += ch.length
   }
@@ -534,10 +531,10 @@ export class InputLine {
   /**
    * displayLines + 光标 cell 坐标（2026-07-23 IME 硬件光标归位）。
    *
-   * 返回的 caret 是「█ 左侧」在显示行内的位置：line 为返回数组下标，
+   * 返回的 caret 是「光标格左缘」位置（#50 反色光标：行中为反色原字符格，行尾为块 █）：line 为返回数组下标，
    * col 为 0-based cell 数（含 `❯ ` 前缀，按 ambiguousAsWide 口径度量，
    * 与 renderInputRow/rowsForLine 同尺）。调用方把硬件光标搬到该行该列，
-   * 终端 IME 候选窗即锚定在输入框内（自绘 █ 终端不可见）。
+   * 终端 IME 候选窗即锚定在输入框内（自绘光标终端不可见）。
    * @param options - 视窗裁剪参数（maxLines/maxWidth）
    * @returns 显示行数组 + 光标 cell 坐标（line 为数组下标，col 为 0-based cell）
    */
@@ -578,9 +575,10 @@ export class InputLine {
       const isCursorLine = i === cursorLine
       const prefix = isCursorLine ? '❯ ' : '  '
       if (!isCursorLine) return `${prefix}${line}`
-      const beforeCursor = line.slice(0, cursorCol)
-      const afterCursor = `█${line.slice(cursorCol)}${ghostSuffix}`
-      return `${prefix}${beforeCursor}${afterCursor}`
+      // #50 反色光标：光标格反色原字符；行尾无字可反色时保留块 █（不产生推移）。
+      const chUnder = line[cursorCol]
+      const caretCell = chUnder === undefined ? '█' : `${ANSI.REVERSE}${chUnder}${ANSI.RESET}`
+      return `${prefix}${line.slice(0, cursorCol)}${caretCell}${line.slice(cursorCol + 1)}${ghostSuffix}`
     })
     const view = viewportWithCaret(lines, cursorLine, options.maxLines)
     const beforeCursorText = before.slice(before.lastIndexOf('\n') + 1)
