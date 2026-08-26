@@ -250,6 +250,7 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 | `↑`/`↓` | 输入历史（slash 菜单打开时为选择） |
 | `PageUp`/`PageDown` | slash 菜单翻页 |
 | `Esc` | 关闭菜单/overlay/检查面板；取消挂起提问；空闲双击 rewind |
+| `t` | 审批卡：记住此工具（本会话内该工具自动放行，其他工具仍逐卡审批） |
 | `a` | 审批卡：本会话放行（always-approve + 结算当前请求） |
 
 ## 装配

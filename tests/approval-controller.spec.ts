@@ -49,6 +49,37 @@ describe('ApprovalController', () => {
     expect(ctl.isPending).toBe(false)
   })
 
+  it('任务4a：allowTool 后该工具短路 allowed-once（不挂起），其他工具仍逐卡审批', async () => {
+    const sid = 'approval-4a' as SessionId
+    const { ctl } = boot(sid)
+
+    ctl.allowTool('bash')
+    expect(ctl.isToolAllowed('bash')).toBe(true)
+
+    const whitelisted = ctl.handle(approvalReq(sid, 'bash'), () => Promise.resolve('unavailable'))
+    await expect(whitelisted).resolves.toBe('allowed-once')
+    expect(ctl.isPending).toBe(false) // 短路：不挂起、不出卡
+
+    const outcome = ctl.handle(approvalReq(sid, 'edit'), () => Promise.resolve('unavailable'))
+    expect(ctl.isPending).toBe(true) // 未加白名单的工具照常挂起
+    ctl.settle('rejected')
+    await expect(outcome).resolves.toBe('rejected')
+  })
+
+  it('任务4a：clearAllowedTools 复位——白名单语义限于单个会话', async () => {
+    const sid = 'approval-4a-reset' as SessionId
+    const { ctl } = boot(sid)
+
+    ctl.allowTool('bash')
+    ctl.clearAllowedTools()
+    expect(ctl.isToolAllowed('bash')).toBe(false)
+
+    const outcome = ctl.handle(approvalReq(sid, 'bash'), () => Promise.resolve('unavailable'))
+    expect(ctl.isPending).toBe(true)
+    ctl.settle('allowed-once')
+    await expect(outcome).resolves.toBe('allowed-once')
+  })
+
   it('settle：resolve outcome + 清挂起 + onChanged；无挂起 no-op', () => {
     const sid = 'approval-2' as SessionId
     const { ctl, onChanged } = boot(sid)

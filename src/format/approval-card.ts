@@ -10,8 +10,8 @@ import { boxCharsFor } from '../box-chars.js'
 import type { RivetTheme } from '../theme.js'
 import { displayWidth, truncateToDisplayWidth } from '../width.js'
 
-/** 审批卡键位行（与 handleKey 的 y/n/a/esc 对齐）。 */
-export const APPROVAL_KEY_HINTS = '[y] 允许  [n] 拒绝  [a] 本会话放行  [esc] 取消'
+/** 审批卡键位行（与 handleKey 的 y/n/a/t/esc 对齐；≤60 列不截断）。 */
+export const APPROVAL_KEY_HINTS = '[y] 允许 [n] 拒绝 [t] 记住此工具 [a] 全放行 [esc] 取消'
 
 /** formatApprovalCard 的渲染输入。 */
 export interface FormatApprovalCardInput {

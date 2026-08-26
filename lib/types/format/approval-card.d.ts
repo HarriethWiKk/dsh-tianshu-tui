@@ -1,6 +1,6 @@
 import type { RivetTheme } from '../theme.js';
-/** 审批卡键位行（与 handleKey 的 y/n/a/esc 对齐）。 */
-export declare const APPROVAL_KEY_HINTS = "[y] \u5141\u8BB8  [n] \u62D2\u7EDD  [a] \u672C\u4F1A\u8BDD\u653E\u884C  [esc] \u53D6\u6D88";
+/** 审批卡键位行（与 handleKey 的 y/n/a/t/esc 对齐；≤60 列不截断）。 */
+export declare const APPROVAL_KEY_HINTS = "[y] \u5141\u8BB8 [n] \u62D2\u7EDD [t] \u8BB0\u4F4F\u6B64\u5DE5\u5177 [a] \u5168\u653E\u884C [esc] \u53D6\u6D88";
 /** formatApprovalCard 的渲染输入。 */
 export interface FormatApprovalCardInput {
     /** 终端列数（轨线外宽 = columns）。 */

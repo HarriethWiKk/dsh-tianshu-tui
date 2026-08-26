@@ -2385,6 +2385,8 @@ export class TuiApp {
     this.lastReasoningBlock = null
     this.reasoningExpanded = false
     this.pendingCallTitles.clear()
+    // 工具级会话白名单同为会话内状态（`t` 键语义「本会话」）——切换即复位。
+    this.approval.clearAllowedTools()
     // 历史加载：重放会话事件日志（live store 为权威来源，persisted-only 走
     // loadHistory——见 adapter/sessions；此处 live store 已含全部事件）。
     // 工具卡走同一 presenter 桥（presenter 为 args 纯函数、桥软降级，replay 安全）。
@@ -2832,6 +2834,12 @@ export class TuiApp {
     const agent = this.ctx.agents.get(this.activeSessionId)
     if (agent === undefined) return
     planMode.set(agent, active)
+    // 任务4b 本地兜底：服务切换成功即乐观更新徽标——planState 原本只读投影
+    // 总线，宿主未装配 sessionProjections 时 Shift+Tab 进出 plan 徽标纹丝不动。
+    // 总线在场时随后的 plan 投影回调会用权威值覆盖（pending 未知则保持现值）。
+    this.planState = { active, pending: this.planState.pending }
+    this.statusLine?.setPlanState(this.planState)
+    this.renderBatcher.schedule()
   }
 
   /** /key：Ctrl+V 读剪贴板文本进 Key 字段（空文本忽略；readTextFromClipboard 平台缺失时返回 null）。 */
@@ -3103,6 +3111,14 @@ export class TuiApp {
         this.approval.setAlwaysApprove(true)
         this.statusLine?.setAlwaysApprove(true)
         this.settleApproval('allowed-once')
+      } else if (key.char === 't' || key.char === 'T') {
+        // 任务4a 工具级会话白名单：该工具本会话内后续请求自动放行，其他工具
+        // 仍逐卡审批——比 `a` 全放行收敛，比每次 `y` 免重复决策。
+        const pendingReq = this.approval.peek()?.req
+        if (pendingReq !== undefined) {
+          this.approval.allowTool(pendingReq.toolName)
+          this.settleApproval('allowed-once')
+        }
       } else if (key.name === 'ctrl_c' || key.name === 'escape') {
         this.settleApproval('cancelled')
       }

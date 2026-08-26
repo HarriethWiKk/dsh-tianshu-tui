@@ -77,6 +77,12 @@ export class ApprovalController {
     timer: ReturnType<typeof setTimeout> | undefined
   } | null = null
   private alwaysApproveFlag = false
+  /**
+   * 会话级工具白名单（任务4a，2026-08-27）：`t` 键「本会话允许此工具」加入，
+   * 命中请求短路放行——其他工具仍逐卡审批（与 alwaysApprove 的全放行互补）。
+   * 会话切换时 app 侧调 clearAllowedTools() 复位（跨会话残留清理节）。
+   */
+  private readonly allowedTools = new Set<string>()
   private readonly getCurrentSessionId: () => SessionId | null
   private readonly onChanged: (() => void) | undefined
   private readonly timeoutMs: number
@@ -105,6 +111,26 @@ export class ApprovalController {
     this.alwaysApproveFlag = flag
   }
 
+  /** 会话级工具白名单只读视图（渲染/调试用）。 */
+  get allowedToolNames(): readonly string[] {
+    return [...this.allowedTools]
+  }
+
+  /** 白名单是否命中该工具（handleKey 决定键位提示可省；短路判定以 handle 为准）。 */
+  isToolAllowed(toolName: string): boolean {
+    return this.allowedTools.has(toolName)
+  }
+
+  /** 把工具加入会话白名单（`t` 键；该工具后续请求自动放行）。 */
+  allowTool(toolName: string): void {
+    this.allowedTools.add(toolName)
+  }
+
+  /** 清空会话白名单（会话切换时 app 侧复位——白名单语义限于单个会话）。 */
+  clearAllowedTools(): void {
+    this.allowedTools.clear()
+  }
+
   /**
    * 审批 answerer 入口：短路放行 / 委托 next() / 挂起，三选一。
    * @param req - 待决审批请求（approval/request 事件 payload）。
@@ -117,6 +143,11 @@ export class ApprovalController {
     // 仅限当前会话：非当前会话的请求必须 next() 委托（apiproxy 等链上 answerer），
     // 否则 TUI 会截胡远端转发的审批。
     if (this.alwaysApproveFlag && req.agent.session.id === current) {
+      return Promise.resolve('allowed-once')
+    }
+    // 任务4a：工具级会话白名单短路——`t` 键加过的工具自动放行，其他工具仍
+    // 逐卡审批。作用域与 always-approve 相同（仅当前会话）。
+    if (this.allowedTools.has(req.toolName) && req.agent.session.id === current) {
       return Promise.resolve('allowed-once')
     }
     if (req.agent.session.id !== current || this.pending !== null) {

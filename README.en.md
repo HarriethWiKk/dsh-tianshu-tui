@@ -249,6 +249,7 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 | `↑`/`↓` | Input history (selection while the slash menu is open) |
 | `PageUp`/`PageDown` | Slash menu paging |
 | `Esc` | Close menu/overlay/inspect panel; cancel a pending question; double-Esc rewind when idle |
+| `t` | Approval card: remember this tool (auto-approve for the rest of this session) |
 | `a` | Approval card: allow this session (always-approve + settle the current request) |
 
 ## Assembly

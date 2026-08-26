@@ -66,6 +66,12 @@ export interface ApprovalControllerOptions {
 export declare class ApprovalController {
     private pending;
     private alwaysApproveFlag;
+    /**
+     * 会话级工具白名单（任务4a，2026-08-27）：`t` 键「本会话允许此工具」加入，
+     * 命中请求短路放行——其他工具仍逐卡审批（与 alwaysApprove 的全放行互补）。
+     * 会话切换时 app 侧调 clearAllowedTools() 复位（跨会话残留清理节）。
+     */
+    private readonly allowedTools;
     private readonly getCurrentSessionId;
     private readonly onChanged;
     private readonly timeoutMs;
@@ -79,6 +85,14 @@ export declare class ApprovalController {
      * @param flag - true 时当前会话的审批请求短路放行。
      */
     setAlwaysApprove(flag: boolean): void;
+    /** 会话级工具白名单只读视图（渲染/调试用）。 */
+    get allowedToolNames(): readonly string[];
+    /** 白名单是否命中该工具（handleKey 决定键位提示可省；短路判定以 handle 为准）。 */
+    isToolAllowed(toolName: string): boolean;
+    /** 把工具加入会话白名单（`t` 键；该工具后续请求自动放行）。 */
+    allowTool(toolName: string): void;
+    /** 清空会话白名单（会话切换时 app 侧复位——白名单语义限于单个会话）。 */
+    clearAllowedTools(): void;
     /**
      * 审批 answerer 入口：短路放行 / 委托 next() / 挂起，三选一。
      * @param req - 待决审批请求（approval/request 事件 payload）。

@@ -1488,7 +1488,7 @@ describe('TuiApp Phase 8 审批 answerer', () => {
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     expect(written).toContain('允许执行 bash')
     expect(written).toContain('[y] 允许')
-    expect(written).toContain('[a] 本会话放行')
+    expect(written).toContain('[a] 全放行')
     expect(written).toContain('╭─ 审批 · bash')
 
     // y 放行
@@ -1523,6 +1523,45 @@ describe('TuiApp Phase 8 审批 answerer', () => {
       () => Promise.resolve('unavailable'),
     )
     await expect(next).resolves.toBe('allowed-once')
+    await app.dispose()
+  })
+
+  it('审批挂起按 t → 工具级会话白名单（当前卡通过 + 该工具后续自动放行 + 他工具仍挂起）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('approval-t')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    const handler = ctx.on.mock.calls.find(call => call[0] === 'approval/request')?.[1] as
+      | ((req: unknown, next: () => Promise<string>) => Promise<string>)
+      | undefined
+    if (handler === undefined) throw new Error('approval/request handler not registered')
+    const owner = { id: app.sessionId ?? SessionId('approval-t') }
+    const reqOf = (toolName: string): { agent: { session: { id: SessionId } }; toolName: string } =>
+      ({ agent: { session: { id: owner.id } }, toolName })
+
+    const first = handler(reqOf('bash'), () => Promise.resolve('unavailable'))
+    // 键位提示更新（任务4a：t 键上卡）。
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('[t] 记住此工具')
+
+    stdin.emit('data', 't')
+    await expect(first).resolves.toBe('allowed-once')
+
+    // 同工具后续请求短路放行（不挂起）。
+    const second = handler(reqOf('bash'), () => Promise.resolve('unavailable'))
+    await expect(second).resolves.toBe('allowed-once')
+
+    // 其他工具仍逐卡审批（edit 卡上屏）。
+    const third = handler(reqOf('edit'), () => Promise.resolve('unavailable'))
+    const pendingWritten = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(pendingWritten).toContain('允许执行 edit')
+    stdin.emit('data', 'n')
+    await expect(third).resolves.toBe('rejected')
     await app.dispose()
   })
 
