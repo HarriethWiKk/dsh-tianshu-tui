@@ -6,6 +6,7 @@
  */
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionSummary } from './adapter/sessions.js'
+import type { PickerItem } from './picker.js'
 import { shortSessionLabel } from './session-label.js'
 
 /** 可恢复会话视图行（live = 当前进程内仍活跃）。 */
@@ -109,5 +110,123 @@ export function formatRestorableSessions(
   })
   const hidden = rows.length - shown.length
   if (hidden > 0) out.push(`… 还有 ${hidden} 个会话`)
+  return out
+}
+
+/** 会话时间线分组（本地日历日界）。 */
+export type SessionAgeGroup = 'today' | 'yesterday' | 'week' | 'earlier'
+
+/** 分组输出顺序：近 → 远。 */
+export const SESSION_AGE_GROUP_ORDER = ['today', 'yesterday', 'week', 'earlier'] as const
+
+const SESSION_AGE_GROUP_LABEL: Readonly<Record<SessionAgeGroup, string>> = {
+  today: '今天',
+  yesterday: '昨天',
+  week: '本周',
+  earlier: '更早',
+}
+
+/** 本地日 00:00（与分组同一日界）。 */
+function startOfLocalDay(ts: number): number {
+  const d = new Date(ts)
+  d.setHours(0, 0, 0, 0)
+  return d.getTime()
+}
+
+/**
+ * 按本地日历把会话分到今天 / 昨天 / 本周 / 更早。
+ * 本周 = 2–6 天前；未来时间（时钟偏移）归今天。
+ */
+export function sessionAgeGroup(createdAt: number, now: number): SessionAgeGroup {
+  const dayDiff = Math.round((startOfLocalDay(now) - startOfLocalDay(createdAt)) / DAY_MS)
+  if (dayDiff <= 0) return 'today'
+  if (dayDiff === 1) return 'yesterday'
+  if (dayDiff < 7) return 'week'
+  return 'earlier'
+}
+
+/** 分组中文标签。 */
+export function sessionAgeGroupLabel(group: SessionAgeGroup): string {
+  return SESSION_AGE_GROUP_LABEL[group]
+}
+
+/** 一组同龄会话（空桶由 groupSessionsByAge 省略）。 */
+export interface SessionAgeBucket<T> {
+  group: SessionAgeGroup
+  label: string
+  items: T[]
+}
+
+/**
+ * 按今天→昨天→本周→更早分桶；空桶省略；组内保持输入顺序。
+ */
+export function groupSessionsByAge<T extends { createdAt: number }>(
+  rows: readonly T[],
+  now: number,
+): SessionAgeBucket<T>[] {
+  const buckets = new Map<SessionAgeGroup, T[]>()
+  for (const group of SESSION_AGE_GROUP_ORDER) buckets.set(group, [])
+  for (const row of rows) {
+    buckets.get(sessionAgeGroup(row.createdAt, now))!.push(row)
+  }
+  const out: SessionAgeBucket<T>[] = []
+  for (const group of SESSION_AGE_GROUP_ORDER) {
+    const items = buckets.get(group) ?? []
+    if (items.length === 0) continue
+    out.push({ group, label: sessionAgeGroupLabel(group), items })
+  }
+  return out
+}
+
+/** 选择器 / list 共用的会话摘要行。 */
+export interface SessionPickerRow {
+  id: string
+  createdAt: number
+  title: string
+}
+
+/**
+ * 会话选择器条目：每组先不可选头（`今天 · N`），再会话行。
+ * 当前会话只靠 `current`（●），标签不再写「（当前）」。
+ */
+export function buildSessionPickerItems(
+  rows: readonly SessionPickerRow[],
+  opts: { now: number; activeId?: string },
+): { items: PickerItem[]; selectedIndex: number } {
+  const items: PickerItem[] = []
+  let selectedIndex = 0
+  for (const bucket of groupSessionsByAge(rows, opts.now)) {
+    items.push({
+      label: `${bucket.label} · ${bucket.items.length}`,
+      value: `header:${bucket.group}`,
+      header: true,
+    })
+    for (const row of bucket.items) {
+      const current = row.id === opts.activeId
+      if (current) selectedIndex = items.length
+      items.push({
+        label: `#${shortSessionLabel(row.id)} · ${row.title} · ${formatSessionAge(row.createdAt, opts.now)}`,
+        value: row.id,
+        current,
+      })
+    }
+  }
+  return { items, selectedIndex }
+}
+
+/**
+ * `/session list` 旧版打印：分组头 + `id · 标题 · ISO`。
+ */
+export function formatSessionListLines(
+  rows: readonly SessionPickerRow[],
+  now: number,
+): string[] {
+  const out: string[] = []
+  for (const bucket of groupSessionsByAge(rows, now)) {
+    out.push(`${bucket.label} · ${bucket.items.length}`)
+    for (const row of bucket.items) {
+      out.push(`${row.id} · ${row.title} · ${new Date(row.createdAt).toISOString()}`)
+    }
+  }
   return out
 }

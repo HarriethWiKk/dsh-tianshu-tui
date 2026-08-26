@@ -8,6 +8,8 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   applyPickerEvent,
   emptyPickerState,
+  firstSelectableIndex,
+  nextSelectableIndex,
   PickerController,
   renderPicker,
   type PickerItem,
@@ -222,5 +224,54 @@ describe('renderPicker 启动默认标记', () => {
     c.open('选择主题', items, () => {}, undefined, { onSaveDefault: () => {} })
     const footer = plain(c.render(80, 10)).at(-1)
     expect(footer).toContain('S 设为默认')
+  })
+})
+
+const grouped: PickerItem[] = [
+  { label: '今天 · 1', value: 'header:today', header: true },
+  { label: '#s-now · 新对话 · 刚刚', value: 's-now' },
+  { label: '更早 · 1', value: 'header:earlier', header: true },
+  { label: '#s-old · 旧会话 · 2023-10-01', value: 's-old', current: true },
+]
+
+describe('picker 分组头', () => {
+  it('firstSelectableIndex 跳过开头的头', () => {
+    expect(firstSelectableIndex(grouped, 0)).toBe(1)
+    expect(firstSelectableIndex(grouped, 2)).toBe(3)
+    expect(firstSelectableIndex(grouped, 3)).toBe(3)
+  })
+
+  it('nextSelectableIndex 按可选项跳，不落在头上', () => {
+    expect(nextSelectableIndex(grouped, 1, 1)).toBe(3)
+    expect(nextSelectableIndex(grouped, 3, -1)).toBe(1)
+    expect(nextSelectableIndex(grouped, 1, -1)).toBe(1)
+    expect(nextSelectableIndex(grouped, 3, 1)).toBe(3)
+  })
+
+  it('render：分组头无 ▶/●，选中项仍是会话行', () => {
+    const rows = plain(renderPicker({ open: true, selected: 1, title: '选择会话' }, grouped, 60, 12, fakeTheme()))
+    expect(rows[1]).toBe('今天 · 1')
+    expect(rows[2]).toBe('▶ #s-now · 新对话 · 刚刚')
+    expect(rows[3]).toBe('更早 · 1')
+    expect(rows[4]).toBe('  #s-old · 旧会话 · 2023-10-01 ●')
+  })
+
+  it('open 选中若落在头上则吸附到下一项；commit 不提交头', () => {
+    const c = new PickerController({ getTheme: fakeTheme })
+    const onCommit = vi.fn()
+    c.open('选择会话', grouped, onCommit, 0)
+    expect(c.selected?.header).not.toBe(true)
+    expect(c.selected?.value).toBe('s-now')
+    c.commit()
+    expect(onCommit).toHaveBeenCalledWith(grouped[1])
+  })
+
+  it('move 跨越分组头', () => {
+    const c = new PickerController({ getTheme: fakeTheme })
+    c.open('选择会话', grouped, () => {}, 1)
+    c.move(1)
+    expect(c.selected?.value).toBe('s-old')
+    c.move(-1)
+    expect(c.selected?.value).toBe('s-now')
   })
 })

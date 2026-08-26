@@ -14,9 +14,13 @@ import { describe, expect, it } from 'vitest'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionSummary } from '../src/adapter/sessions.js'
 import {
+  buildSessionPickerItems,
   formatRestorableSessions,
   formatSessionAge,
+  formatSessionListLines,
+  groupSessionsByAge,
   projectRestorableSessions,
+  sessionAgeGroup,
   type RestorableSession,
 } from '../src/restore-session.js'
 
@@ -196,5 +200,83 @@ describe('formatRestorableSessions — 展示行', () => {
 
   it('空列表 → 占位提示', () => {
     expect(formatRestorableSessions([], { now: NOW })).toEqual(['（无可恢复会话）'])
+  })
+})
+
+/** 相对 `now` 所在本地日的 12:00（与 sessionAgeGroup 同一日界，不吃 CI 时区）。 */
+function localNoon(now: number, daysAgo: number): number {
+  const d = new Date(now)
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() - daysAgo)
+  d.setHours(12, 0, 0, 0)
+  return d.getTime()
+}
+
+describe('sessionAgeGroup — 本地日历分桶', () => {
+  it('今天 / 昨天 / 本周 / 更早', () => {
+    expect(sessionAgeGroup(localNoon(NOW, 0), NOW)).toBe('today')
+    expect(sessionAgeGroup(localNoon(NOW, 1), NOW)).toBe('yesterday')
+    expect(sessionAgeGroup(localNoon(NOW, 3), NOW)).toBe('week')
+    expect(sessionAgeGroup(localNoon(NOW, 6), NOW)).toBe('week')
+    expect(sessionAgeGroup(localNoon(NOW, 7), NOW)).toBe('earlier')
+  })
+
+  it('未来时间（时钟偏移）→ 今天，不出现负桶', () => {
+    expect(sessionAgeGroup(NOW + 3_600_000, NOW)).toBe('today')
+  })
+})
+
+describe('groupSessionsByAge', () => {
+  it('按今天→昨天→本周→更早输出，空桶省略，组内保持输入顺序', () => {
+    const rows = [
+      { id: 't1', createdAt: localNoon(NOW, 0) },
+      { id: 't2', createdAt: localNoon(NOW, 0) - 1_000 },
+      { id: 'y1', createdAt: localNoon(NOW, 1) },
+      { id: 'w1', createdAt: localNoon(NOW, 3) },
+      { id: 'e1', createdAt: localNoon(NOW, 10) },
+    ]
+    const groups = groupSessionsByAge(rows, NOW)
+    expect(groups.map(g => g.group)).toEqual(['today', 'yesterday', 'week', 'earlier'])
+    expect(groups.map(g => g.label)).toEqual(['今天', '昨天', '本周', '更早'])
+    expect(groups[0]?.items.map(r => r.id)).toEqual(['t1', 't2'])
+    expect(groups[1]?.items.map(r => r.id)).toEqual(['y1'])
+  })
+
+  it('只有今天 → 单组', () => {
+    const groups = groupSessionsByAge([{ id: 't', createdAt: NOW - 1_000 }], NOW)
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.group).toBe('today')
+  })
+})
+
+describe('buildSessionPickerItems', () => {
+  it('每组先头后项；头带计数；当前项 ● 且选中落在该项（不是头）', () => {
+    const rows = [
+      { id: 's-today', createdAt: localNoon(NOW, 0), title: '新对话' },
+      { id: 's-old', createdAt: localNoon(NOW, 10), title: '旧会话' },
+    ]
+    const { items, selectedIndex } = buildSessionPickerItems(rows, { now: NOW, activeId: 's-old' })
+    expect(items[0]).toMatchObject({ header: true, label: '今天 · 1' })
+    expect(items[1]).toMatchObject({ value: 's-today', current: false })
+    expect(items[1]?.header).toBeUndefined()
+    expect(items[1]?.label).toContain('#s-today')
+    expect(items[1]?.label).toContain('新对话')
+    expect(items[1]?.label).not.toContain('（当前）')
+    expect(items[2]).toMatchObject({ header: true, label: '更早 · 1' })
+    expect(items[3]).toMatchObject({ value: 's-old', current: true })
+    expect(selectedIndex).toBe(3)
+    expect(items[selectedIndex]?.header).not.toBe(true)
+  })
+})
+
+describe('formatSessionListLines', () => {
+  it('分组头 + 旧版 id · 标题 · ISO 行', () => {
+    const created = localNoon(NOW, 0)
+    const lines = formatSessionListLines(
+      [{ id: 'session-red-1', createdAt: created, title: '评估准确率' }],
+      NOW,
+    )
+    expect(lines[0]).toBe('今天 · 1')
+    expect(lines[1]).toBe(`session-red-1 · 评估准确率 · ${new Date(created).toISOString()}`)
   })
 })

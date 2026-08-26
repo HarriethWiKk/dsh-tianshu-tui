@@ -248,7 +248,7 @@ import {
   resolveSlashCommand,
   type ModelFacet,
 } from '../commands/registry.js'
-import { PickerController, type PickerItem } from '../picker.js'
+import { PickerController } from '../picker.js'
 import { shortSessionLabel } from '../session-label.js'
 import { accumulateUsage, formatSessionCostReport, type SessionCostBucket } from '../format/session-cost.js'
 import { renderTranscript, parseToolArguments, toolResultText, type RenderedRow } from './render.js'
@@ -264,7 +264,7 @@ import { RewindOverlay, collectUserRewindCheckpoints, type RewindMode, type Rewi
 import { openInEditorDetailed, getEditorCommand } from '../external-editor.js'
 import { FluencyTracker } from '../fluency-hook.js'
 import { expandMentions } from '../mention-expand.js'
-import { formatSessionAge } from '../restore-session.js'
+import { buildSessionPickerItems, formatSessionAge } from '../restore-session.js'
 // 副作用声明合并：让 ctx.on('approval/request') 的 handler 参数由 cordis 事件
 // 类型推导（user-approval 的 module augmentation）。不 import 具体类型——
 // 该包的 lib 声明带 .ts 后缀相对导入，跨包 tsc 解析会触发 rootDir 冲突。
@@ -2092,7 +2092,7 @@ export class TuiApp {
     })
   }
 
-  /** #31：打开会话选择器（listSessions 同源；当前会话 ● 高亮；摘要行，展示全部会话）。 */
+  /** #31：打开会话选择器（今天/昨天/本周/更早分组；当前 ● 高亮）。 */
   private async openSessionPicker(): Promise<void> {
     const overlay = this.overlay
     const picker = this.picker
@@ -2102,21 +2102,15 @@ export class TuiApp {
       this.echoWarn('⚠ 当前无会话，会话选择器不可用')
       return
     }
-    const active = this.activeSessionId
-    const now = Date.now()
-    const items: PickerItem[] = []
-    let selectedIndex = 0
+    const titled = []
     for (const row of rows) {
-      // 会话摘要行：短 id + 标题（官方 session/title fold → 首条真人消息
-      // fallback → 「新对话」）+ 相对年龄。标题数据源与 /session list 同款，
-      // 只读纯函数、不调 API。
       const events = await loadHistory(this.ctx, row.id)
-      const title = sessionTitleFor(events)
-      const label = `#${shortSessionLabel(row.id)} · ${title} · ${formatSessionAge(row.createdAt, now)}${row.id === active ? '（当前）' : ''}`
-      const item: PickerItem = { label, value: row.id, current: row.id === active }
-      if (row.id === active) selectedIndex = items.length
-      items.push(item)
+      titled.push({ id: row.id, createdAt: row.createdAt, title: sessionTitleFor(events) })
     }
+    const { items, selectedIndex } = buildSessionPickerItems(titled, {
+      now: Date.now(),
+      ...(this.activeSessionId === null ? {} : { activeId: this.activeSessionId }),
+    })
     picker.open('选择会话', items, (item) => {
       this.switchSessionGuarded(SessionId(item.value))
     }, selectedIndex)

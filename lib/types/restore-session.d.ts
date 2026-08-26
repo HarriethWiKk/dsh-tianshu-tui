@@ -6,6 +6,7 @@
  */
 import type { SessionId } from '@deepseek-ai/dsh-session';
 import type { SessionSummary } from './adapter/sessions.js';
+import type { PickerItem } from './picker.js';
 /** 可恢复会话视图行（live = 当前进程内仍活跃）。 */
 export interface RestorableSession {
     id: SessionId;
@@ -48,3 +49,47 @@ export declare function formatSessionAge(createdAt: number, now: number): string
  * @returns 每会话一行的展示文本。
  */
 export declare function formatRestorableSessions(rows: readonly RestorableSession[], opts?: RestorableOptions): string[];
+/** 会话时间线分组（本地日历日界）。 */
+export type SessionAgeGroup = 'today' | 'yesterday' | 'week' | 'earlier';
+/** 分组输出顺序：近 → 远。 */
+export declare const SESSION_AGE_GROUP_ORDER: readonly ['today', 'yesterday', 'week', 'earlier'];
+/**
+ * 按本地日历把会话分到今天 / 昨天 / 本周 / 更早。
+ * 本周 = 2–6 天前；未来时间（时钟偏移）归今天。
+ */
+export declare function sessionAgeGroup(createdAt: number, now: number): SessionAgeGroup;
+/** 分组中文标签。 */
+export declare function sessionAgeGroupLabel(group: SessionAgeGroup): string;
+/** 一组同龄会话（空桶由 groupSessionsByAge 省略）。 */
+export interface SessionAgeBucket<T> {
+    group: SessionAgeGroup;
+    label: string;
+    items: T[];
+}
+/**
+ * 按今天→昨天→本周→更早分桶；空桶省略；组内保持输入顺序。
+ */
+export declare function groupSessionsByAge<T extends {
+    createdAt: number;
+}>(rows: readonly T[], now: number): SessionAgeBucket<T>[];
+/** 选择器 / list 共用的会话摘要行。 */
+export interface SessionPickerRow {
+    id: string;
+    createdAt: number;
+    title: string;
+}
+/**
+ * 会话选择器条目：每组先不可选头（`今天 · N`），再会话行。
+ * 当前会话只靠 `current`（●），标签不再写「（当前）」。
+ */
+export declare function buildSessionPickerItems(rows: readonly SessionPickerRow[], opts: {
+    now: number;
+    activeId?: string;
+}): {
+    items: PickerItem[];
+    selectedIndex: number;
+};
+/**
+ * `/session list` 旧版打印：分组头 + `id · 标题 · ISO`。
+ */
+export declare function formatSessionListLines(rows: readonly SessionPickerRow[], now: number): string[];

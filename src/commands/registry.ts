@@ -32,6 +32,7 @@ declare module '@deepseek-ai/dsh-session/types' {
 import { getActiveThemeName } from '../theme.js'
 import { listSessions, loadHistory } from '../adapter/sessions.js'
 import { sessionTitleFor } from '../adapter/session-title.js'
+import { formatSessionListLines } from '../restore-session.js'
 import { collectDoctorReport, getDoctorFixGuidance } from '../format/doctor-report.js'
 import { TUI_PACKAGE, type UpdateCheckResult } from '../self-update.js'
 import {
@@ -316,16 +317,14 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
             echo('（当前无会话）')
             return
           }
-          // 每行在 session id 旁展示会话标题。数据源为官方 log-backed
-          // `session/title` 事件（dsh-base 装配的 session-title + session-title-llm
-          // 在会话活跃时自动生成）；无标题事件的历史会话展示首条真人消息的
-          // 确定性 fallback；无聊天记录的会话显示「新对话」。只读纯函数，
-          // 不调 API、不写 sidecar、不写 session log。
-          // 旧版样式：逐行直接打印（不进交互界面）。
+          // 标题数据源与选择器同款（title 事件 fold → 首条真人消息 → 「新对话」）。
+          // 按今天/昨天/本周/更早分组后逐行打印（不进交互界面）。
+          const titled = []
           for (const row of rows) {
             const events = await loadHistory(ctx, row.id)
-            echo(`${row.id} · ${sessionTitleFor(events)} · ${new Date(row.createdAt).toISOString()}`)
+            titled.push({ id: row.id, createdAt: row.createdAt, title: sessionTitleFor(events) })
           }
+          for (const line of formatSessionListLines(titled, Date.now())) echo(line)
           return
         }
         if (sub === 'switch') {

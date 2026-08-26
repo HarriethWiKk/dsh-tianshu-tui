@@ -25,6 +25,51 @@ export interface PickerItem {
   current?: boolean
   /** 启动默认值（列表行 ★ 标记；与 current 可并存）。 */
   isDefault?: boolean
+  /** 分组头：不可选、不提交；↑↓ 跳过。 */
+  header?: boolean
+}
+
+/** 分组头不可选。 */
+export function isPickerSelectable(item: PickerItem | undefined): item is PickerItem {
+  return item !== undefined && item.header !== true
+}
+
+/**
+ * 从 `from` 起找最近可选项（先下后上）；全是头时退回夹紧后的 from。
+ */
+export function firstSelectableIndex(items: readonly PickerItem[], from = 0): number {
+  if (items.length === 0) return 0
+  const start = Math.max(0, Math.min(from, items.length - 1))
+  for (let i = start; i < items.length; i++) {
+    if (isPickerSelectable(items[i])) return i
+  }
+  for (let i = start - 1; i >= 0; i--) {
+    if (isPickerSelectable(items[i])) return i
+  }
+  return start
+}
+
+/**
+ * 按可选项跳 `delta` 步（头不计步）；到顶/底停在最近可选项。
+ */
+export function nextSelectableIndex(
+  items: readonly PickerItem[],
+  from: number,
+  delta: number,
+): number {
+  if (items.length === 0) return 0
+  if (delta === 0) return firstSelectableIndex(items, from)
+  const step = delta > 0 ? 1 : -1
+  const hops = Math.abs(delta)
+  let i = Math.max(0, Math.min(from, items.length - 1))
+  let moved = 0
+  while (moved < hops) {
+    const next = i + step
+    if (next < 0 || next >= items.length) break
+    i = next
+    if (isPickerSelectable(items[i])) moved++
+  }
+  return isPickerSelectable(items[i]) ? i : firstSelectableIndex(items, i)
 }
 
 /** 确认回调：选中条目 → 调用方执行动作。 */
@@ -123,6 +168,10 @@ export function renderPicker(
       const item = window[i]
       /* v8 ignore next 1 -- unreachable: window 来自 items.slice()，元素恒非 undefined */
       if (item === undefined) continue
+      if (item.header === true) {
+        lines.push(color(truncate(item.label, width), theme.muted))
+        continue
+      }
       const isSel = start + i === sel
       const marker = `${item.current === true ? ' ●' : ''}${item.isDefault === true ? ' ★' : ''}`
       const text = `${isSel ? '▶ ' : '  '}${item.label}${marker}`
@@ -197,8 +246,9 @@ export class PickerController {
     this.onCancel = hooks?.onCancel ?? null
     this.onSaveDefault = hooks?.onSaveDefault ?? null
     this.state = applyPickerEvent(this.state, { type: 'open', title })
-    if (selectedIndex !== undefined && selectedIndex > 0) {
-      this.state = applyPickerEvent(this.state, { type: 'move', delta: selectedIndex, count: this.items.length })
+    const target = firstSelectableIndex(this.items, selectedIndex ?? 0)
+    if (target !== this.state.selected) {
+      this.state = { ...this.state, selected: target }
     }
   }
 
@@ -218,7 +268,8 @@ export class PickerController {
    * @param delta - 移动量（负上正下）。
    */
   move(delta: number): void {
-    this.state = applyPickerEvent(this.state, { type: 'move', delta, count: this.items.length })
+    const next = nextSelectableIndex(this.items, this.state.selected, delta)
+    this.state = { ...this.state, selected: next }
     const item = this.selected
     if (item !== undefined && this.onPreview !== null) this.onPreview(item)
   }
@@ -239,13 +290,14 @@ export class PickerController {
    */
   commit(): void {
     const item = this.selected
+    if (!isPickerSelectable(item)) return
     const cb = this.onCommit
     this.onCancel = null
     this.onCommit = null
     this.onPreview = null
     this.onSaveDefault = null
     this.state = applyPickerEvent(this.state, { type: 'close' })
-    if (item !== undefined && cb !== null) cb(item)
+    if (cb !== null) cb(item)
   }
 
   /** 是否注入了 S 设为默认钩子（键路由据此决定是否消费 s/S）。 */
@@ -260,13 +312,14 @@ export class PickerController {
   saveDefault(): void {
     if (this.onSaveDefault === null) return
     const item = this.selected
+    if (!isPickerSelectable(item)) return
     const cb = this.onSaveDefault
     this.onCancel = null
     this.onCommit = null
     this.onPreview = null
     this.onSaveDefault = null
     this.state = applyPickerEvent(this.state, { type: 'close' })
-    if (item !== undefined) cb(item)
+    cb(item)
   }
 
   /**

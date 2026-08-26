@@ -545,7 +545,7 @@ export declare class TuiApp {
     private openThemePicker;
     /** /effort 无参：推理等级选择器。 */
     private openEffortPicker;
-    /** #31：打开会话选择器（listSessions 同源；当前会话 ● 高亮；摘要行，展示全部会话）。 */
+    /** #31：打开会话选择器（今天/昨天/本周/更早分组；当前 ● 高亮）。 */
     private openSessionPicker;
     /**
      * C3 项 3：执行回退。mode 决定范围：

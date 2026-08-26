@@ -21,7 +21,19 @@ export interface PickerItem {
     current?: boolean;
     /** 启动默认值（列表行 ★ 标记；与 current 可并存）。 */
     isDefault?: boolean;
+    /** 分组头：不可选、不提交；↑↓ 跳过。 */
+    header?: boolean;
 }
+/** 分组头不可选。 */
+export declare function isPickerSelectable(item: PickerItem | undefined): item is PickerItem;
+/**
+ * 从 `from` 起找最近可选项（先下后上）；全是头时退回夹紧后的 from。
+ */
+export declare function firstSelectableIndex(items: readonly PickerItem[], from?: number): number;
+/**
+ * 按可选项跳 `delta` 步（头不计步）；到顶/底停在最近可选项。
+ */
+export declare function nextSelectableIndex(items: readonly PickerItem[], from: number, delta: number): number;
 /** 确认回调：选中条目 → 调用方执行动作。 */
 export type PickerCommit = (item: PickerItem) => void;
 /** 预览回调：选中变化时以新选中条目调用（实时预览，如主题切换）。 */
