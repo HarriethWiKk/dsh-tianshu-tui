@@ -1,7 +1,84 @@
-# The dsh-tianshu-tui bundle patch: mounts the interactive terminal UI runner over
-# dsh-base under the stable plugin id `tui-runner`. The runner hosts the
-# ported render core and the TuiApp assembly (see SOURCE-MAP.md and README.md).
+# The dsh-tianshu-tui bundle patch: mounts the interactive terminal UI over
+# dsh-base and moves the agent plane behind official agent presets (same split
+# as dsh-web-app). Host keeps registries, sandbox, approval, and model routing.
+# The runner hosts the ported render core and TuiApp (SOURCE-MAP.md / README.md).
 
 - insert:
     - id: tui-runner
       name: '@huiliyi37/dsh-tianshu-tui'
+
+    - id: agent-presets
+      name: '@deepseek-ai/dsh-agent-presets'
+      config:
+        default: standard
+
+# ── agent plane leaves the host (standard preset remounts these) ───────────
+
+- id: tool-bash
+  disabled: true
+
+- id: tool-pwsh
+  disabled: true
+
+- id: tool-jobs
+  disabled: true
+
+- id: tool-fs
+  disabled: true
+
+- id: tool-fs-search
+  disabled: true
+
+- id: tool-str-replace-editor
+  disabled: true
+
+- id: skill-filesystem
+  disabled: true
+
+- id: tool-skill
+  disabled: true
+
+- id: tool-goal
+  disabled: true
+
+- id: plan-mode
+  disabled: true
+
+- id: compaction-basic
+  disabled: true
+
+- id: command-compact
+  disabled: true
+
+- id: tool-result-pruner
+  disabled: true
+
+- id: tool-subagent-control
+  disabled: true
+
+- id: tool-subagent-list-agents
+  disabled: true
+
+- id: tool-subagent
+  disabled: true
+
+- id: tool-subagent-fork
+  disabled: true
+
+- id: workflow-worker-thread
+  disabled: true
+
+- id: tool-workflow
+  disabled: true
+
+- id: tool-ralph
+  disabled: true
+
+- id: agent-instructions
+  disabled: true
+
+- id: tool-todo
+  disabled: true
+
+- id: tool-web
+  disabled: true

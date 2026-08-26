@@ -12,6 +12,7 @@ import type {} from '@deepseek-ai/dsh-agent-default-model'
 import { randomUUID } from 'node:crypto'
 import { resumeModelSelection } from '../controllers/session-manager.js'
 import { forkAgentSpec } from './sessions.js'
+import { joinPreset, presetJoinFacet } from './preset-join.js'
 
 export interface ForkedAgent {
   childId: SessionId
@@ -45,7 +46,16 @@ export async function createForkedAgent(
     seed: spec.seed,
     meta: spec.meta,
     agentOptions: { provider: selection.provider, model: selection.model },
-    setup: (agentCtx) => { installModelSelection(agentCtx, ref) },
+    setup: async (agentCtx) => {
+      installModelSelection(agentCtx, ref)
+      const parentAgent = ctx.agents.get(parentSessionId)
+      await joinPreset({
+        facet: presetJoinFacet(ctx),
+        agentCtx,
+        mode: 'child',
+        parentCtx: parentAgent?.ctx,
+      })
+    },
   })
   return { childId, handle, ref }
 }

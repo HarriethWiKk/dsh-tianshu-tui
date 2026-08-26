@@ -28,6 +28,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { AgentHandle } from '@deepseek-ai/dsh-agent'
 import { controlsFromHandle } from '../adapter/send.js'
+import { joinPreset, presetJoinFacet } from '../adapter/preset-join.js'
 
 /** btw 挂起态快照（renderLive 消费；无挂起时 peek() 返回 null）。 */
 export interface BtwPeek {
@@ -129,6 +130,7 @@ export class BtwController {
     const selection = this.ctx.agentDefaultModel.currentSelection()
     // 与 SessionStore.fork 同构：继承父会话 cwd（无则回退启动目录），并记下血缘。
     // 缺 cwd 的 btw 会话同样会掉进 `_no-cwd/`，Web 列表不可见（issue #5）。
+    const parentAgent = this.ctx.agents.get(activeId)
     const handle = await this.ctx.agents.create({
       sessionId: btwId,
       seed,
@@ -138,6 +140,14 @@ export class BtwController {
         seedLength: seed.length,
       },
       agentOptions: { provider: selection.provider, model: selection.model },
+      setup: async (agentCtx) => {
+        await joinPreset({
+          facet: presetJoinFacet(this.ctx),
+          agentCtx,
+          mode: 'child',
+          parentCtx: parentAgent?.ctx,
+        })
+      },
     })
     // 答案流订阅：text-delta 收集进 buffer，turn/end 定稿（与主会话 streamFeed
     // 同款事件词汇，按 btw session id 过滤，互不干扰）。

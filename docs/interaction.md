@@ -75,7 +75,7 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
 |---|---|
 | `/model [target] [effort] [default]` | 查看/切换模型(无参打开选择器; Enter=本会话, S 或末尾 `default`=启动默认; 别名 `spark-flash`/`spark-pro`) |
 | `/effort off\|high\|max\|auto\|default` | 设置推理等级(无参打开选择器; Enter/带参=本会话, S 或 `default`=启动默认; `auto` 回模型默认) |
-| `/preset [name] [default]` | 查看/切换 agent 预设(带参=本会话; 末尾 `default`=新会话启动默认; 仅空白会话可换) |
+| `/preset [name] [default]` | 查看/切换 agent 预设(本包已挂官方花名册;带参=本会话整套 agent 面; 末尾 `default`=新会话启动默认; 仅空白会话可换) |
 | `/yolo [on\|off]` | 全放行模式 |
 | `/density [default]` | 切换紧凑工具卡渲染(开关=本会话; `/density default`=启动默认) |
 | `/glance [segment]` | 切换 footer metrics 段显隐(如 `/glance cost`;无参查看现状) |

@@ -67,6 +67,9 @@ When the primary model cannot see images, assemble a vision-bridge plugin (`dsh-
 **Need a model-facing LSP tool surface**
 Assemble the community plugin [`omdsh-dev/dsh-lsp`](https://github.com/omdsh-dev/dsh-lsp); the TUI display bridge consumes its `lsp` service automatically, sharing the same LSP server set with the model tool surface.
 
+**`/preset` says "agent-presets service unavailable"**
+Update to a build that assembles the agent plane (`plugin add` of this package pulls the official presets package). The command is `/preset`, not `/presets`. Existing profiles pick up the new dependency on self-update.
+
 ## Next Steps
 
 - [Interaction](interaction.en.md): full keymap and command reference

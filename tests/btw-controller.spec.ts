@@ -57,6 +57,7 @@ function makeCtx(overrides: {
     agentDefaultModel: {
       currentSelection: vi.fn(() => ({ provider: 'mock', model: 'mock' })),
     },
+    reflect: { get: vi.fn(() => undefined) },
     on: vi.fn((eventName: string, fn: (owner: { id: SessionId }, e: SessionEvent) => void) => {
       if (eventName !== 'session/event') throw new Error(`unexpected event: ${eventName}`)
       handler = fn
@@ -139,6 +140,33 @@ describe('BtwController', () => {
       | undefined
     expect(message?.content[0]?.text).toBe('这个函数的时间复杂度是多少？')
     expect(controller.peek()).toEqual({ status: 'loading', question: '这个函数的时间复杂度是多少？' })
+    controller.dispose()
+  })
+
+  it('ask setup 对父 agent composeFrom', async () => {
+    const events = [
+      event(0, 'user/message'),
+      event(1, 'turn/start'),
+      event(2, 'turn/end', { reason: { kind: 'stop' } }),
+    ]
+    const composeFrom = vi.fn(() => 'standard')
+    const parentCtx = { parent: 1 }
+    const { ctx, handle } = makeCtx({ events })
+    ctx.agents.get.mockReturnValue({ ctx: parentCtx })
+    ctx.reflect.get.mockImplementation((name: string) => (
+      name === 'agentPresets' ? { mount: vi.fn(), composeFrom } : undefined
+    ))
+    ctx.agents.create.mockImplementation(async (opts: { setup?: (c: unknown) => void | Promise<void> }) => {
+      await opts.setup?.({ child: 1 })
+      return handle
+    })
+    const controller = new BtwController({
+      ctx,
+      activeSessionId: () => ACTIVE,
+      timeoutMs: 1000,
+    })
+    await controller.ask('q')
+    expect(composeFrom).toHaveBeenCalledWith({ child: 1 }, parentCtx)
     controller.dispose()
   })
 

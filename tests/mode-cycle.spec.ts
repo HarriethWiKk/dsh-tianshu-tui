@@ -238,6 +238,21 @@ describe('Shift+Tab 三态循环（C3 项 4）', () => {
     await app.dispose()
   })
 
+  it('planMode 只在 agent isolate 时 shift_tab 仍走 serviceFor', async () => {
+    const isolated = { set: vi.fn() }
+    const { ctx, app, stdin, agent } = await bootApp()
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'agentPresets') {
+        return { serviceFor: (_a: unknown, svc: string) => svc === 'planMode' ? isolated : undefined }
+      }
+      return undefined
+    })
+    stdin.emit('data', '\x1b[Z')
+    expect(isolated.set).toHaveBeenCalledWith(agent, true)
+    expect(ctx.planMode.set).not.toHaveBeenCalled()
+    await app.dispose()
+  })
+
   it('setPlanMode 降级：planMode 服务未装配时 shift_tab 回显警告（不调 set）', async () => {
     const { ctx, app, stdin, stdout } = await bootApp('mc-no-pm', { noPlanMode: true })
     stdout.write.mockClear()

@@ -21,6 +21,10 @@ All fields are optional and injected by whoever assembles the plugin:
 | `lsp.enabled` | `true` | LSP diagnostics toggle (local language-service bridge) |
 | `lsp.timeoutMs` | `2000` | Per-diagnostics-fetch timeout |
 
+### Assembling agent presets (`/preset`)
+
+This package's `cordis.patch.yml` inserts official `agent-presets` (`default: standard`) and disables the host agent-plane rows that the shipped `standard` preset remounts. `plugin add` of this package also installs `@deepseek-ai/dsh-agent-presets@0.1.1-rc.2`. The command is `/preset`; there is no `/presets`. New sessions `mount` in `setup`; a blank `/preset <id>` uses official `recompose`.
+
 ## Environment Variables
 
 | Variable | Description |

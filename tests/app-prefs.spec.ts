@@ -178,17 +178,21 @@ describe('density / 常驻面板 / glance 段持久化', () => {
     await b.app.dispose()
   })
 
-  it('/preset id default 写透 prefs.preset；newSession 对空白会话 recompose', async () => {
+  it('/preset id default 写透 prefs.preset；newSession setup 里 mount', async () => {
     const prefsPath = tmpPath('prefs.json')
     writePrefs(prefsPath, { preset: 'minimal' })
-    const recompose = vi.fn(async () => ({ id: 'minimal', name: '极简' }))
+    const mount = vi.fn(async () => ({ id: 'minimal', name: '极简' }))
     const b = bootApp(prefsPath, null)
     b.ctx.reflect.get.mockImplementation((name: string) => {
-      if (name === 'agentPresets') return { recompose }
+      if (name === 'agentPresets') return { mount }
       return undefined
     })
+    b.ctx.agents.create.mockImplementation(async (opts: { setup?: (c: unknown) => void | Promise<void> }) => {
+      await opts.setup?.({ on: vi.fn(() => () => {}) })
+      return { agent: b.agent, dispose: vi.fn() }
+    })
     await b.app.attach()
-    expect(recompose).toHaveBeenCalled()
+    expect(mount).toHaveBeenCalledWith(expect.anything(), 'minimal')
     expect(b.agent.session.append).toHaveBeenCalledWith('agent-preset/selected', { agentPreset: 'minimal' })
     await b.app.dispose()
   })

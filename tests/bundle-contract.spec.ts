@@ -71,4 +71,31 @@ describe('published bundle contract', () => {
       expect(unexpected).toEqual([])
     })
   }
+
+  it('#47 本包 patch 挂 agent-presets 并关掉 host agent 面（对标 web）', () => {
+    const patch = readRepo('cordis.patch.yml')
+    const pkg = JSON.parse(readRepo('package.json')) as {
+      dsh?: { bundle?: { patch?: string } }
+      dependencies?: Record<string, string>
+    }
+    expect(pkg.dsh?.bundle?.patch).toBe('./cordis.patch.yml')
+    expect(patch).toContain('id: tui-runner')
+    expect(patch).toContain('@huiliyi37/dsh-tianshu-tui')
+    expect(patch).toContain('id: agent-presets')
+    expect(patch).toContain('@deepseek-ai/dsh-agent-presets')
+    expect(patch).toMatch(/id:\s*tool-bash[\s\S]*disabled:\s*true/)
+    expect(pkg.dependencies?.['@deepseek-ai/dsh-agent-presets']).toBe('0.1.1-rc.2')
+  })
+
+  it('官方预设包可解析时（无则跳过）不声明自己的 bundle.patch', async () => {
+    let manifest: { dsh?: { bundle?: { patch?: string } } }
+    try {
+      manifest = (await import('@deepseek-ai/dsh-agent-presets/package.json', {
+        with: { type: 'json' },
+      })).default as { dsh?: { bundle?: { patch?: string } } }
+    } catch {
+      return
+    }
+    expect(manifest.dsh?.bundle?.patch).toBeUndefined()
+  })
 })

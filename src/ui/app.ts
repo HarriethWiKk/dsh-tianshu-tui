@@ -61,7 +61,10 @@ import {
   FALLBACK_MAX_ROWS,
   renderHalfBlockPreview,
 } from '../engine/image-preview.js'
-import { applyPrefPreset, echoSavedDefault, echoSessionOnly, effortSelection, splitDefaultFlag, type PrefPresetFacet } from '../startup-defaults.js'
+import { echoSavedDefault, echoSessionOnly, effortSelection, splitDefaultFlag } from '../startup-defaults.js'
+import { joinCreateOrWarn, joinResume } from '../adapter/preset-join.js'
+import { scopedService } from '../adapter/agent-scope-service.js'
+import { resolvePresetId } from '../preset-surface.js'
 import { openEffortPicker, openModelPicker, openThemePicker, type ModelPickerLlm } from './startup-pickers.js'
 import {
   encodeTermImage,
@@ -869,7 +872,7 @@ export class TuiApp {
       },
       toggleWorkflowPanel: () => {
         this.workflowPanelVisible = !this.workflowPanelVisible
-        if (this.workflowPanelVisible && this.ctx.reflect.get('workflowEngine', false) === undefined) {
+        if (this.workflowPanelVisible && scopedService(this.ctx, this.activeSessionId, 'workflowEngine') === undefined) {
           this.echoWarn('⚠ workflow 引擎不可用（未装配 workflow 插件），面板无运行数据')
         }
         this.prefs.panels = { ...this.prefs.panels, workflow: this.workflowPanelVisible }
@@ -1849,22 +1852,22 @@ export class TuiApp {
     const ref = this.modelRef
     // header.cwd 是 Web 会话列表与 workspace 挂载的门槛：缺省会被持久化进
     // `_no-cwd/` 并从 web API 可见列表过滤掉（issue #5）。TUI 工作区 = 启动目录。
+    let joinedId: string | undefined
     const handle = await this.ctx.agents.create({
       sessionId,
       meta: { cwd: process.cwd() },
       agentOptions: { provider: selection.provider, model: selection.model },
-      setup: (agentCtx) => {
+      setup: async (agentCtx) => {
         installModelSelection(agentCtx, ref)
+        joinedId = await joinCreateOrWarn(this.ctx, agentCtx, this.prefs.preset, m => this.echoWarn(m))
       },
     })
     this.ownedHandle = handle
     this.controls = controlsFromHandle(handle)
     this.activeSessionId = sessionId
-    const preset = await applyPrefPreset({
-      presetId: this.prefs.preset, isBlank: true, agent: handle.agent,
-      facet: this.ctx.reflect.get('agentPresets', false) as PrefPresetFacet | undefined,
-    })
-    if (preset.error) this.echoWarn(`⚠ 启动默认预设未生效: ${preset.error}`)
+    if (joinedId !== undefined) {
+      handle.agent.session.append('agent-preset/selected', { agentPreset: joinedId })
+    }
     this.mountSession(sessionId)
     return sessionId
   }
@@ -2197,8 +2200,10 @@ export class TuiApp {
       : await this.ctx.agents.resume({
         resumeSessionId: id,
         agentOptions: { provider: selection.provider, model: selection.model },
-        setup: (agentCtx) => {
+        setup: async (agentCtx) => {
           installModelSelection(agentCtx, ref)
+          const live = getSession(this.ctx, id)
+          await joinResume(this.ctx, agentCtx, resolvePresetId(live?.header.agentPreset, live?.events))
         },
       })
     // P3 side conversation：切走时保留旧会话 agent（keepHandle 让渡 registry；
@@ -2976,7 +2981,7 @@ export class TuiApp {
 
   /** C3 项 4：经 planMode 服务切换 plan 状态（服务缺失时回显警告，不再静默）。 */
   private setPlanMode(active: boolean): void {
-    const planMode = this.ctx.reflect.get('planMode', false) as
+    const planMode = scopedService(this.ctx, this.activeSessionId, 'planMode') as
       | { set(agent: unknown, active: boolean): string } | undefined
     if (planMode === undefined) {
       // 只在进入 plan 时提示（退出分支由 Always-Approve 本地态驱动，无需服务）。

@@ -490,6 +490,23 @@ describe('内置命令 — /compact', () => {
     expect(agentArg.options).toEqual({ provider: 'p', model: 'm' })
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('无需压缩'))
   })
+
+  it('compact 只在 agent isolate 时走 serviceFor，不再误报不可用', async () => {
+    const { cmd } = commandByName('compact')
+    const sid = 'session-compact-iso' as SessionId
+    const compactIfNeeded = vi.fn(async () => null)
+    const isolated = { compactIfNeeded }
+    const agent = { options: { provider: 'p', model: 'm' } }
+    const ctx = makeCtx({
+      sessions: { list: vi.fn(() => []), get: vi.fn(() => ({ id: sid })) },
+      agents: { get: vi.fn(() => agent) },
+      agentPresets: { serviceFor: (_a: unknown, name: string) => name === 'compact' ? isolated : undefined },
+    })
+    const { args, echo } = makeArgs({ text: '', ctx, sessionId: sid })
+    await cmd.run(args)
+    expect(compactIfNeeded).toHaveBeenCalledTimes(1)
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('无需压缩'))
+  })
 })
 
 describe('内置命令 — /model', () => {
@@ -1737,6 +1754,11 @@ describe('内置命令 — /preset（agent 预设模式切换）', () => {
     const parsed = resolveSlashCommand('/preset', BUILTIN_COMMAND_NAMES)
     expect(parsed?.command.name).toBe('preset')
     expect(resolveSlashCommand('/p', BUILTIN_COMMAND_NAMES)?.command.name).toBe('preset')
+  })
+
+  it('#47 /presets 不是 /preset：token 更长，前缀解析不命中', () => {
+    expect(resolveSlashCommand('/presets', BUILTIN_COMMAND_NAMES)).toBeNull()
+    expect(BUILTIN_COMMAND_NAMES).not.toContain('presets')
   })
 
   it('无参：列出全部预设并标记当前项', async () => {

@@ -348,6 +348,29 @@ describe('TuiApp agent-ensure 三分支', () => {
     expect(handle.dispose).toHaveBeenCalledTimes(1)
   })
 
+  it('switchSession resume setup 按日志 mount', async () => {
+    const mount = vi.fn(async () => ({ id: 'ptc' }))
+    const ctx = makeCtx()
+    const agent = makeAgent('old-ptc')
+    Object.assign(agent.session.header, { agentPreset: 'standard' })
+    agent.session.events = [
+      { type: 'agent-preset/selected', data: { agentPreset: 'ptc' } },
+    ] as unknown as SessionEvent[]
+    const handle = makeHandle(agent)
+    ctx.agents.get.mockReturnValue(undefined)
+    ctx.agents.resume.mockImplementation(async (opts: { setup?: (c: unknown) => void | Promise<void> }) => {
+      await opts.setup?.({ on: vi.fn(() => () => {}) })
+      return handle
+    })
+    ctx.sessions.get.mockReturnValue(agent.session)
+    ctx.reflect.get.mockImplementation((name: string) => name === 'agentPresets' ? { mount } : undefined)
+
+    const app = new TuiApp({ ctx, stdout: makeStdout(), stdin: makeStdin() })
+    await app.switchSession(SessionId('old-ptc'))
+    expect(mount).toHaveBeenCalledWith(expect.anything(), 'ptc')
+    await app.dispose()
+  })
+
   it('switchSession 旧会话已有 agent → registry 兜底，不 create 不 resume', async () => {
     const ctx = makeCtx()
     const agent = makeAgent('live-1')
@@ -4887,6 +4910,28 @@ describe('TuiApp subagent / workflow / tasks 服务接线', () => {
     fire('workflow/agent-start', { id: 'missing' }, { seq: 1, label: 'x' })
     fire('workflow/agent-end', { id: 'missing' }, { seq: 1, label: 'x', outcome: 'completed' })
     fire('workflow/end', { id: 'missing' }, { stopReason: 'completed' })
+    await app.dispose()
+  })
+
+  it('workflow 面板：isolate workflowEngine 不误报不可用', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('wf-iso')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.agents.get.mockReturnValue(agent)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    ctx.reflect.get.mockImplementation((name: string) => {
+      if (name === 'agentPresets') {
+        return { serviceFor: (_a: unknown, svc: string) => svc === 'workflowEngine' ? { runs: [] } : undefined }
+      }
+      return undefined
+    })
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    await app.attach()
+    app.handleSubmit('/workflow')
+    await new Promise(resolve => setImmediate(resolve))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).not.toContain('workflow 引擎不可用')
     await app.dispose()
   })
 

@@ -27,6 +27,12 @@ TUI 是**纯展示层**:
 | `agents` | agent 铸造、会话恢复 |
 | `agentDefaultModel` | 默认模型选择(读写) |
 
+### 装配后应有(本包 bundle 挂 `agent-presets`;缺则新会话无工具面)
+
+| 服务 | 用途 |
+|---|---|
+| `agentPresets` | 花名册;`setup` 里 `mount` / `composeFrom`;`/preset` `recompose` |
+
 ### 可选(经 `ctx.reflect.get`,缺则相关能力 fails loud,不阻塞启动)
 
 | 服务 | 消费方 | 缺失行为 |
@@ -34,12 +40,12 @@ TUI 是**纯展示层**:
 | `goals` | `/goal` | ⚠ 警告 |
 | `subagents` | `/subagents` 委派树、subagent 运行行 | ⚠ 警告 |
 | `memory` | `/remember` `/memory` | ⚠ 警告 |
-| `compact` | `/compact` | ⚠ 警告 |
+| `compact` | `/compact` | 优先当前 agent isolate,host 回退;都无则 ⚠ |
 | `tasks` | `/tasks` 窗格 | ⚠ 警告 |
-| `skills` | `/skills` 面板 | ⚠ 警告 |
+| `skills` | `/skills` 面板 | ⚠ 警告(注册表仍在 host,按 scope 分层) |
 | `sessionProjections` | `/status` 面板(goal/todos/plan) | ⚠ 警告(会话汇总段仍可用) |
-| `workflowEngine` | `/workflow` 面板(事件订阅) | ⚠ 警告 |
-| `planMode` | plan 模式状态 | 徽标不显示 |
+| `workflowEngine` | `/workflow` 面板 | 优先当前 agent isolate,host 回退;都无则 ⚠ |
+| `planMode` | plan 模式状态 | 优先当前 agent isolate,host 回退;都无则徽标不显示 |
 | `llm` | 模型选择器目录、识图模态刷新 | ⚠ 警告 |
 | `visionBridge` | 视觉桥自动探测 | 图片不发送并警告 |
 | `userQuestions` | 结构化提问面板 | 降级 |
@@ -80,15 +86,9 @@ TUI 只订阅、只读、从不发布以下事件(会话事件按 owner 过滤):
 
 ## Bundle Patch
 
-`cordis.patch.yml` 在 `dsh-base` 之上插入 `tui-runner` 插件:
-
-```yaml
-- id: tui-runner
-  name: '@huiliyi37/dsh-tianshu-tui'
-```
-
-插件名固定 `tui-runner`(硬约束,勿改)。`lib/index.js` 是打包产物,必须跟仓
-(见 docs/RELEASE.md)。
+`cordis.patch.yml` 在 `dsh-base` 之上插入 `tui-runner` 与官方 `agent-presets`,
+并关掉 host 上的 agent 面行(由 shipped 预设再挂)。插件名 `tui-runner` 固定。
+`lib/index.js` 是打包产物,必须跟仓(见 docs/RELEASE.md)。
 
 ## 契约版本线
 

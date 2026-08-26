@@ -73,6 +73,10 @@ DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh --profile tui
 装配社区插件 [`omdsh-dev/dsh-lsp`](https://github.com/omdsh-dev/dsh-lsp);TUI 展示桥
 自动消费其 `lsp` 服务,与模型工具面共享同一 LSP server 集。
 
+**`/preset` 提示「agent-presets 服务不可用」**
+更新到本包含 agent 面装配的版本（`plugin add` 本包会连带装上官方预设包）。
+命令是 `/preset`,不是 `/presets`。已装旧版的 profile 自更新后会带上新依赖。
+
 ## 下一步
 
 - [交互手册](interaction.md):快捷键与命令全表

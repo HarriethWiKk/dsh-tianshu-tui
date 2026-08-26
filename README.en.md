@@ -79,15 +79,9 @@ Success looks like a welcome screen branded **dsh-tianshu-tui**. Quit with `Ctrl
 
 If the official CLI is installed globally (`pnpm add -g @deepseek-ai/dsh`) and `dsh --version` is at least `0.1.0-rc.8`, you can use `dsh` in place of `pnpm dlx @deepseek-ai/dsh`.
 
-### 4. (Optional) Enable agent presets (`/preset`)
+### 4. Agent presets (`/preset`)
 
-`/preset` lists/switches agent presets (standard / PTC / minimal / creative). It needs the official `@deepseek-ai/dsh-agent-presets` plugin, which the official dsh does not ship by default — install it explicitly:
-
-```sh
-pnpm dlx @deepseek-ai/dsh plugin --profile tui add @deepseek-ai/dsh-agent-presets@0.1.1-rc.2
-```
-
-> ⚠ Pin `@0.1.1-rc.2` explicitly: the official npm `latest` tag still points at the outdated `0.0.1-rc.1` (`@latest` would install the old one). Without the plugin, `/preset` reports 「⚠ agent-presets 服务不可用（host 未装配 agent 预设）」 — install it and restart.
+The command is `/preset` (there is no `/presets`). This bundle matches official web: it disables the host agent plane and mounts `@deepseek-ai/dsh-agent-presets` (pinned `0.1.1-rc.2`; npm `latest` still points at stale `0.0.1-rc.1`). Adding this plugin installs the roster; new sessions `mount` in `setup`. `/preset` switches the official shipped surface (standard / PTC / minimal / creative), rather than stacking on `dsh-base` tools.
 
 Usage:
 
@@ -138,6 +132,7 @@ Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.18`](https://www.npm
 - **OS notifications** — desktop bubbles when a subagent, workflow, or background task finishes (not on `turn/end`); silenced under `DSH_TUI_SKIP_NOTIFY`, SSH, CI, and tests
 - **`/config` terminal section** — OS notify (empty-input `n`) and compact rendering (empty-input `d`, both persist in `prefs.json`); `/config notify [on|off]` still works. Empty host sections are omitted
 - **Inspect-panel UX** — `/config` `/skills` `/status` `/lsp` `/tasks` are exclusive; `Esc` closes the inspect panel first (even with a draft; does not arm rewind); `/skills` uses ↑↓/j/k on an empty input to expand the selected skill
+- **TUI composes the agent plane like web ([#47](https://github.com/huiliyi37/dsh-tianshu-tui/issues/47))** — this bundle mounts official `agent-presets` and disables host agent-plane rows; `/preset` switches the shipped tool/persona/delegation surface, not a stack on top of `dsh-base`. `plugin add` of this package is enough
 
 ### 0.1.2-rc.18 (2026-08-26)
 
@@ -159,7 +154,7 @@ Activity band + startup-default semantics: subagents/workflows move to a unified
 
 `/preset` inject-fallback release.
 
-- **`/preset` no longer throws `without inject` ([#46](https://github.com/huiliyi37/dsh-tianshu-tui/issues/46))** — when the official `@deepseek-ai/dsh-agent-presets` plugin is not installed, the command reads the optional service via `reflect.get('agentPresets', false)` and prints "service unavailable" instead of `cannot get property "agentPresets" without inject` (same pattern as `/compact` `/goal`); the tracked `lib/index.js` bundle is synced, so `github:` installs get the fix too. To enable presets: `pnpm dlx @deepseek-ai/dsh plugin --profile tui add @deepseek-ai/dsh-agent-presets@0.1.1-rc.2` (npm `latest` still points at stale `0.0.1-rc.1`; pin the version)
+- **`/preset` no longer throws `without inject` ([#46](https://github.com/huiliyi37/dsh-tianshu-tui/issues/46))** — when `agentPresets` is not mounted, the command reads the optional service via `reflect.get('agentPresets', false)` and prints "service unavailable" instead of `cannot get property "agentPresets" without inject` (same pattern as `/compact` `/goal`); the tracked `lib/index.js` bundle is synced, so `github:` installs get the fix too. To actually enable presets, see "Enable agent presets" above: install the package **and** insert the row in the profile `cordis.patch.yml` ([#47](https://github.com/huiliyi37/dsh-tianshu-tui/issues/47))
 
 ### 0.1.2-rc.15 (2026-08-25)
 

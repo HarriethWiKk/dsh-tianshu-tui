@@ -30,6 +30,7 @@ declare module '@deepseek-ai/dsh-session/types' {
   }
 }
 import { getActiveThemeName } from '../theme.js'
+import { serviceForAgent } from '../adapter/agent-scope-service.js'
 import { listSessions, loadHistory } from '../adapter/sessions.js'
 import { sessionTitleFor } from '../adapter/session-title.js'
 import { formatSessionListLines } from '../restore-session.js'
@@ -410,7 +411,8 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
       run: async ({ text: _text, echo, ctx, sessionId }) => {
         // reflect.get 读取可选服务（Cordis 4 注入代理：属性访问未注册服务
         // 抛 "without inject"——与 T4 sessionProjections 同款修复）
-        const compact = ctx.reflect.get('compact', false) as CompactFacet | undefined
+        const agent = sessionId === null ? undefined : ctx.agents.get(sessionId)
+        const compact = serviceForAgent(ctx, agent, 'compact') as CompactFacet | undefined
         if (compact === undefined) {
           echo('⚠ compact 服务不可用（未加载 compact 插件）')
           return
@@ -424,7 +426,6 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
           echo('⚠ 会话不存在')
           return
         }
-        const agent = ctx.agents.get(sessionId)
         /* v8 ignore next -- agent 已在上方 undefined 检查放行，此处仅类型收窄；noUncheckedIndexedAccess 防御 */
         const result = await compact.compactIfNeeded(
           { session, options: agent?.options ?? {} },

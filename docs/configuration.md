@@ -26,6 +26,13 @@ dsh-tianshu-tui 的配置分三层:**装配时配置**(TuiRunnerConfig,插件注
 | `prefsPath` | `~/.dsh-tui/prefs.json` | 本地偏好文件路径;`null` 显式禁用(不读写) |
 | `inputHistoryPath` | `~/.dsh-tui/input-history.json` | 输入历史文件路径;`null` 显式禁用 |
 
+### 装配 agent 预设（`/preset`）
+
+本包 `cordis.patch.yml` 已插入 `agent-presets`（`default: standard`），并关掉
+host 上由官方 `standard` 预设再挂的 agent 面行。`plugin add` 本包会连带安装
+`@deepseek-ai/dsh-agent-presets@0.1.1-rc.2`。命令名是 `/preset`，没有 `/presets`。
+新会话在 `setup` 里 `mount`；空白会话 `/preset <id>` 走官方 `recompose`。
+
 ## 环境变量
 
 | 变量 | 说明 |

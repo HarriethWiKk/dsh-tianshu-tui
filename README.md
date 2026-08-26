@@ -80,15 +80,9 @@ pnpm dlx @deepseek-ai/dsh --profile tui
 
 已全局安装官方 CLI（`pnpm add -g @deepseek-ai/dsh`）且 `dsh --version` 不低于 `0.1.0-rc.8` 时，把上面的 `pnpm dlx @deepseek-ai/dsh` 换成 `dsh` 即可。
 
-### 4.（可选）启用 agent 预设（`/preset`）
+### 4. agent 预设（`/preset`）
 
-`/preset` 查看/切换 agent 预设（标准 / PTC / 极简 / 创造），依赖官方 `@deepseek-ai/dsh-agent-presets` 插件——官方 dsh 默认不携带，需显式装配：
-
-```sh
-pnpm dlx @deepseek-ai/dsh plugin --profile tui add @deepseek-ai/dsh-agent-presets@0.1.1-rc.2
-```
-
-> ⚠ 版本要显式给 `@0.1.1-rc.2`：官方 npm `latest` 标签仍停在过时的 `0.0.1-rc.1`（`@latest` 会装到旧版）。未装配时 `/preset` 会提示「⚠ agent-presets 服务不可用（host 未装配 agent 预设）」——装配后重启即可用。
+命令是 `/preset`（没有 `/presets`）。本包 bundle 对标官方 web：关掉 host 上的 agent 面，挂上 `@deepseek-ai/dsh-agent-presets`（依赖钉死 `0.1.1-rc.2`，npm `latest` 仍停在过时的 `0.0.1-rc.1`）。`plugin add` 本包即连带装上花名册；新会话在 `setup` 里 `mount`，`/preset` 换的是官方 shipped 面（标准 / PTC / 极简 / 创造），不是叠在 `dsh-base` 工具上。
 
 用法：
 
@@ -137,6 +131,7 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 - **系统通知** — 子代理 / 工作流 / 任务完成弹系统气泡（不打断 `turn/end`）；`DSH_TUI_SKIP_NOTIFY`、SSH、CI、测试环境静默
 - **`/config` 终端段** — 面板置顶系统通知（空输入 `n`）与紧凑渲染（空输入 `d`，写入 `prefs.json`）；`/config notify [on|off]` 仍可用。无宿主设置/凭据不再占位
 - **检查面板交互** — `/config` `/skills` `/status` `/lsp` `/tasks` 互斥（打开一项关掉其余）；`Esc` 先关检查面板（有草稿也关，不布防 rewind）；`/skills` 空输入 ↑↓/j/k 展开选中详情
+- **TUI 按 web 组 agent 面（[#47](https://github.com/huiliyi37/dsh-tianshu-tui/issues/47)）** — 本包 bundle 挂官方 `agent-presets` 并关掉 host agent 面；`plugin add` 本包即可 `/preset` 切换官方 shipped 预设，不必手改 profile `cordis.patch.yml`
 
 ### 0.1.2-rc.18（2026-08-26）
 
@@ -158,7 +153,7 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 
 `/preset` 注入降级版本。
 
-- **`/preset` 不再 `without inject`（[#46](https://github.com/huiliyi37/dsh-tianshu-tui/issues/46)）** — 未装配官方 `@deepseek-ai/dsh-agent-presets` 时，经 `reflect.get('agentPresets', false)` 读可选服务，回显「服务不可用」而不抛 `cannot get property "agentPresets" without inject`（与 `/compact` `/goal` 同款）；跟仓 `lib/index.js` 已对齐，`github:` 安装也会吃到修复。装配预设：`pnpm dlx @deepseek-ai/dsh plugin --profile tui add @deepseek-ai/dsh-agent-presets@0.1.1-rc.2`（npm `latest` 标签仍停在过时的 `0.0.1-rc.1`，需显式版本）
+- **`/preset` 不再 `without inject`（[#46](https://github.com/huiliyi37/dsh-tianshu-tui/issues/46)）** — 未挂上 `agentPresets` 时，经 `reflect.get('agentPresets', false)` 读可选服务，回显「服务不可用」而不抛 `cannot get property "agentPresets" without inject`（与 `/compact` `/goal` 同款）；跟仓 `lib/index.js` 已对齐，`github:` 安装也会吃到修复。要真正启用预设，见上方「启用 agent 预设」：装包 **并且** 写入 profile `cordis.patch.yml`（[#47](https://github.com/huiliyi37/dsh-tianshu-tui/issues/47)）
 
 ### 0.1.2-rc.15（2026-08-25）
 
