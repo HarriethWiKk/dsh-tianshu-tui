@@ -10,6 +10,8 @@ export declare function formatTokenCount(n: number): string;
 export interface FormatGlanceBarInput {
     width?: number;
     modelName?: string;
+    /** 当前 agent 预设短名（标准 / PTC / 极简 / 创造）；身份段，不可隐藏。 */
+    preset?: string;
     /** 推理努力度（request/header 的 config.reasoningEffort；窄宽时随 model 后 drop）。 */
     effort?: string;
     cacheHitRate?: number;

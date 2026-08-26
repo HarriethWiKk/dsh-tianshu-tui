@@ -18,6 +18,8 @@ export type GlanceUsage = TokenUsage
 export interface GlanceMetricsSources {
   transcript: { turn: number; firstInTurnTime?: number } | undefined
   modelName: string | null
+  /** 当前预设短名；缺省不渲染该段。 */
+  preset?: string | null
   effort: string | null
   usage: GlanceUsage | null
   contextWindow: number | null
@@ -37,6 +39,9 @@ export function buildGlanceMetrics(sources: GlanceMetricsSources, now: number = 
     modelName: sources.modelName,
   }
   if (sources.effort !== null) input.effort = sources.effort
+  if (sources.preset !== undefined && sources.preset !== null && sources.preset !== '') {
+    input.preset = sources.preset
+  }
   const usage = sources.usage
   if (usage !== null) {
     // billed input = 未缓存输入 + 缓存读 + 缓存写（llm/types.ts DISJOINT 契约）；

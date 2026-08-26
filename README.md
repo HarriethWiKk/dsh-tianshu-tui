@@ -86,8 +86,8 @@ pnpm dlx @deepseek-ai/dsh --profile tui
 
 用法：
 
-- `/preset` —— 列出全部预设与当前项（`*` 标记），并附当前工具面（wire）摘要
-- `/preset <id>` —— 切换到指定预设（仅空白会话可换：先 `/session new` 再切）
+- `/preset` —— 列出每套预设的能力与工具集，`*` 标当前项；footer / 欢迎顶栏也会显示当前短名（标准 / PTC / 极简 / 创造）。说过话后还附最近一次请求的 `wire:` 工具面
+- `/preset <id>` —— 切换到指定预设（仅空白会话可换：先 `/session new` 再切；`ptc`/`creative` 是 `code`/`cordis` 的别名）
 
 若 `npx` 仍报 `ERR_FS_EISDIR`，是 `~/.dsh/profiles/node_modules` 里旧的安装 fallback 与官方 CLI 冲突。换干净目录再启动：
 

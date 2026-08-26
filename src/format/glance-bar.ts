@@ -1,7 +1,7 @@
 /**
  * metrics 一行条（format/glance-bar.ts）— 纯渲染。
  *
- * segment 组装：model / effort / 缓存% / 上下文%+占用条（近满 ⚠）/ ◧ tokens / elapsed / $cost / #turn / 停滞。
+ * segment 组装：预设短名 / model / effort / 缓存% / 上下文%+占用条（近满 ⚠）/ ◧ tokens / elapsed / $cost / #turn / 停滞。
  * 窄宽先摘占用条再 drop 尾部次要段；极窄截断 model 段；任何宽度下不破版。
  */
 import { color } from '../engine/ansi.js'
@@ -28,6 +28,8 @@ export function formatTokenCount(n: number): string {
 export interface FormatGlanceBarInput {
   width?: number
   modelName?: string
+  /** 当前 agent 预设短名（标准 / PTC / 极简 / 创造）；身份段，不可隐藏。 */
+  preset?: string
   /** 推理努力度（request/header 的 config.reasoningEffort；窄宽时随 model 后 drop）。 */
   effort?: string
   cacheHitRate?: number
@@ -78,6 +80,7 @@ export function formatContextBar(ratio: number, ascii = false): string {
 export function glanceBarSegments(input: FormatGlanceBarInput): string[] {
   const hidden = new Set(input.hideSegments ?? [])
   const segs: string[] = []
+  if (input.preset !== undefined && input.preset !== '') segs.push(input.preset)
   if (input.modelName !== undefined) segs.push(input.modelName)
   if (input.effort !== undefined && !hidden.has('effort')) segs.push(`◎${input.effort}`)
   if (input.cacheHitRate !== undefined && !hidden.has('cache')) segs.push(`缓存 ${Math.round(input.cacheHitRate * 100)}%`)
@@ -139,6 +142,7 @@ export function formatGlanceBar(input: FormatGlanceBarInput, theme: RivetTheme):
     else if (next.contextRatio !== undefined) delete next.contextRatio
     else if (next.cacheHitRate !== undefined) delete next.cacheHitRate
     else if (next.effort !== undefined) delete next.effort
+    else if (next.preset !== undefined) delete next.preset
     else {
       // 只剩 model：截断
       /* v8 ignore next -- modelName undefined 时不产生 model 段，删光后 segs 为空提前返回，?? 右分支不可达 */

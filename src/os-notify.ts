@@ -91,6 +91,15 @@ export function shouldNotify(env: NodeJS.ProcessEnv, prefs?: { notifyOs?: boolea
   return true
 }
 
+/**
+ * 子代理完成通知门槛：有活跃 workflow run 时静默。
+ * workflow 派生的子代理逐条完成会连发刷屏，汇总由 workflow/end 的
+ * 「工作流完成」通知统一承担；仅独立委派（无运行中 workflow）即时提醒。
+ */
+export function subagentNotifySuppressed(activeWorkflowRuns: number): boolean {
+  return activeWorkflowRuns > 0
+}
+
 /** 空参 → null（打开面板）；notify [on|off]；其余 usage。 */
 export function parseConfigNotifyArg(text: string): NotifyOsAction | 'usage' | null {
   const parts = text.trim().toLowerCase().split(/\s+/).filter(Boolean)

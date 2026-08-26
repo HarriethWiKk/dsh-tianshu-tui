@@ -10,6 +10,8 @@ export interface FormatTopBarInput {
     dirty?: number;
     /** 模型显示名（provider/model；缺省不渲染）。 */
     modelName?: string;
+    /** 当前 agent 预设短名（标准 / PTC / 极简 / 创造；缺省不渲染）。 */
+    preset?: string;
     /** legacy 终端：📁 降级为 `~`。 */
     ascii?: boolean;
 }

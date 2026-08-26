@@ -17,6 +17,8 @@ export interface GlanceMetricsSources {
         firstInTurnTime?: number;
     } | undefined;
     modelName: string | null;
+    /** 当前预设短名；缺省不渲染该段。 */
+    preset?: string | null;
     effort: string | null;
     usage: GlanceUsage | null;
     contextWindow: number | null;

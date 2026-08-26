@@ -62,6 +62,13 @@ describe('glanceBarSegments', () => {
     expect(glanceBarSegments({})).toEqual([])
   })
 
+  it('preset 段在 model 前（身份段，hideSegments 不掉）', () => {
+    const segs = glanceBarSegments(base({ preset: '标准' }))
+    expect(segs[0]).toBe('标准')
+    expect(segs[1]).toBe('deepseek-v4')
+    expect(glanceBarSegments(base({ preset: '标准', hideSegments: ['preset'] }))[0]).toBe('标准')
+  })
+
   it('compact：model + 缓存 + 上下文 + tokens + 耗时', () => {
     const segs = glanceBarSegments(base())
     const text = plain(segs).join(' · ')

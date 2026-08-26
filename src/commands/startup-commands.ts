@@ -11,12 +11,19 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { getActiveThemeName, setTheme, THEME_NAMES } from '../theme.js'
 import { parseRouteKey } from '../engine/route-key.js'
 import { formatWireSurface, wirePhaseLabel, wireToolNames } from '../preset-surface.js'
+import { presetListDetails, presetShortLabel, resolveShippedPresetId } from '../preset-catalog.js'
 import { echoSavedDefault, echoSessionOnly, splitDefaultFlag } from '../startup-defaults.js'
 import { SPARK_ALIASES, validateModelSelection, type LlmCatalogFacet } from './model-validate.js'
 import type { ModelFacet, SlashCommand } from './registry.js'
 
 /** /model 的 effort 白名单（llm 三档：off / high / max）。 */
 export const EFFORT_LEVELS = ['off', 'high', 'max'] as const
+
+/** 花名册已有该 id 则原样；否则折官方别名（ptc→code）。 */
+function listedId(presets: ReadonlyArray<{ id: string }>, raw: string): string {
+  if (presets.some(p => p.id === raw)) return raw
+  return resolveShippedPresetId(raw)
+}
 
 /** /preset 所需的最小 agent-presets 服务面。 */
 interface PresetFacet {
@@ -214,12 +221,14 @@ export function createPresetCommand(deps: StartupCommandDeps): SlashCommand {
           const mark = preset.id === current ? '*' : ' '
           const star = preset.id === saved ? '★' : ' '
           const name = preset.name ?? preset.id
-          const desc = preset.description === undefined || preset.description === ''
-            ? ''
-            : ` — ${preset.description}`
-          echo(` ${mark}${star}${name} (${preset.id})${desc}`)
+          echo(` ${mark}${star}${name} (${preset.id})`)
+          const details = presetListDetails(preset.id, preset.description)
+          if (details.capability !== undefined) echo(`    ${details.capability}`)
+          if (details.tools !== undefined) echo(`    工具: ${details.tools}`)
         }
-        let currentLine = current === undefined ? '当前: 未装配（host 默认）' : `当前: ${current}`
+        let currentLine = current === undefined
+          ? '当前: 未装配（host 默认）'
+          : `当前: ${current} · ${presetShortLabel(current)}`
         if (saved !== undefined) currentLine += ` · 启动默认: ${saved}`
         if (agent !== null) {
           const wire = wireToolNames(agent.session.events)
@@ -242,7 +251,8 @@ export function createPresetCommand(deps: StartupCommandDeps): SlashCommand {
         return
       }
       try {
-        const preset = await facet.recompose(agent.ctx, rest)
+        const wanted = listedId(await facet.list(), rest)
+        const preset = await facet.recompose(agent.ctx, wanted)
         agent.session.append('agent-preset/selected', { agentPreset: preset.id })
         if (persist) deps.persistPresetDefault(preset.id)
         const label = `${preset.name ?? preset.id} (${preset.id})`

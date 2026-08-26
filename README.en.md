@@ -85,8 +85,8 @@ The command is `/preset` (there is no `/presets`). This bundle matches official 
 
 Usage:
 
-- `/preset` — list all presets with the current one marked (`*`), plus the current wire tool surface
-- `/preset <id>` — switch to the given preset (blank sessions only: `/session new` first)
+- `/preset` — list each preset's capability and toolset, `*` marks the current one; the footer / welcome top bar also show the short name (Standard / PTC / Minimal / Creator). After a turn, `wire:` shows the last request's tool surface
+- `/preset <id>` — switch to the given preset (blank sessions only: `/session new` first; `ptc`/`creative` alias `code`/`cordis`)
 
 If `npx` still raises `ERR_FS_EISDIR`, stale install fallbacks under `~/.dsh/profiles/node_modules` are colliding with the official CLI. Use a clean home:
 

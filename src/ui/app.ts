@@ -267,7 +267,7 @@ import { RewindOverlay, collectUserRewindCheckpoints, type RewindMode, type Rewi
 import { openInEditorDetailed, getEditorCommand } from '../external-editor.js'
 import { FluencyTracker } from '../fluency-hook.js'
 import { expandMentions } from '../mention-expand.js'
-import { applyNotifyOsPref, configTuiFromPrefs, notifyOs, parseConfigNotifyArg } from '../os-notify.js'
+import { applyNotifyOsPref, configTuiFromPrefs, notifyOs, parseConfigNotifyArg, subagentNotifySuppressed } from '../os-notify.js'
 import { loadConfigProjection } from './config-flow.js'
 import { buildSessionPickerItems, formatSessionAge } from '../restore-session.js'
 // 副作用声明合并：让 ctx.on('approval/request') 的 handler 参数由 cordis 事件
@@ -297,6 +297,7 @@ import { renderBtwPanel } from '../format/btw-panel.js'
 import { CHROME_GUTTER, formatWelcomeHero, type WelcomeEnvCheck, type WelcomeTipItem } from '../format/welcome.js'
 import { formatWhaleLogo, WHALE_MIN_ROWS } from '../format/whale.js'
 import { formatTopBar } from '../format/top-bar.js'
+import { livePresetShort } from '../preset-catalog.js'
 import { formatTurnStatus } from '../format/turn-status.js'
 import { formatPromptFooter } from '../format/prompt-footer.js'
 import { formatInputFrame } from '../format/input-frame.js'
@@ -1766,12 +1767,14 @@ export class TuiApp {
     const branch = gitBranch()
     // git 未提交计数快照（footer ●N 数据源）：attach 一次 + 每 turn/end 刷新。
     this.gitDirty = gitDirtyCount()
+    const welcomePreset = livePresetShort(this.ctx, this.activeSessionId)
     for (const line of formatTopBar({
       width: cols - gutter,
       cwd: this.sessionCwd(),
       modelName: `${current.provider}/${current.model}`,
       // exactOptionalPropertyTypes：branch 不可显式传 undefined，条件展开
       ...(branch === undefined ? {} : { branch }),
+      ...(welcomePreset === undefined ? {} : { preset: welcomePreset }),
     }, this.theme)) {
       commitLine(gutter > 0 ? `${' '.repeat(gutter)}${line}` : line)
     }
@@ -1852,6 +1855,8 @@ export class TuiApp {
     const ref = this.modelRef
     // header.cwd 是 Web 会话列表与 workspace 挂载的门槛：缺省会被持久化进
     // `_no-cwd/` 并从 web API 可见列表过滤掉（issue #5）。TUI 工作区 = 启动目录。
+    // joinedId 在 setup 回调内赋值：agents.create 的契约是 await 完 setup 才 resolve，
+    // 因此下方 append 读到的已是定稿值（预设失败 warn 时保持 undefined，不落切换事件）。
     let joinedId: string | undefined
     const handle = await this.ctx.agents.create({
       sessionId,
@@ -2375,7 +2380,10 @@ export class TuiApp {
         }, this.theme),
         trailingNewline: true,
       })
-      notifyOs({ title: 'dsh · 子代理完成', body: run.label }, this.prefs)
+      // workflow 活跃时子代理逐条完成会连发通知刷屏：静默单条，由 workflow/end 统一汇总。
+      if (!subagentNotifySuppressed(this.workflowRuns.size)) {
+        notifyOs({ title: 'dsh · 子代理完成', body: run.label }, this.prefs)
+      }
       this.renderBatcher.schedule()
     })
     this.subagentDisposer = () => { onSubStart(); onSubEnd(); onRunStart(); onRunEnd() }
@@ -3471,14 +3479,18 @@ export class TuiApp {
   private glanceMetrics(): FormatGlanceBarInput | null {
     // C4：投影逻辑提取至 format/glance-metrics（时间注入；此处只喂缓存字段）。
     const view = this.transcript?.view
-    return buildGlanceMetrics({
+    const preset = livePresetShort(this.ctx, this.activeSessionId)
+    const built = buildGlanceMetrics({
       transcript: view === undefined ? undefined : { turn: view.turn, firstInTurnTime: view.firstInTurnTime },
       modelName: this.glanceModelName,
       effort: this.glanceEffort,
       usage: this.usageFold,
       contextWindow: this.contextWindow,
       columns: this.stdout.columns,
+      preset: preset ?? null,
     })
+    if (built !== null || preset === undefined) return built
+    return { width: this.stdout.columns, preset }
   }
 
   /**

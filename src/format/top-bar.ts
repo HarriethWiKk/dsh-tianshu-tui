@@ -3,8 +3,8 @@
  *
  * 启动信息行：cwd + git 分支（可选）+ 模型（可选）。快捷键提示不在本行——
  * 概念稿 A 的 shortcuts 行由底部 footer（format/prompt-footer.ts）承担。
- * 段顺序（从前往后）：📁 cwd → model → (branch)；超宽时从后往前丢段
- * （branch → model），最后只剩 cwd 仍超宽则截断加省略号。
+ * 段顺序（从前往后）：📁 cwd → 预设短名 → model → (branch)；超宽时从后往前丢段
+ * （branch → model → 预设），最后只剩 cwd 仍超宽则截断加省略号。
  * 分支段 brandColor 强调；📁 图标 ascii 档降级为 `~`（legacy 终端宽度稳定）。
  * 宽度守恒：任何输入下每行显示宽度 ≤ width。
  */
@@ -23,6 +23,8 @@ export interface FormatTopBarInput {
   dirty?: number
   /** 模型显示名（provider/model；缺省不渲染）。 */
   modelName?: string
+  /** 当前 agent 预设短名（标准 / PTC / 极简 / 创造；缺省不渲染）。 */
+  preset?: string
   /** legacy 终端：📁 降级为 `~`。 */
   ascii?: boolean
 }
@@ -43,10 +45,11 @@ function truncateTo(text: string, columns: number): string {
  * @returns 单行 ANSI；任何宽度下 ≤ width。
  */
 export function formatTopBar(input: FormatTopBarInput, theme: RivetTheme): string[] {
-  const { width, cwd, branch, dirty, modelName, ascii } = input
+  const { width, cwd, branch, dirty, modelName, preset, ascii } = input
   const icon = ascii === true ? '~' : '📁'
   const base = `${icon} ${cwd}`
   const tail: string[] = []
+  if (preset !== undefined && preset !== '') tail.push(preset)
   if (modelName !== undefined && modelName !== '') tail.push(modelName)
   // 分支 + 未提交数同段（(branch ●N)）；无分支时不渲染 dirty（无从归属）。
   if (branch !== undefined && branch !== '') {

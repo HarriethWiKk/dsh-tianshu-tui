@@ -77,7 +77,7 @@ Above the input track, running work folds into one activity band (`◐ N subagen
 |---|---|
 | `/model [target] [effort] [default]` | View/switch model (no args opens the picker; Enter=this session, S or trailing `default`=startup default; aliases `spark-flash`/`spark-pro`) |
 | `/effort off\|high\|max\|auto\|default` | Set reasoning effort (no args opens the picker; Enter/args=this session, S or `default`=startup default; `auto` follows the model default) |
-| `/preset [name] [default]` | View/switch agent preset (this bundle mounts the official roster; args=this session's full agent plane; trailing `default`=new-session startup default; blank sessions only) |
+| `/preset [name] [default]` | View/switch agent preset (lists capability + toolset per mode; footer/top bar show the current short name; args=this session's full agent plane; trailing `default`=new-session startup default; blank sessions only; aliases `ptc`→code, `creative`→cordis) |
 | `/yolo [on\|off]` | Always-approve mode |
 | `/density [default]` | Toggle compact tool-card rendering (toggle=this session; `/density default`=startup default) |
 

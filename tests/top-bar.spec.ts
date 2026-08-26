@@ -39,6 +39,11 @@ describe('formatTopBar', () => {
     expect(line).not.toContain('Ctrl+P')
   })
 
+  it('预设短名在 cwd 与 model 之间', () => {
+    const [line] = plain(formatTopBar(base({ preset: '标准' }), fakeTheme()))
+    expect(line).toMatch(/📁 .* · 标准 · deepseek\/deepseek-v4/)
+  })
+
   it('分支段：branch 提供时以 (branch) 形态渲染', () => {
     const [line] = plain(formatTopBar(base({ branch: 'main' }), fakeTheme()))
     expect(line).toContain('(main)')

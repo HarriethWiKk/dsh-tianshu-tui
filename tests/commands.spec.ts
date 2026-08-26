@@ -1778,7 +1778,8 @@ describe('内置命令 — /preset（agent 预设模式切换）', () => {
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('标准模式'))
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('极简模式'))
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('创造模式'))
-    expect(echo).toHaveBeenCalledWith(expect.stringContaining('当前: minimal'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('当前: minimal · 极简'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('工具: bash · str_replace_editor'))
     // 当前项带星标：极简行以 * 开头
     const starred = echo.mock.calls.map(c => String(c[0])).find(l => l.includes('极简模式'))
     expect(starred?.startsWith(' *')).toBe(true)
@@ -1823,6 +1824,19 @@ describe('内置命令 — /preset（agent 预设模式切换）', () => {
     expect(presets.recompose).toHaveBeenCalledWith(agent.ctx, 'minimal')
     expect(deps.persistPresetDefault).toHaveBeenCalledWith('minimal')
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('已设为默认预设'))
+  })
+
+  it('/preset ptc 折到官方 id code（花名册无 ptc 行时）', async () => {
+    const { cmd, deps } = presetByName()
+    const { presets, ctx } = presetCtx()
+    presets.list.mockResolvedValue([{ id: 'code', name: 'PTC 模式' }])
+    presets.recompose.mockResolvedValue({ id: 'code', name: 'PTC 模式' })
+    const agent = makeAgent()
+    deps.currentAgent.mockReturnValue(agent)
+    deps.isBlankSession.mockReturnValue(true)
+    const { args } = makeArgs({ text: 'ptc', ctx })
+    await cmd.run(args)
+    expect(presets.recompose).toHaveBeenCalledWith(agent.ctx, 'code')
   })
 
   it('非 blank 会话拒绝切换：不调 recompose / append', async () => {
@@ -1911,8 +1925,10 @@ describe('/preset（agent-presets 可选服务降级 + 切换链路）', () => {
     const { args, echo } = makeArgs({ ctx: makeCtx({ agentPresets: facet }) })
     await cmd.run(args)
     expect(echo).toHaveBeenCalledWith('agent 预设 (2):')
-    expect(echo).toHaveBeenCalledWith(expect.stringContaining('标准 (standard) — 默认工具面'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('标准 (standard)'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('默认工具面'))
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('PTC (ptc)'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('工具:'))
     expect(echo).toHaveBeenCalledWith('当前: 未装配（host 默认）')
   })
 
