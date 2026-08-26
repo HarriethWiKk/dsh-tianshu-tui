@@ -104,7 +104,8 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
 | `/btw <question>` | 向后台 agent 侧问 |
 | `/doctor` | 终端诊断 + 修复指引 |
 | `/mcp [tools <name>]` | 列出 MCP server 与工具 |
-| `/help [cmd]` | 命令帮助 |
+| `/help [cmd]` | 命令帮助(无参打开命令面板分组浏览+过滤; `/help <cmd>` 单条详情) |
+| `/changelog [all\|N]` | 版本更新内容(默认当前版本; `all` 全部; `N` 最近 N 版; 自动更新提示后查看本次改了什么) |
 | `/cost` | 当前会话累计用量与成本估算(按模型分桶) |
 
 ### 其他

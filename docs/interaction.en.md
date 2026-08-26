@@ -104,7 +104,8 @@ Above the input track, running work folds into one activity band (`◐ N subagen
 | `/btw <question>` | Ask a background agent (without interrupting) |
 | `/doctor` | Terminal diagnostics + fix guide |
 | `/mcp [tools <name>]` | List MCP servers and their tools |
-| `/help [cmd]` | Command help |
+| `/help [cmd]` | Command help (no arg opens the command palette for grouped browsing + filtering; `/help <cmd>` shows one entry) |
+| `/changelog [all\|N]` | Version history (current release by default; `all` for everything; `N` for the last N) |
 | `/cost` | Current-session cumulative usage and cost estimate (per model) |
 
 ### Other

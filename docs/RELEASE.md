@@ -56,7 +56,8 @@ npm publish --access public --tag latest
 
 ### 3. 文档
 
-- 中英文 README「更新说明」写上本版本改动与升级方式。
+- 把上一版的 Unreleased 条目从 `CHANGELOG.md` 顶部改成 `## [<version>] - <date>`（Keep a Changelog 风格；`/changelog` 命令读的就是这份文件，必须随版本更新）。
+- 中英文 README「更新说明」只写当前版本要点与升级方式，完整历史在 `CHANGELOG.md`（不再往 README 堆版本历史）。
 - 改完 README 后更新 `README.i18n.yaml` 配对哈希：
 
 ```sh
@@ -173,4 +174,5 @@ npx -y @deepseek-ai/dsh --profile tui
 - [ ] npm `latest` = 新版本
 - [ ] 主仓 GitHub Release 已建
 - [ ] README 更新说明已上 `main`
+- [ ] `CHANGELOG.md` 已随版本更新（Unreleased → 版本号）
 - [ ] 未推 `origin`、未提交 token、未改 `tui-runner`
