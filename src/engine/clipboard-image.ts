@@ -14,7 +14,7 @@ import { promisify } from 'node:util'
 import { readFile, unlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
-import { detectImageMime } from './image-attach.ts'
+import { detectImageMime } from './image-attach.js'
 
 const execFileAsync = promisify(execFile)
 

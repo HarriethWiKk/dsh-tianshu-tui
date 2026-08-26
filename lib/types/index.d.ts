@@ -11,7 +11,7 @@
 import type { Context } from '@deepseek-ai/cordis';
 import type { ReadStream, WriteStream } from 'node:tty';
 import type { SessionId } from '@deepseek-ai/dsh-session';
-import type { KeyName } from './engine/input-handler.ts';
+import type { KeyName } from './engine/input-handler.js';
 /** Stable Cordis plugin name the bundle patch inserts. */
 export declare const name = "tui-runner";
 /** 装配选项：流与起始会话可注入（测试替身），缺省走 process 全局流。 */
