@@ -345,6 +345,9 @@ export interface TuiAppOptions {
 /** live 区预留行（顶轨 + 输入 + 底轨 + footer）。 */
 const LIVE_RESERVED_ROWS = 4
 
+/** 历史渐进重放单片行数（任务5）：首片同步落屏，余片 setImmediate 逐片追加。 */
+const REPLAY_CHUNK_ROWS = 100
+
 /** A3：`dsh --profile tui --help` 输出的用法文本。 */
 const USAGE_TEXT = `dsh-tianshu-tui — DeepSeek Harness 交互式终端界面 / interactive terminal UI
 
@@ -671,6 +674,12 @@ export class TuiApp {
   private lastIdleKey: string | null = null
   /** 已落底 scrollback 的最近完整错误文本（diff 去重——同错误逐帧重读不重复落底）。 */
   private lastGlanceErrorFull: string | null = null
+  /** 历史渐进重放代际（commitRows 每次递增；快速切换会话时旧链自毁）。 */
+  private replayEpoch = 0
+  /** 历史重放进行中（streamFeed 新事件进 backlog 排队，见 commitRows）。 */
+  private replayActive = false
+  /** 重放窗口内排队的 stream 事件（重放完按序回放 handleStreamEvent）。 */
+  private streamEventBacklog: SessionEvent[] = []
   /** ticker 路径才允许 shouldSkipIdleAssemble；flush/batcher 必须组装。 */
   private renderLiveFromTicker = false
   private disposed = false
@@ -2320,8 +2329,16 @@ export class TuiApp {
     this.contextWindow = session.requestContext()?.contextWindow ?? null
     // 流式提交供给：assistant text-delta 经 blockWriter 节流喂给 StreamRenderer
     // commit 进 scrollback（此前只构造未接线，回复只活在 live 区尾部、turn 结束即消失）。
+    // 历史重放窗口内（任务5 渐进重放）新事件进 backlog 排队，重放完按序回放——
+    // 否则新结算卡会插到尚未写完的旧历史前面，破坏 scrollback append-only 顺序。
+    this.streamEventBacklog = []
+    this.replayActive = false
     this.streamFeed = this.ctx.on('session/event', (owner: { id: SessionId }, event: SessionEvent) => {
       if (owner.id !== id) return
+      if (this.replayActive) {
+        this.streamEventBacklog.push(event)
+        return
+      }
       this.handleStreamEvent(event)
     })
     // T1.1：投影总线（5 域：todos/plan/goal/subagent/subagentTiming）——全量快照 +
@@ -3345,11 +3362,49 @@ export class TuiApp {
    * 把渲染行批量提交到 scrollback（保持时间顺序）。
    * @param rows - RenderedRow 数组。
    */
+  /**
+   * 历史行渐进落底（任务5，2026-08-27）：大会话 attach 不再单 tick 全量写入。
+   * 首片同步 commit（首帧即有内容），余片经 setImmediate 链逐片追加——每片
+   * 走原子提交编舞（sync 窗内 erase+append+重绘，无撕裂），事件循环在片间
+   * 让位，输入/渲染不再被千行会话冻住一拍。
+   *
+   * 顺序与代际守卫：replayEpoch 每次 commitRows 递增，快速切换会话时旧链在
+   * 下一片前自毁；重放期间 streamFeed 新事件由 mountSession 的 backlog 排队
+   * （见 streamFeed 接线注释），最后一片写完置 replayActive=false 并按序回放。
+   * dispose/epoch 不匹配即刻停止，不写半截。
+   *
+   * @param rows - renderHistoryRows 产出的已渲染行（保持时间顺序）。
+   */
   private commitRows(rows: readonly RenderedRow[]): void {
     if (rows.length === 0) return
-    const buf: string[] = []
-    for (const row of rows) buf.push(row.ansi)
-    this.commitToScrollback({ text: buf.join('\n'), trailingNewline: true })
+    const epoch = ++this.replayEpoch
+    const texts = rows.map(r => r.ansi)
+    const firstTo = Math.min(REPLAY_CHUNK_ROWS, texts.length)
+    this.commitToScrollback({ text: texts.slice(0, firstTo).join('\n'), trailingNewline: true })
+    let i = firstTo
+    if (i >= texts.length) return
+    this.replayActive = true
+    const step = (): void => {
+      if (this.disposed || epoch !== this.replayEpoch) {
+        this.replayActive = false
+        this.streamEventBacklog = []
+        return
+      }
+      const to = Math.min(i + REPLAY_CHUNK_ROWS, texts.length)
+      this.commitToScrollback({ text: texts.slice(i, to).join('\n'), trailingNewline: true })
+      i = to
+      if (i < texts.length) {
+        setImmediate(step)
+        return
+      }
+      // 最后一片落底：结束重放窗口，按序回放排队期间的新流事件（turn 统计
+      // 与会话汇总 fold 随 handleStreamEvent 一并补齐）。
+      this.replayActive = false
+      const backlog = this.streamEventBacklog
+      this.streamEventBacklog = []
+      for (const event of backlog) this.handleStreamEvent(event)
+    }
+    setImmediate(step)
   }
 
   /** 当前主题变化后，清理终端并用最新颜色重放当前会话历史。 */

@@ -373,6 +373,55 @@ describe('TuiApp agent-ensure 三分支', () => {
     await app.dispose()
   })
 
+  it('任务5 大会话渐进重放：首片同步、余片异步、窗口内新流事件排队不插队', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('big-1')
+    const events = Array.from({ length: 250 }, (_, k): SessionEvent => {
+      const i = k + 1
+      return {
+        seq: i, time: i, type: 'user/message',
+        data: { id: `m-${i}`, role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: `历史消息${i}` }] },
+      } as unknown as SessionEvent
+    })
+    Object.assign(agent.session, { events })
+    const handle = makeHandle(agent)
+    ctx.agents.get.mockReturnValue(undefined)
+    ctx.agents.resume.mockImplementation(async (opts: { setup?: (c: unknown) => void | Promise<void> }) => {
+      await opts.setup?.({ on: vi.fn(() => () => {}) })
+      return handle
+    })
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    await app.switchSession(SessionId('big-1'))
+
+    // switchSession 返回时只落了首片（REPLAY_CHUNK_ROWS=100 行 < 250 条消息的
+    // 渲染行数）——尾部历史仍未上屏，证明不是单 tick 全量。
+    const initial = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(initial).toContain('历史消息1')
+    expect(initial).not.toContain('历史消息250')
+
+    // 重放窗口内注入新流事件（text-delta ≥15 字符带空行边界 → 同步成块 commit）。
+    // session/event 有多个订阅者（trackAgent live fold / streamFeed）——按总线
+    // 语义广播给全部。
+    const feedHandlers = ctx.on.mock.calls.filter(call => call[0] === 'session/event')
+      .map(call => call[1] as ((owner: { id: SessionId }, event: SessionEvent) => void))
+    if (feedHandlers.length === 0) throw new Error('session/event handlers not registered')
+    const liveEvent = {
+      seq: 999, time: 999, type: 'assistant/chunk',
+      data: { turn: 1, step: 0, chunk: { type: 'text-delta', text: `实时正文${'X'.repeat(36)}\n\n尾` } },
+    } as unknown as SessionEvent
+    for (const handler of feedHandlers) handler({ id: SessionId('big-1') }, liveEvent)
+
+    // 让 setImmediate 重放链与 backlog 回放跑完。
+    for (let k = 0; k < 20; k++) await new Promise(resolve => setImmediate(resolve))
+
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('历史消息250') // 余片全部落底
+    expect(written.indexOf('历史消息250')).toBeLessThan(written.indexOf('实时正文')) // 新事件不插队
+    await app.dispose()
+  })
+
   it('switchSession 旧会话已有 agent → registry 兜底，不 create 不 resume', async () => {
     const ctx = makeCtx()
     const agent = makeAgent('live-1')

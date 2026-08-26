@@ -271,6 +271,12 @@ export declare class TuiApp {
     private lastIdleKey;
     /** 已落底 scrollback 的最近完整错误文本（diff 去重——同错误逐帧重读不重复落底）。 */
     private lastGlanceErrorFull;
+    /** 历史渐进重放代际（commitRows 每次递增；快速切换会话时旧链自毁）。 */
+    private replayEpoch;
+    /** 历史重放进行中（streamFeed 新事件进 backlog 排队，见 commitRows）。 */
+    private replayActive;
+    /** 重放窗口内排队的 stream 事件（重放完按序回放 handleStreamEvent）。 */
+    private streamEventBacklog;
     /** ticker 路径才允许 shouldSkipIdleAssemble；flush/batcher 必须组装。 */
     private renderLiveFromTicker;
     private disposed;
@@ -707,6 +713,19 @@ export declare class TuiApp {
     /**
      * 把渲染行批量提交到 scrollback（保持时间顺序）。
      * @param rows - RenderedRow 数组。
+     */
+    /**
+     * 历史行渐进落底（任务5，2026-08-27）：大会话 attach 不再单 tick 全量写入。
+     * 首片同步 commit（首帧即有内容），余片经 setImmediate 链逐片追加——每片
+     * 走原子提交编舞（sync 窗内 erase+append+重绘，无撕裂），事件循环在片间
+     * 让位，输入/渲染不再被千行会话冻住一拍。
+     *
+     * 顺序与代际守卫：replayEpoch 每次 commitRows 递增，快速切换会话时旧链在
+     * 下一片前自毁；重放期间 streamFeed 新事件由 mountSession 的 backlog 排队
+     * （见 streamFeed 接线注释），最后一片写完置 replayActive=false 并按序回放。
+     * dispose/epoch 不匹配即刻停止，不写半截。
+     *
+     * @param rows - renderHistoryRows 产出的已渲染行（保持时间顺序）。
      */
     private commitRows;
     /** 当前主题变化后，清理终端并用最新颜色重放当前会话历史。 */
