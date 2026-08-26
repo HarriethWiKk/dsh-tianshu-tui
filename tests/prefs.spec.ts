@@ -25,6 +25,7 @@ describe('parsePrefs 容错', () => {
       theme: 'custom:mine',
       preset: 'minimal',
       compactMode: true,
+      notifyOs: false,
       panels: { subagents: true, workflow: false },
       glance: { hideSegments: ['cost', 'cache'] },
     }))
@@ -32,6 +33,7 @@ describe('parsePrefs 容错', () => {
       theme: 'custom:mine',
       preset: 'minimal',
       compactMode: true,
+      notifyOs: false,
       panels: { subagents: true, workflow: false },
       glance: { hideSegments: ['cost', 'cache'] },
     })
@@ -50,6 +52,7 @@ describe('parsePrefs 容错', () => {
       theme: 42,                       // 非字符串 → 丢
       preset: '',                      // 空串 → 丢
       compactMode: 'yes',              // 非布尔 → 丢
+      notifyOs: 'yes',                 // 非布尔 → 丢
       panels: { config: true, subagents: 'x' }, // config 非白名单 / subagents 非布尔 → 丢
       glance: { hideSegments: ['model', 'nope', 'cost'] }, // model 非可隐藏 / nope 未知 → 只留 cost
       futureField: { anything: true },  // 未知 key → 丢

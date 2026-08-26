@@ -213,7 +213,7 @@ export declare class TuiApp {
     private taskNotice;
     /** T3.2：/config 设置面板显隐（/config 切换）。 */
     private configPanelVisible;
-    /** T3.2：/config 面板投影缓存（settings describe + permission + credentials；null = 服务缺失）。 */
+    /** T3.2：/config 面板投影（打开后恒有终端段；null = 尚未刷新）。 */
     private configProjection;
     /** T3.3：/skills 面板显隐（/skills 切换）。 */
     private skillsPanelVisible;
@@ -596,10 +596,10 @@ export declare class TuiApp {
     private refreshDelegationTree;
     /** T2.2：运行态缓存项 → 面板视图（终态含 stopReason/agentsStarted）。 */
     private toWorkflowRunView;
-    /** T3.2：刷新 /config 面板投影（settings describe + permission + credentials；服务缺失降级）。 */
+    /** T3.2：刷新 /config 投影（宿主服务可缺；终端段始终带上）。 */
     private refreshConfigProjection;
-    /** 把 DEEPSEEK_API_KEY 的 describe 结果填进 /config 凭据段（与欢迎页同源）。 */
-    private fillCredentials;
+    /** /config notify 与空输入 n：写 prefs 并刷新终端段。 */
+    private applyNotifyPref;
     /** 回显一条警告行到 scrollback（可选服务缺失的 fails-loud 提示共用出口）。 */
     private echoWarn;
     /** 当前主题（动态读取，切主题后立即生效）。 */

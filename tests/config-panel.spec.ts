@@ -1,7 +1,7 @@
 /**
  * config-panel.spec.ts — /config 设置面板纯函数（T3.2）。
  *
- * 覆盖：标题与三段（设置/权限预设/凭据）顺序、设置行（ns + 值 + secrets
+ * 覆盖：标题与段顺序（终端/宿主设置/权限预设/凭据）、设置行（ns + 值 + secrets
  * 脱敏标记）、值渲染（string/number/boolean/object/空值）、secrets 脱敏
  * 标记三态（无槽 / 空槽 / 已脱敏计数）、权限预设选择器（names 动态取、
  * 仅 custom 保留字补行）、凭据徽章（configured/source/writable，writable
@@ -62,6 +62,7 @@ const fullProjection: ConfigPanelProjection = {
     { ref: 'GH_TOKEN', configured: false, writable: false },
     { ref: 'KEY2', configured: true, writable: true },
   ],
+  tui: { notifyOs: true, notifyLocked: false },
 }
 
 describe('projectConfigPanel 标题与段顺序', () => {
@@ -70,31 +71,55 @@ describe('projectConfigPanel 标题与段顺序', () => {
     expect(rows[0]).toBe('⚙ 配置')
   })
 
-  it('完整投影按 设置/权限预设/凭据 顺序渲染三段', () => {
+  it('完整投影按 终端/宿主设置/权限预设/凭据 顺序', () => {
     const rows = projectConfigPanel(fullProjection, { width: 80 })
-    const settingsIdx = rows.indexOf('◆ 设置')
+    const tuiIdx = rows.indexOf('◆ 终端')
+    const settingsIdx = rows.indexOf('◆ 宿主设置')
     const permissionIdx = rows.indexOf('◆ 权限预设')
     const credentialsIdx = rows.indexOf('◆ 凭据')
-    expect(settingsIdx).toBeGreaterThan(0)
+    expect(tuiIdx).toBeGreaterThan(0)
+    expect(settingsIdx).toBeGreaterThan(tuiIdx)
     expect(permissionIdx).toBeGreaterThan(settingsIdx)
     expect(credentialsIdx).toBeGreaterThan(permissionIdx)
   })
 })
 
-describe('projectConfigPanel 空态', () => {
-  it('设置为空渲染占位（无设置项）', () => {
+describe('projectConfigPanel 空态与终端段', () => {
+  it('空宿主段不渲染占位（无设置项 / 无凭据）', () => {
     const rows = projectConfigPanel(emptyProjection, { width: 80 })
-    expect(rows).toContain('  （无设置项）')
-  })
-
-  it('凭据为空渲染占位（无凭据）', () => {
-    const rows = projectConfigPanel(emptyProjection, { width: 80 })
-    expect(rows).toContain('  （无凭据）')
+    expect(rows).not.toContain('  （无设置项）')
+    expect(rows).not.toContain('  （无凭据）')
+    expect(rows.some(r => r.includes('◆ 宿主设置'))).toBe(false)
+    expect(rows.some(r => r.includes('◆ 凭据'))).toBe(false)
   })
 
   it('permission 为 null 时不渲染权限预设段', () => {
     const rows = projectConfigPanel(emptyProjection, { width: 80 })
     expect(rows.some(r => r.includes('权限预设'))).toBe(false)
+  })
+
+  it('有 tui 时终端段置顶，通知开用 ●', () => {
+    const rows = projectConfigPanel(
+      { ...emptyProjection, tui: { notifyOs: true, notifyLocked: false } },
+      { width: 80 },
+    )
+    expect(rows[1]).toBe('◆ 终端')
+    expect(rows).toContain('  ● 系统通知 · 开')
+    expect(rows[rows.length - 1]).toBe('n 切换系统通知 · /config 关闭')
+  })
+
+  it('通知关与环境变量锁定', () => {
+    const off = projectConfigPanel(
+      { ...emptyProjection, tui: { notifyOs: false, notifyLocked: false } },
+      { width: 80 },
+    )
+    expect(off).toContain('  ○ 系统通知 · 关')
+    const locked = projectConfigPanel(
+      { ...emptyProjection, tui: { notifyOs: false, notifyLocked: true } },
+      { width: 80 },
+    )
+    expect(locked).toContain('  ○ 系统通知 · 关（DSH_TUI_SKIP_NOTIFY）')
+    expect(locked[locked.length - 1]).toBe('n 环境变量已关闭通知')
   })
 })
 

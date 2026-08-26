@@ -264,7 +264,8 @@ import { RewindOverlay, collectUserRewindCheckpoints, type RewindMode, type Rewi
 import { openInEditorDetailed, getEditorCommand } from '../external-editor.js'
 import { FluencyTracker } from '../fluency-hook.js'
 import { expandMentions } from '../mention-expand.js'
-import { notifyOs } from '../os-notify.js'
+import { applyNotifyOsPref, configTuiFromPrefs, notifyOs, parseConfigNotifyArg } from '../os-notify.js'
+import { loadConfigProjection } from './config-flow.js'
 import { buildSessionPickerItems, formatSessionAge } from '../restore-session.js'
 // 副作用声明合并：让 ctx.on('approval/request') 的 handler 参数由 cordis 事件
 // 类型推导（user-approval 的 module augmentation）。不 import 具体类型——
@@ -631,7 +632,7 @@ export class TuiApp {
   private taskNotice: string | null = null
   /** T3.2：/config 设置面板显隐（/config 切换）。 */
   private configPanelVisible = false
-  /** T3.2：/config 面板投影缓存（settings describe + permission + credentials；null = 服务缺失）。 */
+  /** T3.2：/config 面板投影（打开后恒有终端段；null = 尚未刷新）。 */
   private configProjection: ConfigPanelProjection | null = null
   /** T3.3：/skills 面板显隐（/skills 切换）。 */
   private skillsPanelVisible = false
@@ -971,19 +972,23 @@ export class TuiApp {
         this.renderBatcher.schedule()
       },
     })
-    // T3.2：/config 设置面板显隐切换（数据源为 settings/permission/credentials 投影；
-    // 切换时刷新投影——部分服务缺失时对应段显示占位；三者全缺时面板无数据，回显警告）。
+    // T3.2：/config 设置面板（终端通知可配；宿主段缺失则折叠）。
     this.slash.register({
       name: 'config',
-      description: '切换设置面板（settings/permission/credentials）',
-      run: async () => {
-        this.configPanelVisible = !this.configPanelVisible
-        if (this.configPanelVisible) {
-          await this.refreshConfigProjection()
-          if (this.configProjection === null) {
-            this.echoWarn('⚠ settings/permission/credentials 服务均不可用，设置面板无数据')
-          }
+      description: '切换设置面板（n 切换系统通知）',
+      argsHint: '[notify [on|off]]',
+      run: async ({ text, echo }) => {
+        const action = parseConfigNotifyArg(text)
+        if (action === 'usage') {
+          echo('用法：/config  或  /config notify [on|off]')
+          return
         }
+        if (action !== null) {
+          this.applyNotifyPref(action, echo)
+          return
+        }
+        this.configPanelVisible = !this.configPanelVisible
+        if (this.configPanelVisible) await this.refreshConfigProjection()
         this.renderBatcher.schedule()
       },
     })
@@ -2385,7 +2390,7 @@ export class TuiApp {
         }, this.theme),
         trailingNewline: true,
       })
-      notifyOs({ title: 'dsh · 子代理完成', body: run.label })
+      notifyOs({ title: 'dsh · 子代理完成', body: run.label }, this.prefs)
       this.renderBatcher.schedule()
     })
     this.subagentDisposer = () => { onSubStart(); onSubEnd(); onRunStart(); onRunEnd() }
@@ -2444,7 +2449,7 @@ export class TuiApp {
           this.workflowRuns.delete(info.id)
           this.completedWorkflowRuns.set(info.id, view)
           this.commitToScrollback({ text: formatWorkflowSummary(view, this.theme), trailingNewline: true })
-          notifyOs({ title: 'dsh · 工作流完成', body: run.meta.name })
+          notifyOs({ title: 'dsh · 工作流完成', body: run.meta.name }, this.prefs)
           this.flushLiveRender()
         }
       }),
@@ -2461,7 +2466,7 @@ export class TuiApp {
       this.taskDoneDisposer = tasks.onTaskDone((snapshot) => {
         this.taskNotice = `✓ 任务完成: ${snapshot.label}`
         this.taskSnapshots = tasks.list()
-        notifyOs({ title: 'dsh · 任务完成', body: snapshot.label })
+        notifyOs({ title: 'dsh · 任务完成', body: snapshot.label }, this.prefs)
         this.flushLiveRender()
       })
       this.taskSurfaceDisposer = tasks.attachSurface('tui')
@@ -2505,48 +2510,26 @@ export class TuiApp {
     return settleWorkflowView(run, result, Date.now())
   }
 
-  /** T3.2：刷新 /config 面板投影（settings describe + permission + credentials；服务缺失降级）。 */
+  /** T3.2：刷新 /config 投影（宿主服务可缺；终端段始终带上）。 */
   private async refreshConfigProjection(): Promise<void> {
-    const settings = this.ctx.reflect.get('settings', false) as
-      | { describe(options?: { redactSecrets?: boolean }): unknown[] } | undefined
-    const permission = this.ctx.reflect.get('permission', false) as
-      | { names: readonly string[]; current(events: readonly unknown[]): string } | undefined
-    const credentials = this.ctx.reflect.get('credentials', false) as CredentialsDescribeFacet | undefined
-    if (settings === undefined && permission === undefined && credentials === undefined) {
-      this.configProjection = null
-      return
-    }
-    const settingsDescriptors = settings === undefined ? [] : settings.describe({ redactSecrets: true })
-    const permissionView = permission === undefined ? null : {
-      options: permission.names.map(n => ({ value: n, name: n })),
-      currentValue: permission.current([]),
-    }
-    this.configProjection = {
-      settings: settingsDescriptors as ConfigPanelProjection['settings'],
-      permission: permissionView,
-      credentials: [],
-    }
-    if (credentials !== undefined) await this.fillCredentials(credentials)
+    const next = await loadConfigProjection({
+      reflect: this.ctx.reflect,
+      prefs: this.prefs,
+      shouldAbort: () => this.disposed || !this.configPanelVisible,
+    })
+    if (this.disposed || !this.configPanelVisible) return
+    this.configProjection = next
   }
 
-  /** 把 DEEPSEEK_API_KEY 的 describe 结果填进 /config 凭据段（与欢迎页同源）。 */
-  private async fillCredentials(credentials: CredentialsDescribeFacet): Promise<void> {
-    try {
-      const info = await credentials.describe('DEEPSEEK_API_KEY')
-      if (this.disposed || !this.configPanelVisible || this.configProjection === null) return
-      this.configProjection = {
-        ...this.configProjection,
-        credentials: [{
-          ref: 'DEEPSEEK_API_KEY',
-          configured: info.configured,
-          writable: info.writable !== false,
-          ...(info.source === undefined ? {} : { source: info.source }),
-        }],
-      }
-      this.renderBatcher.schedule()
-    } catch {
-      // 面不匹配时保持空凭据段
+  /** /config notify 与空输入 n：写 prefs 并刷新终端段。 */
+  private applyNotifyPref(action: 'on' | 'off' | 'toggle', echo: (text: string) => void): void {
+    const r = applyNotifyOsPref(this.prefs, action)
+    if (r.warn !== undefined) this.echoWarn(r.warn)
+    else { this.persistPrefs(); echo(r.echo as string) }
+    if (this.configProjection !== null) {
+      this.configProjection = { ...this.configProjection, tui: configTuiFromPrefs(this.prefs) }
     }
+    this.renderBatcher.schedule()
   }
 
   /** 回显一条警告行到 scrollback（可选服务缺失的 fails-loud 提示共用出口）。 */
@@ -3430,6 +3413,12 @@ export class TuiApp {
         this.flushLiveRender()
         return
       }
+    }
+    // /config 打开且输入为空：n 切换系统通知（不进输入行；审批/搜索 overlay 已先拦截）。
+    if (this.configPanelVisible && this.inputLine.value === '' && (key.char === 'n' || key.char === 'N')
+      && this.inputLine.vimMode === 'insert') {
+      this.applyNotifyPref('toggle', text => { this.commitToScrollback({ text, trailingNewline: true }) })
+      return
     }
     // 空输入框 Tab → 命令菜单（palette execute 模式，#31 参考 Claude Code）：
     // 选命令回车直接执行（/model → 模型选择器），省去输入 /cmd 一步。

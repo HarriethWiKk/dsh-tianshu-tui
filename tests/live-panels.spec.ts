@@ -173,6 +173,21 @@ describe('renderConfigPanel', () => {
   it('面板打开 + projection null（服务缺失）→ 零行', () => {
     expect(renderConfigPanel({ ...baseSnapshot(), configPanelVisible: true })).toEqual([])
   })
+
+  it('面板打开 + 仅终端段 → 系统通知行', () => {
+    const rows = renderConfigPanel({
+      ...baseSnapshot(),
+      configPanelVisible: true,
+      configProjection: {
+        settings: [],
+        permission: null,
+        credentials: [],
+        tui: { notifyOs: true, notifyLocked: false },
+      },
+    })
+    expect(rows.join('\n')).toContain('系统通知')
+    expect(rows.join('\n')).toContain('◆ 终端')
+  })
 })
 
 describe('renderSkillsPanel', () => {

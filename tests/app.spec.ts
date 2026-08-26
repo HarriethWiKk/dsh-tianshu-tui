@@ -3866,7 +3866,7 @@ describe('TuiApp slash 命令分发路径（deps 闭包）', () => {
 })
 
 describe('TuiApp /config /skills /density 面板命令', () => {
-  it('/config 打开再关闭：服务缺失 → projection null 不渲染（双分支）', async () => {
+  it('/config 打开再关闭：无宿主服务仍显示终端段（双分支）', async () => {
     const ctx = makeCtx()
     const agent = makeAgent('cfg-1')
     ctx.agents.create.mockResolvedValue(makeHandle(agent))
@@ -3875,12 +3875,14 @@ describe('TuiApp /config /skills /density 面板命令', () => {
     const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
     await app.attach()
 
-    app.handleSubmit('/config') // 打开 → refreshConfigProjection（全缺失 → null）
+    app.handleSubmit('/config') // 打开 → 终端段（宿主全缺不再空白）
     await new Promise(resolve => setImmediate(resolve))
-    app.handleSubmit('/config') // 关闭 → configPanelVisible=false 不再刷新
+    const opened = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(opened).toContain('系统通知')
+    app.handleSubmit('/config') // 关闭
     await new Promise(resolve => setImmediate(resolve))
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).not.toContain('未知命令') // 命令已注册，不走未知命令分支
+    expect(written).not.toContain('未知命令')
     await app.dispose()
   })
 
@@ -5461,9 +5463,31 @@ describe('TuiApp /config 服务组合分支', () => {
     await app.dispose()
   })
 
-  it('三服务全缺失 → configProjection null（无渲染崩溃）', async () => {
+  it('三服务全缺失 → 仍渲染终端通知段（无崩溃）', async () => {
     const { app, written } = await bootWithReflect(() => undefined)
-    expect(written.length).toBeGreaterThan(0)
+    expect(written).toContain('系统通知')
+    expect(written).toContain('◆ 终端')
+    await app.dispose()
+  })
+
+  it('/config notify off|on 回显并切换；空输入 n 再切', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('cfg-n')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+    const stdin = makeStdin()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    app.handleSubmit('/config notify off')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(stdout.write.mock.calls.map(c => `${c[0]}`).join('')).toContain('系统通知已关')
+    app.handleSubmit('/config')
+    await new Promise(resolve => setImmediate(resolve))
+    stdin.emit('data', 'n')
+    await new Promise(resolve => setImmediate(resolve))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('系统通知已开')
     await app.dispose()
   })
 })

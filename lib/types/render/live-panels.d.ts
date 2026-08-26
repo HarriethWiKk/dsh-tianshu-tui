@@ -37,8 +37,8 @@ export declare function renderGlancePanel(snapshot: LiveSnapshot): string[];
  */
 export declare function renderTasksPanel(snapshot: LiveSnapshot): string[];
 /**
- * 渲染 /config 设置面板（设置段 + 权限预设选择器 + 凭据徽章）。面板隐藏或
- * 投影为 null（服务缺失）→ 空数组。settings 契约是数组；违约形状（非数组，
+ * 渲染 /config 设置面板（终端通知 + 宿主设置/权限/凭据）。面板隐藏或
+ * 投影为 null（尚未刷新）→ 空数组。settings 契约是数组；违约形状（非数组，
  * 如单对象）归一为 descriptor 数组再渲染，避免 for...of 对非迭代对象抛错。
  * @param snapshot - 当前帧快照。
  * @returns 面板行数组。

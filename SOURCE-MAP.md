@@ -126,10 +126,10 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 | src/live-tail-cap.ts | live-tail-cap.ts | modified |
 | src/mention-expand.ts | — | new |
 | src/mention-parser.ts | mention-parser.ts | modified |
-| src/os-notify.ts | — | new（后台完成系统通知：darwin/linux/win32 固定 argv；DSH_TUI_SKIP_NOTIFY/SSH/CI/VITEST 门闸） |
+| src/os-notify.ts | — | new（后台完成系统通知：darwin/linux/win32 固定 argv；DSH_TUI_SKIP_NOTIFY/SSH/CI/VITEST 与 prefs.notifyOs 门闸） |
 | src/pi/latex-block.ts | pi/latex-block.ts | modified |
 | src/pi/latex-to-unicode.ts | pi/latex-to-unicode.ts | modified |
-| src/prefs.ts | — | new（本地偏好持久化：~/.dsh-tui/prefs.json——theme/density/preset/常驻面板/glance 段；容错解析 + 原子写 + VITEST 密封门） |
+| src/prefs.ts | — | new（本地偏好持久化：~/.dsh-tui/prefs.json——theme/density/preset/常驻面板/glance/notifyOs；容错解析 + 原子写 + VITEST 密封门） |
 | src/picker.ts | — | new（Issue #31 交互式选择器：纯状态机 + 渲染 + PickerController，/model /theme /session 无参打开；S 设为默认） |
 | src/startup-defaults.ts | — | new（会话 vs 启动默认：splitDefaultFlag + 回显文案 + newSession 应用 prefs.preset） |
 | src/port.ts | — | new |
@@ -160,6 +160,7 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 | src/ui-glyphs.ts | ui-glyphs.ts | ported |
 | src/ui/activity-flow.ts | — | new（子代理/工作流活动带装配：fold/摘要/委派合并/外部 run 降级，自 app.ts 抽出保棘轮） |
 | src/ui/app.ts | — | new（角色对应上游 engine/app.ts，为面向 dsh cordis 服务的独立装配实现，非逐行移植） |
+| src/ui/config-flow.ts | — | new（/config 投影装配：宿主 settings/permission/credentials 可缺；终端通知段始终带上） |
 | src/ui/startup-pickers.ts | — | new（/model /theme /effort 选择器：Enter 本会话、S 写启动默认，自 app.ts 抽出保棘轮） |
 | src/ui/key-dialog.ts | ui/key-dialog.ts | ported（2026-08 回流：供应商 API Key 掩码输入对话框状态机） |
 | src/ui/key-flow.ts | — | new（装配提取层：上游 TuiApp 的 openKeyDialog 系列提取，棘轮对冲；key-wizard/key-dialog 之上） |
