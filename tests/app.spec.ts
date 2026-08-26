@@ -3309,11 +3309,23 @@ describe('TuiApp API key 就绪（credentials 分层，非仅 env）', () => {
     await app.dispose()
   })
 
-  it('credentials 未配置且 env 未设 → 欢迎页 API Key ✗', async () => {
+  it('credentials 未配置且 env 未设 → 欢迎页 API Key ✗，且 Tips 排首引导 /key', async () => {
     const { app, stdout } = boot({ credentials: { configured: false } })
     await app.attach()
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     expect(written).toContain('API Key ✗（设 DEEPSEEK_API_KEY）')
+    // 动态引导：未登录时 Tips 第一条是 /key 配置入口
+    expect(written).toContain('/key')
+    expect(written).toContain('配置 API key')
+    await app.dispose()
+  })
+
+  it('credentials 已配置 → 欢迎页 Tips 不含 /key 引导（首条为 ctrl+n）', async () => {
+    const { app, stdout } = boot({ credentials: { configured: true, source: 'file' } })
+    await app.attach()
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('API Key ✓')
+    expect(written).not.toContain('/key')
     await app.dispose()
   })
 

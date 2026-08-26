@@ -1792,14 +1792,19 @@ export class TuiApp {
     // 顶栏与欢迎之间留 1 行。live overlay 不再填剩余视口。
     commitLine('')
 
-    const tips: WelcomeTipItem[] = [
+    const tips: WelcomeTipItem[] = []
+    // 环境待办优先：API key 缺失是硬阻塞，排最前引导（/key 配置密钥）。
+    if (!this.apiKeyReady) {
+      tips.push({ keyHint: '/key', label: '配置 API key' })
+    }
+    tips.push(
       { keyHint: 'ctrl+n', label: '新会话' },
       { keyHint: 'ctrl+s', label: resumeLabel, available: resumeAvailable },
       { keyHint: 'ctrl+p', label: '命令面板' },
       { keyHint: '/', label: 'slash 命令' },
       { keyHint: 'ctrl+o', label: '展开推理' },
       { keyHint: 'shift+tab', label: '模式循环' },
-    ]
+    )
     const ownVersion = readOwnVersion(fileURLToPath(new URL('.', import.meta.url)))
     for (const line of formatWelcomeHero({ width: cols, whale, env, tips, ...(ownVersion === undefined ? {} : { version: ownVersion }) }, this.theme)) {
       commitLine(line)
