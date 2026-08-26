@@ -131,6 +131,13 @@ The companion vision plugin lives in `vision-ask/` if you need image re-interrog
 
 Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.18`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.18)).
 
+### Unreleased (main)
+
+- **Glance context bar** — `上下文 N%` is followed by an 8-cell used/free bar (`▓`/`░`; ASCII fallback `[====----]`)
+- **`/session` calendar groups** — picker and `/session list` group into today / yesterday / this week / earlier; ↑↓ skip group headers
+- **OS notifications** — desktop bubbles when a subagent, workflow, or background task finishes (not on `turn/end`); silenced under `DSH_TUI_SKIP_NOTIFY`, SSH, CI, and tests
+- **`/config` terminal section** — system-notify toggle at the top (empty-input `n` or `/config notify [on|off]`, persisted in `prefs.json`); empty host sections are omitted; the toggle still works when host settings/permission/credentials are missing
+
 ### 0.1.2-rc.18 (2026-08-26)
 
 Todo card leaves the thinking zone: it sits above the input rail and lists items by default.
@@ -322,7 +329,7 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 - **Structured questions** — numeric selection, `Esc` cancels, overlap protection; plan-review feedback mode (`f` to enter, `Enter` submits Keep-planning + custom feedback).
 - **Approval cards** — `y`/`N`/`Ctrl+C` settle pending approvals; inline diff previews when the tool is diffable; blind-approval hint when the diff is invisible; non-current-session requests delegate to the next listener.
 - **Mode cycle** — `Shift+Tab` cycles normal → plan → always-approve; the plan state drives the footer badge, and always-approve is session-local (resets on switch/exit).
-- **Live panels** — `/status` (goal/todos/plan projection snapshot; the subagent domains surface under `/subagents`), `/config` (settings / permission / credentials), `/skills` browser, `/tasks` pane, `/subagents` delegation tree, `/workflow` runs. When a panel's backing host service is not assembled, a `⚠` warning is echoed instead of a silently blank panel.
+- **Live panels** — `/status` (goal/todos/plan projection snapshot; the subagent domains surface under `/subagents`), `/config` (OS notify + host settings / permission / credentials), `/skills` browser, `/tasks` pane, `/subagents` delegation tree, `/workflow` runs. Missing host sections collapse; `/config`'s notify toggle does not need the host. Other panels echo a `⚠` warning when their backing service is absent instead of going silently blank.
 - **Command palette (`Ctrl+P`) / keymap (`Ctrl+.`) / history search (`Ctrl+F`) overlays**.
 
 ### Models & vision
@@ -337,7 +344,7 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 
 | Command | What it does |
 |---|---|
-| `/session new\|list\|switch` | Session management |
+| `/session new\|list\|switch` | Session management (list/picker grouped by today / yesterday / this week / earlier) |
 | `/fork [directive]` · `/branch` | Fork the current session, optionally with a starting directive |
 | `/rewind` | Two-phase rollback (message list → granularity) |
 | `/export [path]` | Export the transcript to Markdown |
@@ -349,7 +356,7 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 | `/theme [name]` | Switch theme |
 | `/density` | Toggle compact tool-card rendering |
 | `/status` | Toggle the status panel (goal/todos/plan projections + session totals) |
-| `/config` | Toggle the settings panel (settings / permission / credentials) |
+| `/config [notify [on\|off]]` | Toggle the settings panel (OS notify; empty-input `n` toggles). No-arg opens/closes the panel |
 | `/skills` | Toggle the skills browser |
 | `/tasks` | Task pane (background tasks) |
 | `/goal` | Goal management (create / pause / resume / complete / block) |

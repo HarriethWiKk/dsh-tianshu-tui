@@ -32,6 +32,7 @@ dsh-tianshu-tui 的配置分三层:**装配时配置**(TuiRunnerConfig,插件注
 |---|---|
 | `DEEPSEEK_API_KEY` | API key(欢迎页/状态行按 credentials 分层判断) |
 | `DSH_TUI_SKIP_UPDATE` | `1` 时跳过启动时的 npm 更新检查 |
+| `DSH_TUI_SKIP_NOTIFY` | `1`/`true` 时关闭系统通知,`/config` 开关不可切 |
 | `DSH_TUI_UPDATE_REGISTRY` | 自更新检查的 registry 链(逗号分隔多个,优先于缺省链;缺省 `registry.npmjs.org` → `registry.npmmirror.com` 镜像回退,官方源直连超时时自动落镜像) |
 | `EDITOR` / `VISUAL` | `Ctrl+E` 外部编辑器的命令(Windows 上支持 `.cmd`/`.bat`) |
 | `HTTP_PROXY` / `HTTPS_PROXY` | 网络代理(自更新等联网操作) |
@@ -48,19 +49,22 @@ TUI 的启动默认存在 `prefs.json`;带参 `/theme` `/density` `/preset` 默�
 选择器按 S 或命令末尾 `default` 才写入:
 
 - **`prefs.json`** — 启动默认主题(含 `custom:` 与 `auto`)、密度、agent 预设,
-  以及 `/subagents` `/workflow` 常驻面板显隐、`/glance` 隐藏的 metrics 段。
-  损坏/缺失静默回到缺省;删文件即恢复出厂。
+  `/subagents` `/workflow` 常驻面板显隐、`/glance` 隐藏的 metrics 段、
+  系统通知(`notifyOs`,缺省开)。损坏/缺失静默回到缺省;删文件即恢复出厂。
 - **`input-history.json`** — 输入框历史(上限 1000 条,Ctrl+P/N 翻阅)。
   内容为用户输入原文——介意隐私时删除该文件即可清空。
 
 ### `/config` 面板
 
-`/config` 打开设置面板,三段:
+`/config` 打开设置面板。终端段始终在最前;空的宿主段不渲染。
 
-- **settings**:宿主 settings 服务 describe 输出
-- **permission**:权限预设选择器(组合了 `dsh-permission` 的 PermissionSelect;
-  服务缺失时该段不渲染)
-- **credentials**:凭据状态(只显示存在性,不显示明文)
+- **终端**:系统通知开关(`●` 开 / `○` 关)。空输入按 `n` 切换,或
+  `/config notify` / `notify on` / `notify off`(写入 `prefs.json`)。
+  `DSH_TUI_SKIP_NOTIFY` 锁定时显示关且不可切。
+- **宿主设置**:宿主 settings 服务 describe 输出(空则折叠)
+- **权限预设**:组合了 `dsh-permission` 的 PermissionSelect;
+  服务缺失时该段不渲染
+- **凭据**:凭据状态(只显示存在性,不显示明文;空则折叠)
 
 ### 常用运行时设置命令
 

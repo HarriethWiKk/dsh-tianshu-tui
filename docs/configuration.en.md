@@ -27,6 +27,7 @@ All fields are optional and injected by whoever assembles the plugin:
 |---|---|
 | `DEEPSEEK_API_KEY` | API key (welcome page / status line check it via credentials layering) |
 | `DSH_TUI_SKIP_UPDATE` | `1` skips the startup npm update check |
+| `DSH_TUI_SKIP_NOTIFY` | `1`/`true` disables OS notifications and locks the `/config` toggle |
 | `EDITOR` / `VISUAL` | Command for the `Ctrl+E` external editor (`.cmd`/`.bat` supported on Windows) |
 | `HTTP_PROXY` / `HTTPS_PROXY` | Network proxy (self-update and other network operations) |
 
@@ -34,11 +35,12 @@ All fields are optional and injected by whoever assembles the plugin:
 
 ### `/config` Panel
 
-`/config` opens the settings panel with three sections:
+`/config` opens the settings panel. The terminal section is always first; empty host sections are omitted.
 
-- **settings**: output of the host settings service's `describe`
-- **permission**: permission-preset selector (composes `dsh-permission`'s `PermissionSelect`; the section is omitted when the service is missing)
-- **credentials**: credential presence (existence only, never plaintext)
+- **terminal**: OS notify toggle (`●` on / `○` off). Empty-input `n`, or `/config notify` / `notify on` / `notify off` (writes `prefs.json`). Locked off when `DSH_TUI_SKIP_NOTIFY` is set.
+- **host settings**: output of the host settings service's `describe` (omitted when empty)
+- **permission**: permission-preset selector (composes `dsh-permission`'s `PermissionSelect`; omitted when the service is missing)
+- **credentials**: credential presence (existence only, never plaintext; omitted when empty)
 
 ### Common Runtime Setting Commands
 

@@ -54,8 +54,8 @@ Above the input track, running work folds into one activity band (`◐ N subagen
 | `f` → `Enter` | Plan-review feedback mode (Keep planning + custom feedback) |
 | Digits | Structured-question panel options |
 | In pickers: `↑`/`↓` (j/k) select, `Enter` apply (this session), `S` save default, `Esc`/`q` close | `/model` `/theme` `/effort` pickers (session/`/key` pickers have no S) |
-| Session list: prints rows directly (legacy style, no interactive panel) | `/session list` |
-| Session picker: `↑`/`↓` scroll through all sessions | No-arg `/session` picker (title + relative-age summary, not paginated) |
+| Session list: grouped today / yesterday / this week / earlier, then printed | `/session list` |
+| Session picker: `↑`/`↓` (skips group headers) | No-arg `/session` picker (calendar groups + title / relative age, not paginated) |
 
 ## Command Reference (29 commands)
 
@@ -86,7 +86,7 @@ Above the input track, running work folds into one activity band (`◐ N subagen
 |---|---|
 | `/status` | Status panel (goal/todos/plan projection + session totals) |
 | `/todos [all]` | Todo card above the input rail (no-arg toggles; `all` shows the full list). Default: in-progress first, up to 5 items; all-completed collapses to one line. First non-empty model write auto-opens it; closing or `/clear` disables auto-open for the rest of the session |
-| `/config` | Settings panel (settings / permission / credentials) |
+| `/config [notify [on\|off]]` | Settings panel (OS notify on top; empty-input `n` toggles. Empty host sections are omitted) |
 | `/skills` | Skill browser panel |
 | `/tasks [kill <id>]` | Task panel |
 | `/goal` | Goal management (create/pause/resume/complete/block) |
