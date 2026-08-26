@@ -1,8 +1,8 @@
 /**
  * metrics 一行条（format/glance-bar.ts）— 纯渲染。
  *
- * segment 组装：model / effort / 缓存% / 上下文%（近满 ⚠）/ ◧ tokens / elapsed / $cost / #turn / 停滞。
- * 窄宽 drop 尾部次要段；极窄截断 model 段；任何宽度下不破版。
+ * segment 组装：model / effort / 缓存% / 上下文%+占用条（近满 ⚠）/ ◧ tokens / elapsed / $cost / #turn / 停滞。
+ * 窄宽先摘占用条再 drop 尾部次要段；极窄截断 model 段；任何宽度下不破版。
  */
 import { color } from '../engine/ansi.js'
 import type { LiveRegionLine } from '../engine/live-engine.js'
@@ -32,6 +32,11 @@ export interface FormatGlanceBarInput {
   effort?: string
   cacheHitRate?: number
   contextRatio?: number
+  /**
+   * 是否在上下文百分比后画占用条。缺省 true（有 contextRatio 即画）；
+   * formatGlanceBar 窄宽会先把此项置 false，再丢整个上下文段。
+   */
+  contextBar?: boolean
   tokens?: { used: number; max: number }
   elapsedMs?: number
   density?: 'compact' | 'full'
@@ -49,6 +54,22 @@ export const GLANCE_HIDEABLE_KEYS = ['effort', 'cache', 'context', 'tokens', 'el
 /** 上下文占用警告阈值（≥ 此比例前缀 ⚠ 提示近满；与 Claude Code context 高水位对齐）。 */
 export const CONTEXT_WARN_RATIO = 0.95
 
+/** 上下文占用条格数（已用 ▓ / 剩余 ░；ascii 为 = / -）。 */
+export const CONTEXT_BAR_CELLS = 8
+
+/**
+ * 上下文占用条：ratio 为已用比例，空格即剩余预算。
+ * @param ratio - 已用 / 窗口；越界夹紧到 [0, 1]。
+ * @param ascii - true 时用 `[====----]`，避免 block 字符。
+ */
+export function formatContextBar(ratio: number, ascii = false): string {
+  const clamped = Math.min(1, Math.max(0, ratio))
+  const filled = Math.round(clamped * CONTEXT_BAR_CELLS)
+  const empty = CONTEXT_BAR_CELLS - filled
+  if (ascii) return `[${'='.repeat(filled)}${'-'.repeat(empty)}]`
+  return `${'▓'.repeat(filled)}${'░'.repeat(empty)}`
+}
+
 /**
  * 段组装（纯函数；返回 ANSI 段列表，外层按 ` · ` 拼接）。
  * @param input - metrics 输入；仅组装已提供的段（cost 有值即显示；turn 只在 density full 档）。
@@ -62,7 +83,10 @@ export function glanceBarSegments(input: FormatGlanceBarInput): string[] {
   if (input.cacheHitRate !== undefined && !hidden.has('cache')) segs.push(`缓存 ${Math.round(input.cacheHitRate * 100)}%`)
   if (input.contextRatio !== undefined && !hidden.has('context')) {
     const warn = input.contextRatio >= CONTEXT_WARN_RATIO
-    segs.push(`${warn ? '⚠' : ''}上下文 ${Math.round(input.contextRatio * 100)}%`)
+    const label = `${warn ? '⚠' : ''}上下文 ${Math.round(input.contextRatio * 100)}%`
+    segs.push(input.contextBar === false
+      ? label
+      : `${label} ${formatContextBar(input.contextRatio, input.ascii === true)}`)
   }
   if (input.tokens !== undefined && !hidden.has('tokens')) {
     const t = `${formatTokenCount(input.tokens.used)}/${formatTokenCount(input.tokens.max)}`
@@ -111,6 +135,7 @@ export function formatGlanceBar(input: FormatGlanceBarInput, theme: RivetTheme):
     else if (next.cost !== undefined) delete next.cost
     else if (next.turnCount !== undefined) delete next.turnCount
     else if (next.tokens !== undefined) delete next.tokens
+    else if (next.contextBar !== false && next.contextRatio !== undefined) next.contextBar = false
     else if (next.contextRatio !== undefined) delete next.contextRatio
     else if (next.cacheHitRate !== undefined) delete next.cacheHitRate
     else if (next.effort !== undefined) delete next.effort

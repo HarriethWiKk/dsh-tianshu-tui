@@ -14,6 +14,11 @@ export interface FormatGlanceBarInput {
     effort?: string;
     cacheHitRate?: number;
     contextRatio?: number;
+    /**
+     * 是否在上下文百分比后画占用条。缺省 true（有 contextRatio 即画）；
+     * formatGlanceBar 窄宽会先把此项置 false，再丢整个上下文段。
+     */
+    contextBar?: boolean;
     tokens?: {
         used: number;
         max: number;
@@ -31,6 +36,14 @@ export interface FormatGlanceBarInput {
 export declare const GLANCE_HIDEABLE_KEYS: readonly ['effort', 'cache', 'context', 'tokens', 'elapsed', 'cost'];
 /** 上下文占用警告阈值（≥ 此比例前缀 ⚠ 提示近满；与 Claude Code context 高水位对齐）。 */
 export declare const CONTEXT_WARN_RATIO = 0.95;
+/** 上下文占用条格数（已用 ▓ / 剩余 ░；ascii 为 = / -）。 */
+export declare const CONTEXT_BAR_CELLS = 8;
+/**
+ * 上下文占用条：ratio 为已用比例，空格即剩余预算。
+ * @param ratio - 已用 / 窗口；越界夹紧到 [0, 1]。
+ * @param ascii - true 时用 `[====----]`，避免 block 字符。
+ */
+export declare function formatContextBar(ratio: number, ascii?: boolean): string;
 /**
  * 段组装（纯函数；返回 ANSI 段列表，外层按 ` · ` 拼接）。
  * @param input - metrics 输入；仅组装已提供的段（cost 有值即显示；turn 只在 density full 档）。

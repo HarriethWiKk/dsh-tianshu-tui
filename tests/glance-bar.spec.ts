@@ -1,7 +1,7 @@
 /**
  * metrics 一行条（format/glance-bar.ts）— 纯渲染契约测试。
  *
- * - segment 组装：model / 缓存% / 上下文% / ◧ tokens / #turn / $cost / elapsed / 停滞
+ * - segment 组装：model / 缓存% / 上下文%+占用条 / ◧ tokens / #turn / $cost / elapsed / 停滞
  * - 窄宽 drop 尾部次要段；极窄截断 model 段；任何宽度下不破版。
  * - formatTokenCount 单位压缩（k / M）。
  */
@@ -11,8 +11,10 @@ import type { RivetTheme } from '../src/theme.js'
 import { displayWidth } from '../src/width.js'
 import {
   formatTokenCount,
+  formatContextBar,
   glanceBarSegments,
   formatGlanceBar,
+  CONTEXT_BAR_CELLS,
   type FormatGlanceBarInput,
 } from '../src/format/glance-bar.js'
 
@@ -123,6 +125,48 @@ describe('glanceBarSegments', () => {
     const text = plain(glanceBarSegments(base({ ascii: true }))).join(' · ')
     expect(text).toContain('[12.5k/200k]')
   })
+
+  it('上下文段附带占用条（与百分比同段，剩余=空格）', () => {
+    const segs = plain(glanceBarSegments(base({ contextRatio: 0.42 })))
+    const ctx = segs.find(s => s.includes('上下文'))
+    expect(ctx).toBe(`上下文 42% ${formatContextBar(0.42)}`)
+    expect(ctx).toContain('▓')
+    expect(ctx).toContain('░')
+  })
+
+  it('contextBar: false → 只留百分比，不画条', () => {
+    const text = plain(glanceBarSegments(base({ contextBar: false }))).join(' · ')
+    expect(text).toContain('上下文 42%')
+    expect(text).not.toContain('▓')
+    expect(text).not.toContain('░')
+  })
+
+  it('ascii：上下文条用 [=/-] 档', () => {
+    const segs = plain(glanceBarSegments(base({ ascii: true, contextRatio: 0.5 })))
+    const ctx = segs.find(s => s.includes('上下文'))
+    expect(ctx).toBe(`上下文 50% ${formatContextBar(0.5, true)}`)
+    expect(ctx).toContain('[====----]')
+  })
+})
+
+describe('formatContextBar', () => {
+  it('8 格；四舍五入；0% 全空、100% 全满', () => {
+    expect(CONTEXT_BAR_CELLS).toBe(8)
+    expect(formatContextBar(0)).toBe('░░░░░░░░')
+    expect(formatContextBar(0.42)).toBe('▓▓▓░░░░░')
+    expect(formatContextBar(1)).toBe('▓▓▓▓▓▓▓▓')
+  })
+
+  it('越界 ratio 夹紧到 [0, 1]', () => {
+    expect(formatContextBar(-1)).toBe('░░░░░░░░')
+    expect(formatContextBar(1.4)).toBe('▓▓▓▓▓▓▓▓')
+  })
+
+  it('ascii：[= 已用][- 剩余]', () => {
+    expect(formatContextBar(0, true)).toBe('[--------]')
+    expect(formatContextBar(0.5, true)).toBe('[====----]')
+    expect(formatContextBar(1, true)).toBe('[========]')
+  })
 })
 
 describe('formatGlanceBar', () => {
@@ -175,21 +219,35 @@ describe('formatGlanceBar', () => {
   })
 
   it('full：宽度只 drop 到 cost 之后（保留 #turn）', () => {
-    const input = base({ density: 'full', turnCount: 7, cost: 0.42, width: 58 })
+    // 占用条约占 9 列，阈值随段变宽右移（原 58）。
+    const input = base({ density: 'full', turnCount: 7, cost: 0.42, width: 67 })
     const [line] = formatGlanceBar(input, fakeTheme())
     const text = plain([line!.text])[0]!
-    expect(displayWidth(line!.text)).toBeLessThanOrEqual(58)
+    expect(displayWidth(line!.text)).toBeLessThanOrEqual(67)
     expect(text).not.toContain('$0.42')
     expect(text).toContain('#7')
   })
 
   it('full：宽度只 drop 到 turnCount 之后（保留 tokens）', () => {
-    const input = base({ density: 'full', turnCount: 7, cost: 0.42, width: 52 })
+    const input = base({ density: 'full', turnCount: 7, cost: 0.42, width: 61 })
     const [line] = formatGlanceBar(input, fakeTheme())
     const text = plain([line!.text])[0]!
-    expect(displayWidth(line!.text)).toBeLessThanOrEqual(52)
+    expect(displayWidth(line!.text)).toBeLessThanOrEqual(61)
     expect(text).not.toContain('#7')
     expect(text).toContain('◧ 12.5k/200k')
+  })
+
+  it('中等窄宽：先摘占用条、保留「上下文 N%」', () => {
+    const wide = formatGlanceBar(base({ width: 200 }), fakeTheme())
+    const wideText = plain([wide[0]!.text])[0]!
+    expect(wideText).toContain(formatContextBar(0.42))
+    // model+cache+百分比+条 ≈ 44 列；去掉条 ≈ 35。40 落在两档之间。
+    const mid = formatGlanceBar(base({ width: 40 }), fakeTheme())
+    const midText = plain([mid[0]!.text])[0]!
+    expect(displayWidth(mid[0]!.text)).toBeLessThanOrEqual(40)
+    expect(midText).toContain('上下文 42%')
+    expect(midText).not.toContain('▓')
+    expect(midText).not.toContain('░')
   })
 })
 
@@ -203,6 +261,13 @@ describe('hideSegments（prefs.glance.hideSegments 透传）', () => {
     expect(segs.join(' ')).not.toContain('◎high')
     expect(segs.join(' ')).toContain('m1')
     expect(segs.join(' ')).toContain('◧ 100/200')
+  })
+
+  it('隐藏 context 时占用条一并消失', () => {
+    const segs = glanceBarSegments({ ...full, hideSegments: ['context'] })
+    expect(segs.join(' ')).not.toContain('上下文')
+    expect(segs.join(' ')).not.toContain('▓')
+    expect(segs.join(' ')).not.toContain('░')
   })
 
   it('model 与 stalled 不受隐藏影响（永不可隐藏）', () => {
