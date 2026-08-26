@@ -10,12 +10,23 @@
  */
 import type { SlashCommand } from './commands/registry.js';
 import type { RivetTheme } from './theme.js';
-/** 面板条目：命令名（不含 `/` 前缀）+ 描述 + 可选参数提示。 */
+/** 面板条目：命令名（不含 `/` 前缀）+ 描述 + 可选参数提示 + 分组名。 */
 export interface PaletteEntry {
     name: string;
     description: string;
     argsHint?: string;
+    /** 分组名（浏览可发现性）；缺省归「其他」。 */
+    group?: string;
 }
+/**
+ * 内置命令分组表（name → 组名）。外部插件命令不在表内 → 归「其他」。
+ * 新增内置命令时在此补一条，命令面板即自动分组。
+ */
+export declare const PALETTE_COMMAND_GROUPS: Readonly<Record<string, string>>;
+/** 分组渲染顺序（稳定排序；表外组名追加到尾部）。 */
+export declare const PALETTE_GROUP_ORDER: readonly string[];
+/** 未分组条目（外部插件命令等）的兜底组名。 */
+export declare const PALETTE_FALLBACK_GROUP = "\u5176\u4ED6";
 /** 面板状态：开合 + 查询串 + 选中下标（指向过滤后列表）。 */
 export interface PaletteState {
     open: boolean;
@@ -43,9 +54,9 @@ export type PaletteEvent = {
  */
 export declare function emptyPaletteState(): PaletteState;
 /**
- * SlashCommand → 面板条目。
+ * SlashCommand → 面板条目（自动填分组；表外命令归「其他」）。
  * @param commands - 注册表命令列表。
- * @returns 面板条目（argsHint 缺省时不带该字段）。
+ * @returns 面板条目（argsHint 缺省时不带该字段；group 恒有值）。
  */
 export declare function toPaletteEntries(commands: readonly SlashCommand[]): PaletteEntry[];
 /**

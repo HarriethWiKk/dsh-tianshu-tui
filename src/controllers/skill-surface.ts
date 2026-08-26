@@ -56,9 +56,9 @@ export function toSkillHint(skill: { name: string; description: string }): Slash
   return { name: skill.name, description: `🧭 ${skill.description}` }
 }
 
-/** #39：userInvocable 技能 → 命令面板条目（PaletteEntry 形状兼容，🧭 标记）。 */
+/** #39：userInvocable 技能 → 命令面板条目（PaletteEntry 形状兼容，🧭 标记，归「技能」组）。 */
 export function toSkillEntry(skill: { name: string; description: string }): PaletteEntry {
-  return { name: skill.name, description: `🧭 ${skill.description}` }
+  return { name: skill.name, description: `🧭 ${skill.description}`, group: '技能' }
 }
 
 /**
