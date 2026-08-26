@@ -17,6 +17,7 @@ import {
   SlashCommandRegistry,
   createBuiltinCommands,
   resolveSlashCommand,
+  suggestCommands,
   type SlashCommand,
 } from '../src/commands/registry.js'
 import { getActiveThemeName, setTheme } from '../src/theme.js'
@@ -1965,5 +1966,50 @@ describe('/preset（agent-presets 可选服务降级 + 切换链路）', () => {
     const { args: args2, echo: echo2 } = makeArgs({ text: 'ptc', ctx: makeCtx({ agentPresets: failing }) })
     await cmd.run(args2)
     expect(echo2).toHaveBeenCalledWith('切换失败: compose rejected')
+  })
+})
+
+describe('suggestCommands — 未知命令相近建议（闭环引导）', () => {
+  const ALL: readonly SlashCommand[] = [
+    { name: 'theme', description: '', run: vi.fn() },
+    { name: 'status', description: '', run: vi.fn() },
+    { name: 'steer', description: '', run: vi.fn() },
+    { name: 'glance', description: '', run: vi.fn() },
+    { name: 'session', description: '', run: vi.fn() },
+    { name: 'density', description: '', run: vi.fn() },
+    { name: 'help', description: '', run: vi.fn() },
+  ]
+
+  it('编辑距离命中笔误（/glans → glance）', () => {
+    const hits = suggestCommands('/glans', ALL)
+    expect(hits.map(c => c.name)).toContain('glance')
+    expect(hits[0]!.name).toBe('glance')
+  })
+
+  it('公共前缀命中歧义缩写（/st → status/steer 并列建议）', () => {
+    const hits = suggestCommands('/st', ALL)
+    const names = hits.map(c => c.name)
+    expect(names).toContain('status')
+    expect(names).toContain('steer')
+  })
+
+  it('单字符/空输入无建议（不猜命令）', () => {
+    expect(suggestCommands('/t', ALL)).toEqual([])
+    expect(suggestCommands('/', ALL)).toEqual([])
+    expect(suggestCommands('/  ', ALL)).toEqual([])
+  })
+
+  it('limit 截断与顺序稳定（距离升序、短名优先）', () => {
+    const hits = suggestCommands('/st', ALL, 1)
+    expect(hits).toHaveLength(1)
+  })
+
+  it('大小写不敏感且忽略 / 前缀', () => {
+    const hits = suggestCommands('GLANCE', ALL)
+    expect(hits[0]?.name).toBe('glance')
+  })
+
+  it('完全无关输入返回空（引导 /help）', () => {
+    expect(suggestCommands('/zzz', ALL)).toEqual([])
   })
 })

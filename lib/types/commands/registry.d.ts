@@ -192,3 +192,14 @@ export interface BuiltinCommandDeps extends StartupCommandDeps {
  */
 export declare function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[];
 export { getActiveThemeName };
+/**
+ * 未知命令的相近建议（闭环引导）：编辑距离命中（≤ 2 且 ≤ 输入长度一半——
+ * 短输入只信前缀，防 /st 误建议 btw/cost），其次公共前缀 ≥ 2。
+ * 歧义前缀（如 /st → steer/status）与笔误（如 /glans → glance）都能命中；
+ * 无相近命令返回空数组（调用方回退「/help 查看全部」引导）。
+ * @param input - 完整 slash 输入（含 / 前缀；大小写不敏感）。
+ * @param commands - 命令列表。
+ * @param limit - 建议条数上限（缺省 3）。
+ * @returns 建议命令（匹配度升序；距离相同时短名优先）。
+ */
+export declare function suggestCommands(input: string, commands: readonly SlashCommand[], limit?: number): SlashCommand[];
