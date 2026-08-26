@@ -123,16 +123,19 @@ The companion vision plugin lives in `vision-ask/` if you need image re-interrog
 
 ## Release notes
 
-Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.18`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.18)).
+Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.19`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.19)).
 
-### Unreleased (main)
+### 0.1.2-rc.19 (2026-08-26)
 
+`plugin add` of this package is enough to `/preset` onto official shipped surfaces; the list spells out each mode's capability and tools, and the footer shows the current short name.
+
+- **TUI composes the agent plane like web ([#47](https://github.com/huiliyi37/dsh-tianshu-tui/issues/47))** — this bundle mounts official `agent-presets` and disables host agent-plane rows; `/preset` switches the shipped tool/persona/delegation surface, not a stack on top of `dsh-base`
+- **`/preset` capability + toolset copy** — Standard / PTC / Minimal / Creator each get a one-line capability plus tools; footer and welcome top bar show the short name; `ptc`/`creative` alias `code`/`cordis`
 - **Glance context bar** — `上下文 N%` is followed by an 8-cell used/free bar (`▓`/`░`; ASCII fallback `[====----]`)
 - **`/session` calendar groups** — picker and `/session list` group into today / yesterday / this week / earlier; ↑↓ skip group headers
-- **OS notifications** — desktop bubbles when a subagent, workflow, or background task finishes (not on `turn/end`); silenced under `DSH_TUI_SKIP_NOTIFY`, SSH, CI, and tests
+- **OS notifications** — desktop bubbles when a subagent, workflow, or background task finishes (not on `turn/end`); subagent-complete notifications stay silent while a workflow is running; silenced under `DSH_TUI_SKIP_NOTIFY`, SSH, CI, and tests
 - **`/config` terminal section** — OS notify (empty-input `n`) and compact rendering (empty-input `d`, both persist in `prefs.json`); `/config notify [on|off]` still works. Empty host sections are omitted
 - **Inspect-panel UX** — `/config` `/skills` `/status` `/lsp` `/tasks` are exclusive; `Esc` closes the inspect panel first (even with a draft; does not arm rewind); `/skills` uses ↑↓/j/k on an empty input to expand the selected skill
-- **TUI composes the agent plane like web ([#47](https://github.com/huiliyi37/dsh-tianshu-tui/issues/47))** — this bundle mounts official `agent-presets` and disables host agent-plane rows; `/preset` switches the shipped tool/persona/delegation surface, not a stack on top of `dsh-base`. `plugin add` of this package is enough
 
 ### 0.1.2-rc.18 (2026-08-26)
 

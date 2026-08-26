@@ -122,16 +122,19 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 
 ## 更新说明
 
-当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.18`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.18)）。
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.19`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.19)）。
 
-### 未发布（main）
+### 0.1.2-rc.19（2026-08-26）
 
+装本包即可 `/preset` 切换官方 shipped 面；列表写清每套能力与工具，footer 露出当前短名。
+
+- **TUI 按 web 组 agent 面（[#47](https://github.com/huiliyi37/dsh-tianshu-tui/issues/47)）** — 本包 bundle 挂官方 `agent-presets` 并关掉 host agent 面；`plugin add` 本包即可 `/preset` 切换官方 shipped 预设，不必手改 profile `cordis.patch.yml`
+- **`/preset` 补能力与工具集** — 标准 / PTC / 极简 / 创造各列一句话能力 + 工具行；footer 与欢迎顶栏显示短名；`ptc`/`creative` 是 `code`/`cordis` 的别名
 - **glance 上下文占用条** — `上下文 N%` 后跟 8 格占用/剩余条（`▓`/`░`；ascii 回退 `[====----]`）
 - **`/session` 按日历分组** — 选择器与 `/session list` 按今天 / 昨天 / 本周 / 更早分组；↑↓ 跳过分组头
-- **系统通知** — 子代理 / 工作流 / 任务完成弹系统气泡（不打断 `turn/end`）；`DSH_TUI_SKIP_NOTIFY`、SSH、CI、测试环境静默
+- **系统通知** — 子代理 / 工作流 / 任务完成弹系统气泡（不打断 `turn/end`）；workflow 进行中不刷子代理完成通知；`DSH_TUI_SKIP_NOTIFY`、SSH、CI、测试环境静默
 - **`/config` 终端段** — 面板置顶系统通知（空输入 `n`）与紧凑渲染（空输入 `d`，写入 `prefs.json`）；`/config notify [on|off]` 仍可用。无宿主设置/凭据不再占位
 - **检查面板交互** — `/config` `/skills` `/status` `/lsp` `/tasks` 互斥（打开一项关掉其余）；`Esc` 先关检查面板（有草稿也关，不布防 rewind）；`/skills` 空输入 ↑↓/j/k 展开选中详情
-- **TUI 按 web 组 agent 面（[#47](https://github.com/huiliyi37/dsh-tianshu-tui/issues/47)）** — 本包 bundle 挂官方 `agent-presets` 并关掉 host agent 面；`plugin add` 本包即可 `/preset` 切换官方 shipped 预设，不必手改 profile `cordis.patch.yml`
 
 ### 0.1.2-rc.18（2026-08-26）
 
