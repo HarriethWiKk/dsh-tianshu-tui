@@ -1,5 +1,5 @@
 /**
- * 本地偏好持久化层 — ~/.dsh-tui/prefs.json（theme/density/preset/常驻面板/glance/notifyOs）。
+ * 本地偏好持久化层 — ~/.dsh-tui/prefs.json（theme/density/preset/常驻面板/glance/footerInfo/notifyOs）。
  *
  * 设计约束：
  * - 容错优先：损坏/缺失/未知 key 静默降级为空偏好（缺省 = 现行为），绝不阻塞启动。
@@ -22,6 +22,10 @@ export type GlanceHideableSegment = (typeof GLANCE_HIDEABLE_SEGMENTS)[number]
 export const PERSISTED_PANELS = ['subagents', 'workflow'] as const
 export type PersistedPanel = (typeof PERSISTED_PANELS)[number]
 
+/** 输入区信息密度档位（footerInfo）：full 两行 / compact 仅状态行 / off 全关。 */
+export const FOOTER_INFO_LEVELS = ['full', 'compact', 'off'] as const
+export type FooterInfoLevel = (typeof FOOTER_INFO_LEVELS)[number]
+
 /** 偏好文件形状（全部可选；未知 key 读取时丢弃，前向兼容）。 */
 export interface TuiPrefs {
   /** 主题名（内置名 | custom:<name> | 'auto'）。 */
@@ -32,6 +36,8 @@ export interface TuiPrefs {
   panels?: Partial<Record<PersistedPanel, boolean>>
   /** glance/footer 隐藏段。 */
   glance?: { hideSegments?: GlanceHideableSegment[] }
+  /** 输入区信息密度（缺省 full：状态行 + 指标行）。 */
+  footerInfo?: FooterInfoLevel
   /** 新会话默认 agent 预设 id（/preset … default）。 */
   preset?: string
   /** 后台完成时发系统通知（缺省开；false 关闭）。 */
@@ -63,6 +69,9 @@ export function parsePrefs(text: string): TuiPrefs {
   if (typeof obj.theme === 'string' && obj.theme !== '') prefs.theme = obj.theme
   if (typeof obj.preset === 'string' && obj.preset !== '') prefs.preset = obj.preset
   if (typeof obj.compactMode === 'boolean') prefs.compactMode = obj.compactMode
+  if (typeof obj.footerInfo === 'string' && (FOOTER_INFO_LEVELS as readonly string[]).includes(obj.footerInfo)) {
+    prefs.footerInfo = obj.footerInfo as FooterInfoLevel
+  }
   if (typeof obj.notifyOs === 'boolean') prefs.notifyOs = obj.notifyOs
   if (typeof obj.panels === 'object' && obj.panels !== null) {
     const p = obj.panels as Record<string, unknown>

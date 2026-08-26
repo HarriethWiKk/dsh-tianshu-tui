@@ -73,6 +73,51 @@ export function formatContextBar(ratio: number, ascii = false): string {
 }
 
 /**
+ * 状态段组装（纯函数）：身份/状态类段——预设短名 / model / effort / 停滞。
+ * 行 1 状态行的右侧段数据源；effort 可隐藏，其余为身份/告警段不可隐藏。
+ * @param input - metrics 输入；仅组装已提供的段。
+ * @returns 无色段文本列表，按固定顺序。
+ */
+export function glanceStatusSegments(input: FormatGlanceBarInput): string[] {
+  const hidden = new Set(input.hideSegments ?? [])
+  const segs: string[] = []
+  if (input.preset !== undefined && input.preset !== '') segs.push(input.preset)
+  if (input.modelName !== undefined) segs.push(input.modelName)
+  if (input.effort !== undefined && !hidden.has('effort')) segs.push(`◎${input.effort}`)
+  if (input.stalled) segs.push('停滞')
+  return segs
+}
+
+/**
+ * 指标段组装（纯函数）：指标类段——缓存% / 上下文%+占用条 / tokens / elapsed / cost / turn。
+ * 行 2 指标行的数据源；与 glanceBarSegments 中对应段逐字一致。
+ * @param input - metrics 输入；仅组装已提供的段（cost 有值即显示；turn 只在 density full 档）。
+ * @returns 无色段文本列表，按固定顺序。
+ */
+export function glanceMetricsSegments(input: FormatGlanceBarInput): string[] {
+  const hidden = new Set(input.hideSegments ?? [])
+  const segs: string[] = []
+  if (input.cacheHitRate !== undefined && !hidden.has('cache')) segs.push(`缓存 ${Math.round(input.cacheHitRate * 100)}%`)
+  if (input.contextRatio !== undefined && !hidden.has('context')) {
+    const warn = input.contextRatio >= CONTEXT_WARN_RATIO
+    const label = `${warn ? '⚠' : ''}上下文 ${Math.round(input.contextRatio * 100)}%`
+    segs.push(input.contextBar === false
+      ? label
+      : `${label} ${formatContextBar(input.contextRatio, input.ascii === true)}`)
+  }
+  if (input.tokens !== undefined && !hidden.has('tokens')) {
+    const t = `${formatTokenCount(input.tokens.used)}/${formatTokenCount(input.tokens.max)}`
+    segs.push(input.ascii ? `[${t}]` : `◧ ${t}`)
+  }
+  if (input.elapsedMs !== undefined && !hidden.has('elapsed')) segs.push(formatElapsedHuman(input.elapsedMs))
+  if (input.cost !== undefined && !hidden.has('cost')) segs.push(`$${input.cost}`)
+  if (input.density === 'full') {
+    if (input.turnCount !== undefined) segs.push(`#${input.turnCount}`)
+  }
+  return segs
+}
+
+/**
  * 段组装（纯函数；返回 ANSI 段列表，外层按 ` · ` 拼接）。
  * @param input - metrics 输入；仅组装已提供的段（cost 有值即显示；turn 只在 density full 档）。
  * @returns 无色段文本列表，按固定顺序。
@@ -149,6 +194,38 @@ export function formatGlanceBar(input: FormatGlanceBarInput, theme: RivetTheme):
       const modelOnly = next.modelName ?? ''
       return [{ text: color(truncateTo(modelOnly, width), theme.primary) }]
     }
+    current = next
+  }
+}
+
+/**
+ * 行 2 指标行渲染（分层 footer 的 metrics 行）：仅指标段，渐进 drop 次要段。
+ * 上下文段最保底（对齐 kimi-code Line 2 的 context 语义），cache 先于 context 丢；
+ * 与 formatGlanceBar 同策略但没有 model 保底——全删空即不渲染（返回空）。
+ * @param input - metrics 输入（width ≤ 0 或缺省时不渲染）。
+ * @param theme - 当前主题（整行 primary 色，与指标段既有配色一致）。
+ * @returns 单行 live 区内容；无可渲染内容返回空数组。
+ */
+export function formatGlanceMetricsLine(input: FormatGlanceBarInput, theme: RivetTheme): LiveRegionLine[] {
+  const width = input.width ?? 0
+  if (width <= 0) return []
+  let current: FormatGlanceBarInput = { ...input, width }
+  for (;;) {
+    const segs = glanceMetricsSegments(current)
+    if (segs.length === 0) return []
+    const text = segs.join(' · ')
+    if (displayWidth(text) <= width) {
+      return [{ text: color(text, theme.primary) }]
+    }
+    const next: FormatGlanceBarInput = { ...current }
+    if (next.elapsedMs !== undefined) delete next.elapsedMs
+    else if (next.cost !== undefined) delete next.cost
+    else if (next.turnCount !== undefined) delete next.turnCount
+    else if (next.tokens !== undefined) delete next.tokens
+    else if (next.cacheHitRate !== undefined) delete next.cacheHitRate
+    else if (next.contextBar !== false && next.contextRatio !== undefined) next.contextBar = false
+    else if (next.contextRatio !== undefined) delete next.contextRatio
+    else return []
     current = next
   }
 }

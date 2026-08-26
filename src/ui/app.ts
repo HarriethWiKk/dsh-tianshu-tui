@@ -21,6 +21,7 @@
 import { randomUUID } from 'node:crypto'
 import { gitBranch, gitDirtyCount, isGitRepo } from '../git-status.js'
 import {
+  FOOTER_INFO_LEVELS,
   GLANCE_HIDEABLE_SEGMENTS,
   prefsEnabled,
   readPrefs,
@@ -241,11 +242,11 @@ import { formatWhaleLogo, WHALE_MIN_ROWS } from '../format/whale.js'
 import { formatTopBar } from '../format/top-bar.js'
 import { livePresetShort } from '../preset-catalog.js'
 import { formatTurnStatus } from '../format/turn-status.js'
-import { formatPromptFooter } from '../format/prompt-footer.js'
+import { formatFooterInfo } from '../format/prompt-footer.js'
 import { formatInputFrame } from '../format/input-frame.js'
 import { formatSlashMenu, SLASH_MENU_MAX_ROWS } from '../format/slash-menu.js'
 import { formatSubagentDone } from '../format/subagent-line.js'
-import { glanceBarSegments } from '../format/glance-bar.js'
+import { glanceStatusSegments } from '../format/glance-bar.js'
 import { buildGlanceMetrics } from '../format/glance-metrics.js'
 import { MemoryBrowserOverlay } from '../format/memory-overlay.js'
 
@@ -777,9 +778,9 @@ export class TuiApp {
     this.streamRenderer = new StreamRenderer({
       commit: (ansi) => {
         // mid-stream 协议已由 commitToScrollback 统一执行（先清 live 区再写
-        // scrollback），随后重绘 live 区。
+        // scrollback），重绘在原子编舞内同步完成——不可走 schedule 延迟帧：
+        // 擦除即时而重绘延后会让输入框落底后缺席若干帧（闪烁根因）。
         this.commitToScrollback({ text: ansi, trailingNewline: true })
-        this.renderBatcher.schedule()
       },
       getColumns: () => this.stdout.columns,
       getTheme: () => getTheme(),
@@ -972,6 +973,21 @@ export class TuiApp {
         }
         this.renderBatcher.schedule()
         echo(echoSessionOnly('density', this.compactMode ? '紧凑' : '宽松'))
+      },
+    })
+    // 输入区信息密度档位：full 两行（状态行 + 指标行）/ compact 仅状态行 /
+    // off 全关。对齐 kimi-code footer 两行分层；持久化（与 /glance 同源）。
+    // 注册在 /glance 前——菜单环绕末项契约测试锚定 /glance。
+    this.slash.register({
+      name: 'info',
+      description: '切换输入区信息密度（full 两行 / compact 状态行 / off 全关）',
+      run: ({ echo }) => {
+        const current = this.prefs.footerInfo ?? 'full'
+        const next = FOOTER_INFO_LEVELS[(FOOTER_INFO_LEVELS.indexOf(current) + 1) % FOOTER_INFO_LEVELS.length]
+        this.prefs.footerInfo = next
+        this.persistPrefs()
+        this.renderBatcher.schedule()
+        echo(`输入区信息密度：${next}（${FOOTER_INFO_LEVELS.join(' / ')}）`)
       },
     })
     this.slash.register({
@@ -1495,9 +1511,7 @@ export class TuiApp {
       if (preview) blocks.push(preview.lines.join('\r\n'))
     }
     if (blocks.length === 0) return
-    this.live.clearForCommit()
-    this.commit.writeRaw(blocks.join('\r\n') + '\r\n')
-    this.flushLiveRender()
+    this.atomicScrollbackWrite(() => { this.commit.writeRaw(blocks.join('\r\n') + '\r\n') })
   }
 
   /**
@@ -2387,10 +2401,34 @@ export class TuiApp {
   private get theme(): RivetTheme { return getTheme() }
 
   /**
+   * 原子提交编舞（输入框闪烁根修，2026-08-27）：BEGIN_SYNC 包裹
+   * 「清 live 区 → 写 scrollback → 同步重绘」，END_SYNC 收口。
+   *
+   * 旧序里 clearForCommit 同步直写擦掉整个 live 区（含待办卡/输入轨/footer），
+   * 重绘却交给 WriteBatcher 的 16ms 尾沿——每个段落/思考块落底后屏幕上真实缺席
+   * 一帧 chrome，推理期段边界密集即呈现为「输入框消失几帧又出现」。三步收敛进
+   * 同一轮事件循环后间隙只剩写入耗时；再包 CSI 2026 同步窗把它对终端合成器也
+   * 隐藏。窗内 LiveEngine.render 自带的嵌套 begin 按 CSI 2026 语义忽略、其 end
+   * 的释放点恰是整幅新帧写完之时，擦除中间态不再有任何显示窗口。
+   */
+  private atomicScrollbackWrite(writeScrollback: () => void): void {
+    const stdout = this.stdout
+    stdout.write(ANSI.BEGIN_SYNC)
+    try {
+      this.live.clearForCommit()
+      writeScrollback()
+      this.flushLiveRender()
+    } finally {
+      // 写屏/渲染抛错也必须收口：支持 2026 的终端会持续缓冲到 end 才刷新。
+      stdout.write(ANSI.END_SYNC)
+    }
+  }
+
+  /**
    * 统一 scrollback 写入：先清除 live 区（mid-stream commit 协议），再写条目。
    * 不擦则文本写在光标处（live 区底部），随后 renderLive 重绘 live 区把刚写的
    * 内容覆盖——用户消息丢失根因（assistant 流式 commit 已带 clearForCommit，
-   * 非流式路径缺失导致行为不对称）。
+   * 非流式路径缺失导致行为不对称）。重绘由原子编舞内同步完成。
    * overlay 激活时只入队，退出 alt screen 后再按同一协议补写。
    */
   private commitToScrollback(entry: { text: string; trailingNewline?: boolean }): void {
@@ -2398,8 +2436,7 @@ export class TuiApp {
       this.deferredScrollback.push(entry)
       return
     }
-    this.live.clearForCommit()
-    this.commit.write(entry)
+    this.atomicScrollbackWrite(() => { this.commit.write(entry) })
   }
 
   /** overlay 退出后把暂存条目按 mid-stream 协议写入主屏 scrollback。 */
@@ -2407,11 +2444,13 @@ export class TuiApp {
     const pending = this.deferredScrollback
     if (pending.length === 0) return
     this.deferredScrollback = []
-    for (const entry of pending) {
-      this.live.clearForCommit()
-      if ('raw' in entry) this.commit.writeRaw(entry.raw)
-      else this.commit.write(entry)
-    }
+    this.atomicScrollbackWrite(() => {
+      for (const entry of pending) {
+        this.live.clearForCommit()
+        if ('raw' in entry) this.commit.writeRaw(entry.raw)
+        else this.commit.write(entry)
+      }
+    })
   }
 
   /**
@@ -2511,16 +2550,14 @@ export class TuiApp {
         if (s) seq += s + (protocol === 'kitty' ? '\r' : '\r\n')
       }
       if (!seq) return
-      // 与 commitToScrollback 同协议：先清 live 区再写，写完立即重绘。
+      // 与 commitToScrollback 同协议：原子编舞内先清 live 区再写，同步重绘。
       // overlay 激活（alt screen）时入队，退出后按同一协议补写（与文本条目
       // 同队列，顺序保持）；否则字节会写进 alt screen 且退出后丢失。
       if (this.overlay !== null && this.overlay.activeId() !== null) {
         this.deferredScrollback.push({ raw: seq })
         return
       }
-      this.live.clearForCommit()
-      this.commit.writeRaw(seq)
-      this.flushLiveRender()
+      this.atomicScrollbackWrite(() => { this.commit.writeRaw(seq) })
     })()
   }
 
@@ -2687,11 +2724,14 @@ export class TuiApp {
     this.palette?.close()
     this.picker?.close()
     this.controls?.cancel({ kind: 'user' })
-    this.commitToScrollback({ text: '⏹ 已取消', trailingNewline: true })
+    // 先丢弃流式残文再提交中止提示：提交编舞会同步重绘一帧，残尾若还留在
+    // peek/pending 里就会把上一个 run 的残留画进那一帧（提交与丢弃的次序
+    // 曾被延迟重绘掩盖，同步化后必须理顺）。
     this.blockWriter.discard()
     this.streamRenderer.reset()
     this.discardReasoning()
     this.pendingCallTitles.clear()
+    this.commitToScrollback({ text: '⏹ 已取消', trailingNewline: true })
     this.flushLiveRender()
   }
 
@@ -3573,8 +3613,9 @@ export class TuiApp {
     this.lastReasoningBlock = { text: this.reasoningText, ...(elapsedMs === undefined ? {} : { elapsedMs }) }
     this.reasoningExpanded = false
     this.discardReasoning()
+    // commitToScrollback 原子编舞内同步重绘（旧 schedule 尾沿是推理段落底时
+    // 输入框缺席数帧的闪烁根因之一）。
     this.commitToScrollback({ text: lines.join('\n'), trailingNewline: true })
-    this.renderBatcher.schedule()
   }
 
   /** 丢弃推理缓冲（abort / 会话切换；aborted turn 的推理不落底）。 */
@@ -4035,22 +4076,26 @@ export class TuiApp {
       lines.push(i === frame.caretLine ? { text: line, caretCol: frame.caretCol } : { text: line })
     }
 
-    // C4：footer 一行——左模式/快捷键、右 token/模型/API。任意宽度右对齐合并，
-    // 放不下从右丢段；不再纵排 theme.primary 的第二行 metrics（窄屏折行变蓝）。
-    // A3：git 未提交 ●N 段置于右段末尾（丢段从右丢 → ●N 最次要先丢，不挤 metrics）。
+    // C4：footer 分层两行（对齐 kimi-code）——行 1 状态行：左 mode/快捷键、
+    // 右状态段（预设/model/API/git；任意宽度右对齐合并，放不下从右丢段）；
+    // 行 2 指标行：context/tokens/cost 等（full 档；compact 仅行 1，off 全关）。
+    // A3：git 未提交 ●N 段置于行 1 右段末尾（丢段从右丢 → ●N 最次要先丢）。
     const bottomMetrics = this.glanceMetrics()
     const dirtySeg = this.gitDirty > 0 ? `●${this.gitDirty}` : null
+    const apiSeg = `API ${this.apiKeyReady ? '✓' : '✗'}`
     const rightSegments = bottomMetrics === null
-      ? (dirtySeg === null ? undefined : [`API ${this.apiKeyReady ? '✓' : '✗'}`, dirtySeg])
-      : [...glanceBarSegments({ ...bottomMetrics, width: cols, hideSegments: this.prefs.glance?.hideSegments }), `API ${this.apiKeyReady ? '✓' : '✗'}`, ...(dirtySeg === null ? [] : [dirtySeg])]
-    const footerLines = formatPromptFooter({
+      ? (dirtySeg === null ? undefined : [apiSeg, dirtySeg])
+      : [...glanceStatusSegments({ ...bottomMetrics, hideSegments: this.prefs.glance?.hideSegments }), apiSeg, ...(dirtySeg === null ? [] : [dirtySeg])]
+    const footerLines = formatFooterInfo({
       width: cols,
       planActive: planProj?.active === true,
       planPending: planProj?.pending === true,
       alwaysApprove: this.approval.alwaysApprove,
       approvalPending: this.approval.isPending,
       inspectOpen: this.inspect.any(),
+      level: this.prefs.footerInfo ?? 'full',
       ...(rightSegments !== undefined ? { rightSegments } : {}),
+      ...(bottomMetrics !== null ? { metrics: { ...bottomMetrics, hideSegments: this.prefs.glance?.hideSegments } } : {}),
     }, theme)
     for (const line of footerLines) lines.push({ text: line })
 

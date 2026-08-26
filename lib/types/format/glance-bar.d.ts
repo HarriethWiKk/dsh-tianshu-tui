@@ -47,6 +47,20 @@ export declare const CONTEXT_BAR_CELLS = 8;
  */
 export declare function formatContextBar(ratio: number, ascii?: boolean): string;
 /**
+ * 状态段组装（纯函数）：身份/状态类段——预设短名 / model / effort / 停滞。
+ * 行 1 状态行的右侧段数据源；effort 可隐藏，其余为身份/告警段不可隐藏。
+ * @param input - metrics 输入；仅组装已提供的段。
+ * @returns 无色段文本列表，按固定顺序。
+ */
+export declare function glanceStatusSegments(input: FormatGlanceBarInput): string[];
+/**
+ * 指标段组装（纯函数）：指标类段——缓存% / 上下文%+占用条 / tokens / elapsed / cost / turn。
+ * 行 2 指标行的数据源；与 glanceBarSegments 中对应段逐字一致。
+ * @param input - metrics 输入；仅组装已提供的段（cost 有值即显示；turn 只在 density full 档）。
+ * @returns 无色段文本列表，按固定顺序。
+ */
+export declare function glanceMetricsSegments(input: FormatGlanceBarInput): string[];
+/**
  * 段组装（纯函数；返回 ANSI 段列表，外层按 ` · ` 拼接）。
  * @param input - metrics 输入；仅组装已提供的段（cost 有值即显示；turn 只在 density full 档）。
  * @returns 无色段文本列表，按固定顺序。
@@ -59,3 +73,12 @@ export declare function glanceBarSegments(input: FormatGlanceBarInput): string[]
  * @returns 单行 live 区内容；无可渲染内容返回空数组。
  */
 export declare function formatGlanceBar(input: FormatGlanceBarInput, theme: RivetTheme): LiveRegionLine[];
+/**
+ * 行 2 指标行渲染（分层 footer 的 metrics 行）：仅指标段，渐进 drop 次要段。
+ * 上下文段最保底（对齐 kimi-code Line 2 的 context 语义），cache 先于 context 丢；
+ * 与 formatGlanceBar 同策略但没有 model 保底——全删空即不渲染（返回空）。
+ * @param input - metrics 输入（width ≤ 0 或缺省时不渲染）。
+ * @param theme - 当前主题（整行 primary 色，与指标段既有配色一致）。
+ * @returns 单行 live 区内容；无可渲染内容返回空数组。
+ */
+export declare function formatGlanceMetricsLine(input: FormatGlanceBarInput, theme: RivetTheme): LiveRegionLine[];

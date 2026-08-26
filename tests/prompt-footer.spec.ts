@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest'
 import type { RivetTheme } from '../src/theme.js'
 import { displayWidth } from '../src/width.js'
-import { formatPromptFooter, type FormatPromptFooterInput } from '../src/format/prompt-footer.js'
+import { formatPromptFooter, formatFooterInfo, type FormatPromptFooterInput, type FormatFooterInfoInput } from '../src/format/prompt-footer.js'
 
 function fakeTheme(): RivetTheme {
   return {
@@ -164,5 +164,60 @@ describe('formatPromptFooter', () => {
     expect(line).toContain('\x1B[38;2;170;178;194m')
     expect(line).toContain('\x1B[38;2;94;102;115m')
     expect(line).not.toContain('\x1B[38;2;17;17;17m')
+  })
+})
+
+describe('formatFooterInfo（分层 footer：行 1 状态行 + 行 2 指标行）', () => {
+  const metrics = {
+    cacheHitRate: 0.82,
+    contextRatio: 0.42,
+    tokens: { used: 12_500, max: 200_000 },
+    elapsedMs: 65_000,
+    cost: 0.42,
+    turnCount: 7,
+    density: 'full' as const,
+  }
+
+  function infoBase(over: Partial<FormatFooterInfoInput> = {}): FormatFooterInfoInput {
+    return { width: 100, ...over }
+  }
+
+  it('full：两行——行 1 状态（mode + 右段），行 2 指标（上下文/tokens/cost）', () => {
+    const lines = plain(formatFooterInfo(infoBase({ rightSegments: ['PTC', 'deepseek-v4', 'API ✓'], metrics }), fakeTheme()))
+    expect(lines.length).toBe(2)
+    expect(lines[0]).toContain('normal')
+    expect(lines[0]).toContain('PTC')
+    expect(lines[0]).toContain('deepseek-v4')
+    expect(lines[0]).toContain('API ✓')
+    expect(lines[1]).toContain('上下文 42%')
+    expect(lines[1]).toContain('#7')
+    expect(lines[1]).toContain('$0.42')
+    expect(lines[1]).not.toContain('PTC')
+    expect(lines[1]).not.toContain('deepseek-v4')
+  })
+
+  it('compact：仅行 1 状态行，无指标行', () => {
+    const lines = plain(formatFooterInfo(infoBase({ level: 'compact', rightSegments: ['PTC', 'API ✓'], metrics }), fakeTheme()))
+    expect(lines.length).toBe(1)
+    expect(lines[0]).toContain('normal')
+    expect(lines[0]).toContain('PTC')
+    expect(lines[0]).toContain('API ✓')
+    expect(lines[0]).not.toContain('上下文')
+  })
+
+  it('off：空（输入轨下方无 footer）', () => {
+    expect(formatFooterInfo(infoBase({ level: 'off', rightSegments: ['API ✓'], metrics }), fakeTheme())).toEqual([])
+  })
+
+  it('metrics 缺省或空时不渲染行 2（等效 compact）', () => {
+    expect(formatFooterInfo(infoBase({ rightSegments: ['API ✓'] }), fakeTheme()).length).toBe(1)
+  })
+
+  it('任何档位下行宽 ≤ width', () => {
+    for (const level of ['full', 'compact', 'off'] as const) {
+      for (const line of formatFooterInfo(infoBase({ level, rightSegments: ['PTC', 'deepseek-v4', 'API ✓', '●3'], metrics }), fakeTheme())) {
+        expect(displayWidth(plain([line])[0]!)).toBeLessThanOrEqual(100)
+      }
+    }
   })
 })

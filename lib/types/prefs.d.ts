@@ -1,5 +1,5 @@
 /**
- * 本地偏好持久化层 — ~/.dsh-tui/prefs.json（theme/density/preset/常驻面板/glance/notifyOs）。
+ * 本地偏好持久化层 — ~/.dsh-tui/prefs.json（theme/density/preset/常驻面板/glance/footerInfo/notifyOs）。
  *
  * 设计约束：
  * - 容错优先：损坏/缺失/未知 key 静默降级为空偏好（缺省 = 现行为），绝不阻塞启动。
@@ -15,6 +15,9 @@ export type GlanceHideableSegment = (typeof GLANCE_HIDEABLE_SEGMENTS)[number];
 /** 常驻监控面板（可持久化显隐；config/skills 等模态面板不持久化）。 */
 export declare const PERSISTED_PANELS: readonly ['subagents', 'workflow'];
 export type PersistedPanel = (typeof PERSISTED_PANELS)[number];
+/** 输入区信息密度档位（footerInfo）：full 两行 / compact 仅状态行 / off 全关。 */
+export declare const FOOTER_INFO_LEVELS: readonly ['full', 'compact', 'off'];
+export type FooterInfoLevel = (typeof FOOTER_INFO_LEVELS)[number];
 /** 偏好文件形状（全部可选；未知 key 读取时丢弃，前向兼容）。 */
 export interface TuiPrefs {
     /** 主题名（内置名 | custom:<name> | 'auto'）。 */
@@ -27,6 +30,8 @@ export interface TuiPrefs {
     glance?: {
         hideSegments?: GlanceHideableSegment[];
     };
+    /** 输入区信息密度（缺省 full：状态行 + 指标行）。 */
+    footerInfo?: FooterInfoLevel;
     /** 新会话默认 agent 预设 id（/preset … default）。 */
     preset?: string;
     /** 后台完成时发系统通知（缺省开；false 关闭）。 */

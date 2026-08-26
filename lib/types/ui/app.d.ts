@@ -582,10 +582,22 @@ export declare class TuiApp {
     /** 当前主题（动态读取，切主题后立即生效）。 */
     private get theme();
     /**
+     * 原子提交编舞（输入框闪烁根修，2026-08-27）：BEGIN_SYNC 包裹
+     * 「清 live 区 → 写 scrollback → 同步重绘」，END_SYNC 收口。
+     *
+     * 旧序里 clearForCommit 同步直写擦掉整个 live 区（含待办卡/输入轨/footer），
+     * 重绘却交给 WriteBatcher 的 16ms 尾沿——每个段落/思考块落底后屏幕上真实缺席
+     * 一帧 chrome，推理期段边界密集即呈现为「输入框消失几帧又出现」。三步收敛进
+     * 同一轮事件循环后间隙只剩写入耗时；再包 CSI 2026 同步窗把它对终端合成器也
+     * 隐藏。窗内 LiveEngine.render 自带的嵌套 begin 按 CSI 2026 语义忽略、其 end
+     * 的释放点恰是整幅新帧写完之时，擦除中间态不再有任何显示窗口。
+     */
+    private atomicScrollbackWrite;
+    /**
      * 统一 scrollback 写入：先清除 live 区（mid-stream commit 协议），再写条目。
      * 不擦则文本写在光标处（live 区底部），随后 renderLive 重绘 live 区把刚写的
      * 内容覆盖——用户消息丢失根因（assistant 流式 commit 已带 clearForCommit，
-     * 非流式路径缺失导致行为不对称）。
+     * 非流式路径缺失导致行为不对称）。重绘由原子编舞内同步完成。
      * overlay 激活时只入队，退出 alt screen 后再按同一协议补写。
      */
     private commitToScrollback;

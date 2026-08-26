@@ -4036,6 +4036,51 @@ describe('TuiApp /config /skills /density 面板命令', () => {
     expect(written).toContain('ok')
     await app.dispose()
   })
+
+  it('/info 循环切换输入区信息密度并回显（full→compact→off→full）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('info-1')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    await app.attach()
+
+    for (const expected of ['compact', 'off', 'full']) {
+      app.handleSubmit('/info')
+      await new Promise(resolve => setImmediate(resolve))
+      const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+      expect(written).toContain(`输入区信息密度：${expected}`)
+    }
+    await app.dispose()
+  })
+
+  it('/info 分层接线：off 档 footer 全关（ctrl+p 提示消失）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('info-2')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
+    await app.attach()
+
+    app.handleSubmit('hi')
+    await new Promise(resolve => setImmediate(resolve))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('ctrl+p') // full 档 footer 行 1 快捷键提示
+
+    app.handleSubmit('/info')
+    await new Promise(resolve => setImmediate(resolve))
+    app.handleSubmit('/info')
+    await new Promise(resolve => setImmediate(resolve))
+    const before = stdout.write.mock.calls.length
+    app.handleSubmit('hi2')
+    await new Promise(resolve => setImmediate(resolve))
+    // 只看 hi2 之后新增的帧：off 档 footer 全关
+    const afterOff = stdout.write.mock.calls.slice(before).map(c => `${c[0]}`).join('')
+    expect(afterOff).not.toContain('ctrl+p')
+    await app.dispose()
+  })
 })
 
 describe('TuiApp #39 技能手势：slash 菜单条目 + 提交分流 + MRU', () => {
@@ -4772,8 +4817,15 @@ describe('TuiApp 结算卡与推理通道', () => {
       return stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     }
     stdout.write.mockClear()
+    // 原子提交编舞（2026-08-27）后，/theme 重放在 submit 返回前同步完成——
+    // 观察窗口必须把「已发生的写屏」算作新帧：等 calls>0 而非对触发后的
+    // 基线求增长（基线取在触发之后会永远等不到下一帧）。#40 断言不变：
+    // 重放帧里不得残留推理展开态。
     app.handleSubmit('/theme paper')
-    const themed = await frameAfter()
+    await vi.waitFor(() => {
+      expect(stdout.write.mock.calls.length).toBeGreaterThan(0)
+    }, { timeout: 5_000, interval: 15 })
+    const themed = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     expect(themed).not.toContain('ctrl+o 收起')
 
     // 重放复位瞬时展开；重开一次，再收起验证往返。

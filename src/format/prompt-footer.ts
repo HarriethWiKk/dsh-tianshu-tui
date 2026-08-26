@@ -11,6 +11,35 @@ import { color } from '../engine/ansi.js'
 import { CHROME_INACTIVE_SHIMMER, CHROME_SUBTLE } from './chrome-colors.js'
 import type { RivetTheme } from '../theme.js'
 import { displayWidth } from '../width.js'
+import type { FooterInfoLevel } from '../prefs.js'
+import type { FormatGlanceBarInput } from './glance-bar.js'
+import { formatGlanceMetricsLine } from './glance-bar.js'
+
+/** formatFooterInfo 的渲染输入（行 1 输入 + 档位 + 行 2 指标数据源）。 */
+export interface FormatFooterInfoInput extends FormatPromptFooterInput {
+  /** 信息密度档位：full 两行 / compact 仅状态行 / off 全关（缺省 full）。 */
+  level?: FooterInfoLevel
+  /** 指标段（行 2 数据源）；缺省或空 metrics 不渲染行 2。 */
+  metrics?: FormatGlanceBarInput
+}
+
+/**
+ * 按档位组装分层 footer：行 1 状态行（mode + 提示 + 状态右段），行 2 指标行。
+ * full 两行 / compact 仅行 1 / off 空。对齐 kimi-code footer 的两行分层：
+ * 状态（mode/model/API/git）与指标（context/tokens/cost）分置，指标行弱化可整体摘除。
+ * @param input - 行 1 输入、档位与行 2 指标数据。
+ * @param theme - 当前主题。
+ * @returns 0-2 行 ANSI；每行显示宽度 ≤ width。
+ */
+export function formatFooterInfo(input: FormatFooterInfoInput, theme: RivetTheme): string[] {
+  const level = input.level ?? 'full'
+  if (level === 'off') return []
+  const lines = formatPromptFooter(input, theme)
+  if (level === 'compact' || input.metrics === undefined) return lines
+  const metricLines = formatGlanceMetricsLine({ ...input.metrics, width: input.width }, theme)
+  if (metricLines.length === 0) return lines
+  return [...lines, metricLines[0].text]
+}
 
 /** formatPromptFooter 的渲染输入。 */
 export interface FormatPromptFooterInput {

@@ -79,6 +79,7 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
 | `/yolo [on\|off]` | 全放行模式 |
 | `/density [default]` | 切换紧凑工具卡渲染(开关=本会话; `/density default`=启动默认) |
 | `/glance [segment]` | 切换 footer metrics 段显隐(如 `/glance cost`;无参查看现状) |
+| `/info` | 切换输入区信息密度: `full` 两行(状态行+指标行, 缺省) / `compact` 仅状态行 / `off` 全关; 持久化 |
 
 ### 面板
 

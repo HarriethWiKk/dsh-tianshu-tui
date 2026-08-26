@@ -25,6 +25,7 @@ describe('parsePrefs 容错', () => {
       theme: 'custom:mine',
       preset: 'minimal',
       compactMode: true,
+      footerInfo: 'compact',
       notifyOs: false,
       panels: { subagents: true, workflow: false },
       glance: { hideSegments: ['cost', 'cache'] },
@@ -33,10 +34,18 @@ describe('parsePrefs 容错', () => {
       theme: 'custom:mine',
       preset: 'minimal',
       compactMode: true,
+      footerInfo: 'compact',
       notifyOs: false,
       panels: { subagents: true, workflow: false },
       glance: { hideSegments: ['cost', 'cache'] },
     })
+  })
+
+  it('footerInfo 只收白名单三档（full/compact/off），非法丢弃', () => {
+    expect(parsePrefs(JSON.stringify({ footerInfo: 'off' }))).toEqual({ footerInfo: 'off' })
+    expect(parsePrefs(JSON.stringify({ footerInfo: 'full' }))).toEqual({ footerInfo: 'full' })
+    expect(parsePrefs(JSON.stringify({ footerInfo: 'verbose' }))).toEqual({})
+    expect(parsePrefs(JSON.stringify({ footerInfo: 42 }))).toEqual({})
   })
 
   it('非法 JSON / 非对象 / 空串主题 → 空偏好', () => {

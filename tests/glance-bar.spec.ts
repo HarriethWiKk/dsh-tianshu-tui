@@ -13,7 +13,10 @@ import {
   formatTokenCount,
   formatContextBar,
   glanceBarSegments,
+  glanceStatusSegments,
+  glanceMetricsSegments,
   formatGlanceBar,
+  formatGlanceMetricsLine,
   CONTEXT_BAR_CELLS,
   type FormatGlanceBarInput,
 } from '../src/format/glance-bar.js'
@@ -289,5 +292,121 @@ describe('hideSegments（prefs.glance.hideSegments 透传）', () => {
     const text = plain([line!.text])[0]!
     expect(text).not.toContain('$0.42')
     expect(text).toContain('#7')
+  })
+})
+
+describe('glanceStatusSegments（分层 footer 行 1 状态段）', () => {
+  const statusBase = { modelName: 'deepseek-v4', preset: 'PTC', effort: 'high', stalled: true }
+
+  it('组装 preset / model / effort / 停滞，按固定顺序', () => {
+    const segs = glanceStatusSegments(statusBase)
+    expect(segs).toEqual(['PTC', 'deepseek-v4', '◎high', '停滞'])
+  })
+
+  it('空 preset 与缺省段不占位', () => {
+    const segs = glanceStatusSegments({ modelName: 'm1' })
+    expect(segs).toEqual(['m1'])
+  })
+
+  it('effort 可隐藏（preset/model/停滞永不可隐藏）', () => {
+    const segs = glanceStatusSegments({ ...statusBase, hideSegments: ['effort', 'stalled'] })
+    expect(segs).toEqual(['PTC', 'deepseek-v4', '停滞'])
+  })
+})
+
+describe('glanceMetricsSegments（分层 footer 行 2 指标段）', () => {
+  const metricsBase: FormatGlanceBarInput = {
+    cacheHitRate: 0.82,
+    contextRatio: 0.42,
+    tokens: { used: 12_500, max: 200_000 },
+    elapsedMs: 65_000,
+    cost: 0.42,
+    turnCount: 7,
+    density: 'full',
+  }
+
+  it('组装 缓存/上下文+条/tokens/elapsed/cost/turn，不含身份段', () => {
+    const segs = glanceMetricsSegments(metricsBase)
+    expect(segs.join(' · ')).toContain('缓存 82%')
+    expect(segs.join(' · ')).toContain('上下文 42%')
+    expect(segs.join(' · ')).toContain('▓')
+    expect(segs.join(' · ')).toContain('◧ 12.5k/200k')
+    expect(segs.join(' · ')).toContain('1m')
+    expect(segs.join(' · ')).toContain('$0.42')
+    expect(segs.join(' · ')).toContain('#7')
+    expect(segs.join(' · ')).not.toContain('deepseek')
+    expect(segs.join(' · ')).not.toContain('PTC')
+  })
+
+  it('turn 只在 density full 档', () => {
+    expect(glanceMetricsSegments({ ...metricsBase, density: 'compact' }).join(' ')).not.toContain('#7')
+    expect(glanceMetricsSegments({ ...metricsBase, density: 'compact' }).join(' ')).toContain('上下文')
+  })
+
+  it('隐藏段不参与拼接；contextBar false 去占用条', () => {
+    const segs = glanceMetricsSegments({ ...metricsBase, hideSegments: ['cost', 'cache'], contextBar: false })
+    expect(segs.join(' ')).not.toContain('$0.42')
+    expect(segs.join(' ')).not.toContain('缓存')
+    expect(segs.join(' ')).toContain('上下文 42%')
+    expect(segs.join(' ')).not.toContain('▓')
+  })
+})
+
+describe('formatGlanceMetricsLine（分层 footer 行 2 渲染）', () => {
+  const metricsBase: FormatGlanceBarInput = {
+    width: 80,
+    cacheHitRate: 0.82,
+    contextRatio: 0.42,
+    tokens: { used: 12_500, max: 200_000 },
+    elapsedMs: 65_000,
+    cost: 0.42,
+    turnCount: 7,
+    density: 'full',
+  }
+
+  it('正常宽度整行渲染，宽度守恒', () => {
+    const lines = formatGlanceMetricsLine(metricsBase, fakeTheme())
+    expect(lines.length).toBe(1)
+    const text = plain([lines[0]!.text])[0]!
+    expect(text).toContain('上下文 42%')
+    expect(text).toContain('#7')
+    expect(displayWidth(text)).toBeLessThanOrEqual(80)
+  })
+
+  it('窄宽渐进 drop 次要段，上下文段最后保留', () => {
+    const lines = formatGlanceMetricsLine({ ...metricsBase, width: 30 }, fakeTheme())
+    const text = plain([lines[0]!.text])[0]!
+    expect(text).toContain('上下文')
+    expect(text).not.toContain('#7')
+    expect(text).not.toContain('$0.42')
+    expect(displayWidth(text)).toBeLessThanOrEqual(30)
+  })
+
+  it('极窄只留上下文标签（摘占用条）', () => {
+    const lines = formatGlanceMetricsLine({ ...metricsBase, width: 12 }, fakeTheme())
+    const text = plain([lines[0]!.text])[0]!
+    expect(text).toContain('上下文')
+    expect(text).not.toContain('▓')
+    expect(displayWidth(text)).toBeLessThanOrEqual(12)
+  })
+
+  it('隐藏全部可隐藏指标段后只剩 #7（turn 不可隐藏）', () => {
+    const lines = formatGlanceMetricsLine({
+      ...metricsBase,
+      hideSegments: ['cache', 'context', 'tokens', 'elapsed', 'cost'],
+    }, fakeTheme())
+    const text = plain([lines[0]!.text])[0]!
+    expect(text).toBe('#7')
+  })
+
+  it('无任何指标段（全隐藏 + 无 turn）返回空；width ≤ 0 不渲染', () => {
+    const empty = formatGlanceMetricsLine({
+      ...metricsBase,
+      turnCount: undefined,
+      density: 'compact',
+      hideSegments: ['cache', 'context', 'tokens', 'elapsed', 'cost'],
+    }, fakeTheme())
+    expect(empty).toEqual([])
+    expect(formatGlanceMetricsLine({ ...metricsBase, width: 0 }, fakeTheme())).toEqual([])
   })
 })
