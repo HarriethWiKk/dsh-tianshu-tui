@@ -45,7 +45,10 @@ export declare class RewindOverlay implements OverlayRenderer {
     private result;
     private readonly theme;
     private executor;
-    constructor(theme?: RivetTheme);
+    private readonly onSettled;
+    constructor(theme?: RivetTheme, options?: {
+        onSettled?: () => void;
+    });
     /**
      * 装配方提供检查点快照 + 执行回调；重复设置重置状态。
      * @param messages - 用户检查点快照（过滤后的 transcript 行）。

@@ -42,7 +42,7 @@ import { installModelSelection, type Agent, type AgentHandle, type ModelSelectio
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import { CommitEngine } from '../engine/commit-engine.js'
 import { ANSI, color, imageProtocol, osc52Clipboard } from '../engine/ansi.js'
-import { LiveEngine, LIVE_TOOL_CARD_MAX, liveMaxRowsFor, nextDynamicBudget, padDynamicRegion, type LiveRegionLine } from '../engine/live-engine.js'
+import { LiveEngine, LIVE_TOOL_CARD_MAX, liveMaxRowsFor, nextDynamicBudget, padDynamicRegion, workingRowsCap, type LiveRegionLine } from '../engine/live-engine.js'
 import { WriteBatcher } from '../engine/write-batcher.js'
 import { InputHandler, type KeyPress, type KeyName } from '../engine/input-handler.js'
 import { InputLine, inputViewportMaxLines } from '../engine/input-line.js'
@@ -1236,7 +1236,9 @@ export class TuiApp {
     this.searchOverlay = new HistorySearchOverlay()
     this.overlay.register('search', this.searchOverlay)
     // C3 项 3：rewind overlay（/rewind）——消息快照 + 执行回调在激活时提供。
-    this.rewindOverlay = new RewindOverlay()
+    this.rewindOverlay = new RewindOverlay(undefined, {
+      onSettled: () => { this.overlay?.rerender() },
+    })
     this.overlay.register('rewind', this.rewindOverlay)
     // P2：memory 浏览器 overlay（/memory）——条目快照 + 数据源在激活时注入。
     this.memoryOverlay = new MemoryBrowserOverlay()
@@ -3984,12 +3986,13 @@ export class TuiApp {
     // 输入框钉住、回缩黑洞与旧轨线重影一并消除。欢迎首帧（无消息且非运行）不垫。
     const terminalRows = this.stdout.rows || 24
     const raw = terminalRows - chromeRows - 2
-    const ceiling = Math.max(0, Math.min(raw, liveMaxRowsFor(terminalRows) - chromeRows))
+    const ceiling = Math.max(0, Math.min(raw, workingRowsCap(terminalRows, chromeRows)))
     let slashRows = 0
     for (const line of slashLines) slashRows += rowsForLine(line)
     // 定高视口：动态段按高水位垫到恰好 budget，live region 只涨不缩 →
     // 输入框钉住、回缩黑洞与旧轨线重影一并消除。欢迎首帧（无消息且非运行、
-    // 未开过 slash 菜单）不垫，避免凭空空白。
+    // 未开过 slash 菜单）不垫，但仍按 Working 封顶从顶裁，避免活动带把
+    // 审批卡/输入轨挤出 24 行视口。
     // slash 菜单/hint 虽在 chrome 段（小窗不被裁剪），其行数计入被跟踪总量：
     // ceiling 已含 chromeRows（含 slashRows），传 ceiling + slashRows 使上限与
     // 菜单高度无关 → 菜单开合/过滤只改垫高行数，输入框行位恒定。首次打开时
@@ -4006,7 +4009,7 @@ export class TuiApp {
       this.reasoningExpanded,
     )
     this.dynamicRowsHighWater = next.highWater
-    const padded = padDynamicRegion(lines, chromeStart, Math.max(0, next.budget - slashRows), rowsForLine)
+    const padded = padDynamicRegion(lines, chromeStart, Math.max(0, next.budget - slashRows), rowsForLine, { pad: !skipPad })
     const chromeTail = padded.lines.length - padded.chromeStart
     this.live.render(padded.lines, chromeTail > 0 ? { reservedTail: chromeTail } : undefined)
     this.perfMonitor.record('renderLive', performance.now() - renderStart)

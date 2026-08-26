@@ -93,6 +93,45 @@ describe('RewindOverlay 状态机', () => {
     expect(rows.some(r => r.includes('回退失败：boom'))).toBe(true)
   })
 
+  it('onSettled：异步执行落到 done 时回调一次（成功与失败都触发）', async () => {
+    const settled = vi.fn()
+    let releaseExecutor: (() => void) | undefined
+    const executor = vi.fn(() => new Promise<{ filesChanged: number }>((resolve) => {
+      releaseExecutor = () => { resolve({ filesChanged: 0 }) }
+    }))
+    const ov = new RewindOverlay(undefined, { onSettled: settled })
+    ov.setMessages(MESSAGES, executor)
+    ov.handleKey('return', '')
+    ov.handleKey('', '1')
+    // 执行未决期间不触发（此时同步重绘只能画出 executing 帧）。
+    await new Promise(resolve => setImmediate(resolve))
+    expect(settled).not.toHaveBeenCalled()
+    releaseExecutor?.()
+    await new Promise(resolve => setImmediate(resolve))
+    expect(settled).toHaveBeenCalledTimes(1)
+    expect(ov.render(80, 20).some(r => r.includes('回退完成'))).toBe(true)
+
+    const failing = vi.fn(async () => { throw new Error('boom') })
+    const ov2 = new RewindOverlay(undefined, { onSettled: settled })
+    ov2.setMessages(MESSAGES, failing)
+    ov2.handleKey('return', '')
+    ov2.handleKey('', '1')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(settled).toHaveBeenCalledTimes(2)
+    expect(ov2.render(80, 20).some(r => r.includes('回退失败：boom'))).toBe(true)
+  })
+
+  it('onSettled 抛错不打回已提交的 rewind 结果', async () => {
+    const ov = new RewindOverlay(undefined, {
+      onSettled: () => { throw new Error('paint failed') },
+    })
+    ov.setMessages(MESSAGES, vi.fn(async () => ({ filesChanged: 1 })))
+    ov.handleKey('return', '')
+    ov.handleKey('', '1')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(ov.render(80, 20).some(r => r.includes('回退完成：1 个文件'))).toBe(true)
+  })
+
   it('done 阶段：filesSkipped > 0 渲染缺口提示', async () => {
     const executor = vi.fn(async () => ({ filesChanged: 1, filesSkipped: 2 }))
     const ov = new RewindOverlay()
