@@ -20,6 +20,7 @@ import { pinTuiEnvBaseline } from './env-baseline.ts'
 import {
   MetricsGlanceController,
   deriveGlanceError,
+  deriveGlanceErrorFull,
   deriveGlanceStatus,
 } from '../src/engine/metrics-glance-controller.js'
 
@@ -100,6 +101,28 @@ describe('deriveGlanceError（错误行派生）', () => {
   })
 })
 
+describe('deriveGlanceErrorFull（完整错误文本派生，任务3 落底数据源）', () => {
+  it('无 lastError → null', () => {
+    expect(deriveGlanceErrorFull(liveState())).toBeNull()
+    expect(deriveGlanceErrorFull(undefined)).toBeNull()
+  })
+
+  it('多行 Error 取完整 message 不截断——#49 类载荷详情不再只剩冒号', () => {
+    const full = deriveGlanceErrorFull(
+      liveState({ lastError: { turn: 1, step: 0, error: new Error('malformed SSE payload: {"error":...}') } }),
+    )
+    expect(full).toBe('malformed SSE payload: {"error":...}')
+  })
+
+  it('多行文本保留换行结构；非 Error 原样 String()', () => {
+    const multi = deriveGlanceErrorFull(
+      liveState({ lastError: { turn: 1, step: 0, error: new Error('line1\nline2') } }),
+    )
+    expect(multi).toBe('line1\nline2')
+    expect(deriveGlanceErrorFull(liveState({ lastError: { turn: 1, step: 0, error: 42 } }))).toBe('42')
+  })
+})
+
 describe('MetricsGlanceController 刷新节流', () => {
   it('首次 refresh 恒同步重算（构造后立即可读）', () => {
     const onChange = vi.fn()
@@ -109,7 +132,7 @@ describe('MetricsGlanceController 刷新节流', () => {
       getColumns: () => 80,
       onChange,
     })
-    expect(ctrl.current()).toEqual({ status: null, error: null }) // 构造安全默认（空闲不占位）
+    expect(ctrl.current()).toEqual({ status: null, error: null, errorFull: null }) // 构造安全默认（空闲不占位）
     ctrl.refresh()
     expect(ctrl.current().status).toBe('● 运行中')
     expect(onChange).toHaveBeenCalledTimes(1)

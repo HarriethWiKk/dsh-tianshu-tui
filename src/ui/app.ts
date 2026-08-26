@@ -669,6 +669,8 @@ export class TuiApp {
   private ticker: ReturnType<typeof setInterval> | null = null
   /** 上一帧 idle key；overlay 退出时置空，强制下一帧组装。 */
   private lastIdleKey: string | null = null
+  /** 已落底 scrollback 的最近完整错误文本（diff 去重——同错误逐帧重读不重复落底）。 */
+  private lastGlanceErrorFull: string | null = null
   /** ticker 路径才允许 shouldSkipIdleAssemble；flush/batcher 必须组装。 */
   private renderLiveFromTicker = false
   private disposed = false
@@ -3701,6 +3703,14 @@ export class TuiApp {
     // Phase 5.3：glance 控制器统一派生（首推同步 + 窗口内节流）。
     this.glance.refresh()
     const glance = this.glance.current()
+    // 错误详情完整落底（任务3，2026-08-27）：glance 行空间受限只显首行截断，
+    // 完整多行详情在「新错误文本」出现时落底 scrollback 一次（diff 去重——
+    // lastError 在挂起期间被逐帧重读不重复落底）。先更新去重指针再提交：
+    // 编舞内 flushNow 会重入 renderLive，次轮读到同文本即跳过，深度至多 2。
+    if (glance.errorFull !== null && glance.errorFull !== this.lastGlanceErrorFull) {
+      this.lastGlanceErrorFull = glance.errorFull
+      this.commitToScrollback({ text: color(glance.errorFull, this.theme.warning), trailingNewline: true })
+    }
     // C4 概念稿 A：turn_status 形态——glance 状态行升级为 spinner（运行中
     // braille 帧循环 / 等待输入 pulsing ◆）+ 阶段文本；null 不占位。
     const turnStatusLines = formatTurnStatus({

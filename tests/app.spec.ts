@@ -1195,6 +1195,39 @@ describe('TuiApp Phase 5.3 glance 装配', () => {
     expect(written).toContain('boom glance')
     await app.dispose()
   })
+
+  it('错误完整详情落底一次（多行不截断；同错误帧间重读不重复落底）', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('glance-3')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdout = makeStdout()
+
+    const app = new TuiApp({ ctx, stdout, stdin: makeStdin(), theme: 'paper' })
+    await app.attach()
+
+    const onError = ctx.on.mock.calls.find(call => call[0] === 'agent/error')?.[1] as
+      | ((payload: { agent: { id: SessionId }; turn: number; step: number; error: unknown }) => void)
+      | undefined
+    if (onError === undefined) throw new Error('agent/error handler not registered')
+    const id = app.sessionId
+    if (id === null) throw new Error('no active session')
+
+    const multiLine = 'malformed SSE payload:\n{"error":{"message":" detail line 2"}}'
+    onError({ agent: { id }, turn: 1, step: 0, error: new Error(multiLine) })
+    // 两帧渲染（模拟 lastError 挂起期间被逐帧重读）：
+    app.handleSubmit('x')
+    await new Promise(resolve => setImmediate(resolve))
+    app.handleSubmit('y')
+    await new Promise(resolve => setImmediate(resolve))
+
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    // 完整多行详情（含第二行）进了 scrollback——glance 行只有首行。
+    expect(written).toContain('detail line 2')
+    // 同一错误只落底一次。
+    expect(written.split('detail line 2').length - 1).toBe(1)
+    await app.dispose()
+  })
 })
 
 describe('TuiApp glance 数据接线（usage/effort/contextWindow）', () => {

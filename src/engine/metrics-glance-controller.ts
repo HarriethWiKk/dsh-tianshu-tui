@@ -28,6 +28,12 @@ export interface GlanceLine {
   status: string | null
   /** 错误行文本（glyph + 截断首行）；无错误 null。 */
   error: string | null
+  /**
+   * 完整错误文本（多行、不截断）；无错误 null。glance 行空间受限只显首行，
+   * 完整详情由装配层在新错误出现时落底 scrollback（diff 去重）——#49 类
+   * 多行载荷（malformed SSE payload: <detail>）不再只剩一个光秃秃的冒号。
+   */
+  errorFull: string | null
 }
 
 /** MetricsGlanceController 构造参数（数据源 getter + 节流窗口 + 变化回调）。 */
@@ -77,7 +83,19 @@ export function deriveGlanceError(live: LiveAgentState | undefined, columns: num
 }
 
 /**
- * 整帧 glance 派生（状态行 + 错误行一次计算）。
+ * 完整错误文本派生（多行、不截断）：scrollback 落底数据源。Error 实例取
+ * message，其余 String 化——与 {@link deriveGlanceError} 同一归一口径。
+ * @param live - live agent 状态；无 lastError 或未挂载时返回 null。
+ * @returns 完整错误文本；无错误 null。
+ */
+export function deriveGlanceErrorFull(live: LiveAgentState | undefined): string | null {
+  if (live?.lastError === undefined) return null
+  const raw = live.lastError.error
+  return raw instanceof Error ? raw.message : String(raw)
+}
+
+/**
+ * 整帧 glance 派生（状态行 + 错误行 + 完整错误文本一次计算）。
  * @param statusText - WorkflowStatusLine.current；null = 无投影
  * @param live - live agent 状态；undefined = 未挂载
  * @param columns - 终端列数（错误首行截断度量）
@@ -88,7 +106,7 @@ export function deriveGlance(
   live: LiveAgentState | undefined,
   columns: number,
 ): GlanceLine {
-  return { status: deriveGlanceStatus(statusText, live), error: deriveGlanceError(live, columns) }
+  return { status: deriveGlanceStatus(statusText, live), error: deriveGlanceError(live, columns), errorFull: deriveGlanceErrorFull(live) }
 }
 
 /**
@@ -157,7 +175,7 @@ export class MetricsGlanceController {
       this.options.getLiveState(),
       this.options.getColumns(),
     )
-    const changed = first || next.status !== this.cache.status || next.error !== this.cache.error
+    const changed = first || next.status !== this.cache.status || next.error !== this.cache.error || next.errorFull !== this.cache.errorFull
     this.cache = next
     this.computed = true
     if (changed) this.options.onChange?.(next)

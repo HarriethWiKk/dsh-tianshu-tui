@@ -269,6 +269,8 @@ export declare class TuiApp {
     private ticker;
     /** 上一帧 idle key；overlay 退出时置空，强制下一帧组装。 */
     private lastIdleKey;
+    /** 已落底 scrollback 的最近完整错误文本（diff 去重——同错误逐帧重读不重复落底）。 */
+    private lastGlanceErrorFull;
     /** ticker 路径才允许 shouldSkipIdleAssemble；flush/batcher 必须组装。 */
     private renderLiveFromTicker;
     private disposed;
