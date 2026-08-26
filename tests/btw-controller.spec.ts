@@ -30,6 +30,7 @@ function makeCtx(overrides: {
     sessions: { get: ReturnType<typeof vi.fn> }
     agentDefaultModel: { currentSelection: ReturnType<typeof vi.fn> }
     on: ReturnType<typeof vi.fn>
+    reflect: { get: ReturnType<typeof vi.fn> }
   }
   /** 最近一次 session/event 注册的 handler（按需手动触发）。 */
   emit: (ownerId: SessionId, e: SessionEvent) => void
@@ -68,6 +69,7 @@ function makeCtx(overrides: {
     sessions: { get: ReturnType<typeof vi.fn> }
     agentDefaultModel: { currentSelection: ReturnType<typeof vi.fn> }
     on: ReturnType<typeof vi.fn>
+    reflect: { get: ReturnType<typeof vi.fn> }
   }
   return {
     ctx,

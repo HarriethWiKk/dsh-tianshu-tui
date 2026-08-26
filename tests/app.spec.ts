@@ -353,9 +353,11 @@ describe('TuiApp agent-ensure 三分支', () => {
     const ctx = makeCtx()
     const agent = makeAgent('old-ptc')
     Object.assign(agent.session.header, { agentPreset: 'standard' })
-    agent.session.events = [
-      { type: 'agent-preset/selected', data: { agentPreset: 'ptc' } },
-    ] as unknown as SessionEvent[]
+    Object.assign(agent.session, {
+      events: [
+        { type: 'agent-preset/selected', data: { agentPreset: 'ptc' } },
+      ] as unknown as SessionEvent[],
+    })
     const handle = makeHandle(agent)
     ctx.agents.get.mockReturnValue(undefined)
     ctx.agents.resume.mockImplementation(async (opts: { setup?: (c: unknown) => void | Promise<void> }) => {

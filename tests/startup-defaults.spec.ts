@@ -3,11 +3,9 @@
  *
  * - splitDefaultFlag：末尾 default 剥掉并 persist=true
  * - echoSessionOnly / echoSavedDefault：文案必须点名本会话或启动默认
- * - applyPrefPreset：仅空白会话 + 已装配 presets 才 recompose
  */
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
-  applyPrefPreset,
   echoSavedDefault,
   echoSessionOnly,
   effortSelection,
@@ -67,49 +65,5 @@ describe('echo 文案点名本会话 / 启动默认', () => {
     expect(echoSavedDefault('effort', 'max')).toContain('新会话起始生效')
     expect(echoSavedDefault('preset', 'minimal')).toContain('已设为默认预设：minimal')
     expect(echoSavedDefault('density', '紧凑')).toContain('已设为默认密度：紧凑')
-  })
-})
-
-describe('applyPrefPreset', () => {
-  it('无 preset / 无 facet / 非空白 → 不 recompose', async () => {
-    const recompose = vi.fn()
-    expect(await applyPrefPreset({
-      presetId: undefined, isBlank: true, agent: { ctx: {}, session: { append: vi.fn() } },
-      facet: { recompose },
-    })).toEqual({ applied: false })
-    expect(await applyPrefPreset({
-      presetId: 'minimal', isBlank: true, agent: { ctx: {}, session: { append: vi.fn() } },
-      facet: undefined,
-    })).toEqual({ applied: false })
-    expect(await applyPrefPreset({
-      presetId: 'minimal', isBlank: false, agent: { ctx: {}, session: { append: vi.fn() } },
-      facet: { recompose },
-    })).toEqual({ applied: false })
-    expect(recompose).not.toHaveBeenCalled()
-  })
-
-  it('空白 + 有 facet → recompose 并 append 切换事件', async () => {
-    const append = vi.fn()
-    const recompose = vi.fn(async () => ({ id: 'minimal', name: '极简' }))
-    const result = await applyPrefPreset({
-      presetId: 'minimal',
-      isBlank: true,
-      agent: { ctx: { scope: 1 }, session: { append } },
-      facet: { recompose },
-    })
-    expect(result).toEqual({ applied: true, id: 'minimal', name: '极简' })
-    expect(recompose).toHaveBeenCalledWith({ scope: 1 }, 'minimal')
-    expect(append).toHaveBeenCalledWith('agent-preset/selected', { agentPreset: 'minimal' })
-  })
-
-  it('recompose 失败 → applied false + error，不阻断', async () => {
-    const result = await applyPrefPreset({
-      presetId: 'gone',
-      isBlank: true,
-      agent: { ctx: {}, session: { append: vi.fn() } },
-      facet: { recompose: async () => { throw new Error('UnknownPreset') } },
-    })
-    expect(result.applied).toBe(false)
-    expect(result.error).toContain('UnknownPreset')
   })
 })

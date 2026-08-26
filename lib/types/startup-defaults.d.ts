@@ -26,36 +26,3 @@ export declare function effortSelection(base: {
 };
 /** 写启动默认回显：主题说重启，其余说新会话。 */
 export declare function echoSavedDefault(kind: StartupKind, value: string): string;
-/** newSession / /preset 共用的最小 preset 面（不引入 dsh-agent-presets）。 */
-export interface PrefPresetFacet {
-    recompose(agentCtx: unknown, id: string): Promise<{
-        id: string;
-        name?: string;
-    }>;
-}
-/** applyPrefPreset 入参。 */
-export interface ApplyPrefPresetInput {
-    presetId: string | undefined;
-    isBlank: boolean;
-    agent: {
-        ctx: unknown;
-        session: {
-            append(type: string, data: {
-                agentPreset: string;
-            }): void;
-        };
-    } | null;
-    facet: PrefPresetFacet | undefined | null;
-}
-/** applyPrefPreset 结果：失败不抛，调用方 echo 警告即可。 */
-export interface ApplyPrefPresetResult {
-    applied: boolean;
-    id?: string;
-    name?: string;
-    error?: string;
-}
-/**
- * 空白会话上应用 prefs.preset：recompose + 落 agent-preset/selected。
- * 无 id / 无插件 / 非空白 / 无 agent → 静默跳过。
- */
-export declare function applyPrefPreset(input: ApplyPrefPresetInput): Promise<ApplyPrefPresetResult>;

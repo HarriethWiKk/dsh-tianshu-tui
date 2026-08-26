@@ -13,6 +13,7 @@ import {
   sanitizeNotifyText,
   sendOsNotify,
   shouldNotify,
+  subagentNotifySuppressed,
 } from '../src/os-notify.js'
 
 describe('sanitizeNotifyText', () => {
@@ -76,6 +77,13 @@ describe('parseConfigNotifyArg / applyNotifyOsPref', () => {
       notifyOs: false,
       notifyLocked: true,
     })
+  })
+})
+
+describe('subagentNotifySuppressed', () => {
+  it('无运行中 workflow 即时提醒；有则静默（workflow/end 统一汇总）', () => {
+    expect(subagentNotifySuppressed(0)).toBe(false)
+    expect(subagentNotifySuppressed(2)).toBe(true)
   })
 })
 

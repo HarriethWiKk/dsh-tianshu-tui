@@ -49,6 +49,12 @@ export declare function notifyOsEnvLocked(env?: NodeJS.ProcessEnv): boolean;
 export declare function shouldNotify(env: NodeJS.ProcessEnv, prefs?: {
     notifyOs?: boolean;
 }): boolean;
+/**
+ * 子代理完成通知门槛：有活跃 workflow run 时静默。
+ * workflow 派生的子代理逐条完成会连发刷屏，汇总由 workflow/end 的
+ * 「工作流完成」通知统一承担；仅独立委派（无运行中 workflow）即时提醒。
+ */
+export declare function subagentNotifySuppressed(activeWorkflowRuns: number): boolean;
 /** 空参 → null（打开面板）；notify [on|off]；其余 usage。 */
 export declare function parseConfigNotifyArg(text: string): NotifyOsAction | 'usage' | null;
 /** 就地改 prefs；环境变量锁定时只警告。 */
