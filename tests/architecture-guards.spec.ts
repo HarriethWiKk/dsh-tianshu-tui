@@ -14,10 +14,14 @@
  *    这两个目录的可测性建立在无副作用之上（CONTRIBUTING 代码规范）。
  * 4. 行数棘轮：BASELINE 表内文件只降不升（app.ts C4 拆分守门），表外文件
  *    ≤ REDLINE；幽灵基线（文件已删）直接红，防止基线指向空气。
+ * 5. README 哈希清单：README.i18n.yaml 必须与 README.md / README.en.md 的
+ *    sha1 一致——清单是 i18n 平台拉取翻译底稿的依据，改 README 忘更清单
+ *    会静默漂移（已实锤一次）。
  *
  * 扫描器是纯函数（虚拟语料输入），自检块用植入违规验证扫描器真的在工作。
  */
 import { describe, expect, it } from 'vitest'
+import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
@@ -30,6 +34,8 @@ interface SourceFile {
 }
 
 const SRC_ROOT = join(import.meta.dirname, '..', 'src')
+const REPO_ROOT = join(import.meta.dirname, '..')
+const I18N_MANIFEST = join(REPO_ROOT, 'README.i18n.yaml')
 
 function collectTsFiles(dir: string, acc: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -179,6 +185,41 @@ function findLineCountViolations(
 // ── 语料与规则执行 ───────────────────────────────────────────
 
 const corpus = loadCorpus(SRC_ROOT)
+
+// ── README 哈希清单 ─────────────────────────────────────────
+
+function sha1Of(file: string): string {
+  return createHash('sha1').update(readFileSync(file)).digest('hex')
+}
+
+/** 解析 README.i18n.yaml（`<文件名>: <sha1>` 每行一条，容忍空行与空白）。 */
+function readI18nManifest(): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const line of readFileSync(I18N_MANIFEST, 'utf-8').split('\n')) {
+    const m = /^([^:]+):\s*([0-9a-f]{40})$/.exec(line.trim())
+    if (m) out[m[1]] = m[2]
+  }
+  return out
+}
+
+describe('架构守护 · README 哈希清单（README.i18n.yaml）', () => {
+  const manifest = readI18nManifest()
+
+  it('README.md / README.en.md 均已登记且哈希与文件一致', () => {
+    for (const file of ['README.md', 'README.en.md']) {
+      expect(manifest[file], `${file} 未登记于 README.i18n.yaml`).toBeDefined()
+      expect(sha1Of(join(REPO_ROOT, file)), `${file} 内容变更后未同步 README.i18n.yaml`).toBe(
+        manifest[file],
+      )
+    }
+  })
+
+  it('清单无幽灵条目（指向不存在的文件）', () => {
+    for (const file of Object.keys(manifest)) {
+      expect(statSync(join(REPO_ROOT, file)).isFile(), `${file} 幽灵条目`).toBe(true)
+    }
+  })
+})
 
 describe('架构守护 · 规则执行', () => {
   it('src 全域无 process.stdout.write（stdout 单写层经注入 WriteStream）', () => {
