@@ -55,12 +55,16 @@ export interface LiveEngineOptions {
 
 export {
   LIVE_TOOL_CARD_MAX,
+  assembleIdleKey,
+  liveHasSpinner,
+  liveIdleKey,
   liveMaxRowsFor,
   nextDynamicBudget,
   padDynamicRegion,
+  shouldSkipIdleAssemble,
   workingRowsCap,
 } from './live-budget.js'
-export type { PadDynamicRegionOptions } from './live-budget.js'
+export type { LiveIdleSources, PadDynamicRegionOptions } from './live-budget.js'
 
 /**
  * 终端底部动态区域（live region）的增量重绘引擎。

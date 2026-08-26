@@ -47,8 +47,8 @@ export interface LiveEngineOptions {
     /** 检测到 live region 被外来写入污染（光标偏离驻停点）时回调——调用方应重渲染。 */
     onPolluted?: () => void;
 }
-export { LIVE_TOOL_CARD_MAX, liveMaxRowsFor, nextDynamicBudget, padDynamicRegion, workingRowsCap, } from './live-budget.js';
-export type { PadDynamicRegionOptions } from './live-budget.js';
+export { LIVE_TOOL_CARD_MAX, assembleIdleKey, liveHasSpinner, liveIdleKey, liveMaxRowsFor, nextDynamicBudget, padDynamicRegion, shouldSkipIdleAssemble, workingRowsCap, } from './live-budget.js';
+export type { LiveIdleSources, PadDynamicRegionOptions } from './live-budget.js';
 /**
  * 终端底部动态区域（live region）的增量重绘引擎。
  * 行数追踪全部基于 wrapping-aware display rows；渲染后光标常驻区域末行

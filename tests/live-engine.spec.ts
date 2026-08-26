@@ -13,9 +13,12 @@ import type { WriteStream } from 'node:tty'
 import { describe, expect, it } from 'vitest'
 import {
   LiveEngine,
+  liveHasSpinner,
+  liveIdleKey,
   liveMaxRowsFor,
   nextDynamicBudget,
   padDynamicRegion,
+  shouldSkipIdleAssemble,
   workingRowsCap,
   LIVE_TOOL_CARD_MAX,
   type LiveRegionLine,
@@ -153,6 +156,49 @@ describe('workingRowsCap', () => {
     expect(workingRowsCap(24, 8)).toBe(15)
     expect(workingRowsCap(24, 30)).toBe(0)
     expect(workingRowsCap(50, 4)).toBe(24)
+  })
+})
+
+describe('idle assemble skip', () => {
+  it('snapshot+chrome key 未变且无 spinner → 跳过组装', () => {
+    const key = liveIdleKey({ snapshotKey: 'snap-a', chromeKey: 'input' })
+    expect(shouldSkipIdleAssemble({ prevKey: key, nextKey: key, hasSpinner: false })).toBe(true)
+  })
+
+  it('有 spinner 时即使 key 相同也不跳过（ticker 只给转圈行）', () => {
+    const key = liveIdleKey({ snapshotKey: 'snap-a', chromeKey: 'input' })
+    expect(shouldSkipIdleAssemble({ prevKey: key, nextKey: key, hasSpinner: true })).toBe(false)
+  })
+
+  it('key 变化必须组装', () => {
+    expect(shouldSkipIdleAssemble({
+      prevKey: liveIdleKey({ snapshotKey: 'a', chromeKey: 'x' }),
+      nextKey: liveIdleKey({ snapshotKey: 'b', chromeKey: 'x' }),
+      hasSpinner: false,
+    })).toBe(false)
+  })
+
+  it('首帧 prevKey 为空不跳过', () => {
+    expect(shouldSkipIdleAssemble({
+      prevKey: null,
+      nextKey: liveIdleKey({ snapshotKey: 'a', chromeKey: 'x' }),
+      hasSpinner: false,
+    })).toBe(false)
+  })
+
+  it('liveHasSpinner：任一转圈源为真即要 tick', () => {
+    expect(liveHasSpinner({
+      agentRunning: false,
+      activityRunning: false,
+      pendingTools: false,
+      reasoningLive: false,
+    })).toBe(false)
+    expect(liveHasSpinner({
+      agentRunning: false,
+      activityRunning: true,
+      pendingTools: false,
+      reasoningLive: false,
+    })).toBe(true)
   })
 })
 

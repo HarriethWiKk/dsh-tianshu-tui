@@ -42,7 +42,11 @@ import { installModelSelection, type Agent, type AgentHandle, type ModelSelectio
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import { CommitEngine } from '../engine/commit-engine.js'
 import { ANSI, color, imageProtocol, osc52Clipboard } from '../engine/ansi.js'
-import { LiveEngine, LIVE_TOOL_CARD_MAX, liveMaxRowsFor, nextDynamicBudget, padDynamicRegion, workingRowsCap, type LiveRegionLine } from '../engine/live-engine.js'
+import {
+  LiveEngine, LIVE_TOOL_CARD_MAX, assembleIdleKey, liveHasSpinner, liveMaxRowsFor,
+  nextDynamicBudget, padDynamicRegion, shouldSkipIdleAssemble, workingRowsCap,
+  type LiveRegionLine,
+} from '../engine/live-engine.js'
 import { WriteBatcher } from '../engine/write-batcher.js'
 import { InputHandler, type KeyPress, type KeyName } from '../engine/input-handler.js'
 import { InputLine, inputViewportMaxLines } from '../engine/input-line.js'
@@ -106,7 +110,7 @@ import { applySummaryEvent, emptySummaryState, summarizeSession, type SummarySta
 import { formatTurnSummary as renderTurnSummaryLine } from '../format/turn-summary.js'
 import { getToolFamily } from '../format/tool-meta.js'
 import {
-  delegationSnapshotSlice, foldWorkflowViews, formatWorkflowSummary,
+  delegationSnapshotSlice, foldActivityFromCaches, foldWorkflowViews, formatWorkflowSummary,
   renderActivitySection,
 } from './activity-flow.js'
 import { WorkflowSurfaceController } from '../controllers/workflow-surface.js'
@@ -128,6 +132,7 @@ import {
   renderConfigPanel,
   renderSkillsPanel,
   renderLspPanel,
+  renderActivityBand,
 } from '../render/live-panels.js'
 import type { LiveSnapshot } from '../render/live-snapshot.js'
 import {
@@ -667,6 +672,10 @@ export class TuiApp {
   private inputHistoryPath: string | null = null
   private tick = 0
   private ticker: ReturnType<typeof setInterval> | null = null
+  /** 上一帧 idle key；overlay 退出时置空，强制下一帧组装。 */
+  private lastIdleKey: string | null = null
+  /** ticker 路径才允许 shouldSkipIdleAssemble；flush/batcher 必须组装。 */
+  private renderLiveFromTicker = false
   private disposed = false
   /** attach() 完成后才往 scrollback 写更新提示（避免欢迎页之前的空窗）。 */
   private attached = false
@@ -1264,7 +1273,12 @@ export class TuiApp {
       agentDefaultModel: (this.ctx as unknown as { agentDefaultModel?: { currentSelection?: () => { provider: string } } }).agentDefaultModel,
     })
     this.input.setMode('input')
-    this.ticker = setInterval(() => { this.tick++ ; this.renderLive() }, 120)
+    this.ticker = setInterval(() => {
+      if (this.hasVisibleSpinner()) this.tick++
+      this.renderLiveFromTicker = true
+      try { this.renderLive() }
+      finally { this.renderLiveFromTicker = false }
+    }, 120)
     this.ticker.unref()
     // T3.1：userQuestions provider 注册（升级结构化提问；唯一 provider——
     // 若已存在注册则替换而非叠加）。
@@ -3614,13 +3628,84 @@ export class TuiApp {
     this.renderBatcher.flushNow()
   }
 
+  /** 三类缓存 → 活动带 items（idle key / spinner / snapshot 共用）。 */
+  private foldActivityItems() {
+    return foldActivityFromCaches({
+      subagentRuns: this.delegationSurface.runningEntries(),
+      childProgress: this.delegationSurface.progressView(),
+      workflowRuns: this.workflowSurface.runningViews(),
+      tasks: this.taskSnapshots,
+    })
+  }
+
+  /** 转圈源：agent / 活动带 running / 未结算工具 / 推理展开或流式。 */
+  private hasVisibleSpinner(activityItems = this.foldActivityItems()): boolean {
+    return liveHasSpinner({
+      agentRunning: this.liveAgent?.state.status === 'running',
+      activityRunning: activityItems.some(item => item.status === 'running'),
+      pendingTools: this.transcript?.view.tools.some(tool => tool.result === undefined) ?? false,
+      reasoningLive: this.reasoningText !== '' || this.reasoningExpanded,
+    })
+  }
+
+  /** 当前帧 idle key（不含 now/tick）。 */
+  private currentIdleKey(activityItems = this.foldActivityItems()): string {
+    const pending = this.transcript?.view.tools.filter(tool => tool.result === undefined) ?? []
+    const slash = this.inputController.slashMenu
+    const approval = this.approval.peek()
+    return assembleIdleKey({
+      agentStatus: this.liveAgent?.state.status ?? '',
+      activity: activityItems,
+      pendingCallIds: pending.map(tool => tool.callId),
+      activityBandEnabled: this.activityBandEnabled,
+      compactMode: this.compactMode,
+      rows: this.stdout.rows,
+      columns: this.stdout.columns,
+      panelFlags: [
+        this.todosPanelVisible ? 'todos' : '',
+        this.inspect.is('tasks') ? 'tasks' : '',
+        this.inspect.is('status') ? 'status' : '',
+        this.subagentsPanelVisible ? 'subagents' : '',
+        this.workflowPanelVisible ? 'workflow' : '',
+        this.inspect.is('skills') ? 'skills' : '',
+        this.inspect.is('lsp') ? 'lsp' : '',
+        this.inspect.is('config') ? 'config' : '',
+      ].join(','),
+      btwActive: this.btw.peek() !== null,
+      taskNotice: this.taskNotice ?? '',
+      gitDirty: this.gitDirty,
+      apiKeyReady: this.apiKeyReady,
+      reasoningChars: this.reasoningText.length,
+      reasoningExpanded: this.reasoningExpanded,
+      streamPeekChars: this.blockWriter.peek().length,
+      inputValue: this.inputLine.value,
+      questionPending: this.question.peek() !== null,
+      approvalPending: approval !== null,
+      approvalTool: approval?.req.toolName ?? '',
+      alwaysApprove: this.approval.alwaysApprove,
+      newlineMode: this.inputLine.newlineMode,
+      slashKey: `${slash.open ? 1 : 0}:${slash.query}:${slash.selected}:${slash.matches.length}`,
+    })
+  }
+
   /** 渲染一帧 live 区：状态行 + 流式尾巴 + 进行中工具卡 + 输入行。 */
   private renderLive(): void {
     if (this.disposed) return
     // A6：全屏 overlay（命令面板/快捷键/搜索/rewind/memory）激活时处于
     // alternate screen buffer——跳过主屏 live 写屏，避免流式帧逐帧盖住面板；
     // overlay 退出后 120ms ticker 下一帧自然重绘，内部状态由事件驱动照常更新。
-    if (this.overlay !== null && this.overlay.activeId() !== null) return
+    if (this.overlay !== null && this.overlay.activeId() !== null) {
+      this.lastIdleKey = null
+      return
+    }
+    const activityItems = this.foldActivityItems()
+    const idleKey = this.currentIdleKey(activityItems)
+    if (this.renderLiveFromTicker && shouldSkipIdleAssemble({
+      prevKey: this.lastIdleKey,
+      nextKey: idleKey,
+      hasSpinner: this.hasVisibleSpinner(activityItems),
+    })) return
+    this.lastIdleKey = idleKey
     const renderStart = performance.now()
     const theme = this.theme
     const termCols = this.stdout.columns
@@ -3684,6 +3769,10 @@ export class TuiApp {
       lspPanelVisible: this.inspect.is('lsp'),
       lspDiagnostics: this.lspDiagnosticsView(),
       lspAvailable: this.lspBridge === null ? true : this.lspBridge.isAvailable(),
+      tick: this.tick,
+      activityBandEnabled: this.activityBandEnabled,
+      activityItems,
+      activityBandMaxRows: this.activityBandMaxRows,
     }
 
     // ── 面板段（8 面板纯函数；组合器负责 { text } 包装与 theme 着色）。──
@@ -3826,12 +3915,16 @@ export class TuiApp {
       lines.push({ text: color(` …(+${overflow}) 个工具进行中`, theme.muted) })
     }
 
-    for (const line of renderActivitySection({
-      enabled: this.activityBandEnabled, subagentRuns: this.delegationSurface.runningEntries(),
-      childProgress: this.delegationSurface.progressView(), workflowRuns: this.workflowSurface.runningViews(),
-      tasks: this.taskSnapshots,
-      width: cols, maxRows: this.activityBandMaxRows, now, tick: this.tick, theme,
-    })) lines.push({ text: line })
+    if (this.activityBandEnabled) {
+      for (const line of renderActivityBand(snapshot)) lines.push({ text: line })
+    } else {
+      for (const line of renderActivitySection({
+        enabled: false, subagentRuns: this.delegationSurface.runningEntries(),
+        childProgress: this.delegationSurface.progressView(), workflowRuns: this.workflowSurface.runningViews(),
+        tasks: this.taskSnapshots,
+        width: cols, maxRows: this.activityBandMaxRows, now, tick: this.tick, theme,
+      })) lines.push({ text: line })
+    }
 
     // chrome 起点：提问/审批贴输入轨（列入 chrome，小窗口也不会被从顶裁掉），
     // 其后是 slash / vim / 图片 / 输入轨 / footer。溢出裁剪只作用在动态段；

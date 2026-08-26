@@ -35,6 +35,7 @@ import { inspectHint } from '../ui/inspect-panels.js'
 import { projectSkillPanel } from '../skill-panel.js'
 import { projectLspPanel, groupLspDiagnostics } from '../format/lsp-diagnostics.js'
 import { formatLiveCard, liveCardGlyph, type LiveCardStatus } from '../format/live-card.js'
+import { formatActivityBand } from '../format/activity-band.js'
 
 /** 后台任务快照 → 活区卡状态形（running ⠋ / completed › / 其余 ✗）。 */
 function taskSnapshotStatus(status: 'running' | 'stopping' | 'completed' | 'killed' | 'failed'): LiveCardStatus {
@@ -265,4 +266,19 @@ export function renderLspPanel(snapshot: LiveSnapshot): string[] {
   const rows = projectLspPanel(groupLspDiagnostics(snapshot.lspDiagnostics), snapshot.theme, snapshot.lspAvailable)
   rows.push(inspectHint(snapshot.cols))
   return rows
+}
+
+/**
+ * 活动带：只消费 snapshot 已 fold 的 activityItems。关闭或无 running → 零行。
+ * 关带时的散行逃生门仍由组合器走 renderActivitySection({ enabled: false })。
+ */
+export function renderActivityBand(snapshot: LiveSnapshot): string[] {
+  if (!snapshot.activityBandEnabled) return []
+  return formatActivityBand(snapshot.activityItems, {
+    width: snapshot.cols,
+    maxRows: snapshot.activityBandMaxRows,
+    now: snapshot.now ?? 0,
+    tick: snapshot.tick,
+    theme: snapshot.theme,
+  })
 }

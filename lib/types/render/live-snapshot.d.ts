@@ -21,6 +21,7 @@ import type { WorkflowRunView } from '../workflow-panel.js';
 import type { ConfigPanelProjection } from '../config-panel.js';
 import type { SkillSummaryInput } from '../skill-panel.js';
 import type { LspDiagnosticView } from '../lsp/lsp-bridge.js';
+import type { ActivityItem } from '../format/activity-band.js';
 /** T2.3：tasks.list() 返回项的最小 wire 形状（status/detail/startedAt 渲染所需）。 */
 export interface TaskSnapshotView {
     readonly id: string;
@@ -77,8 +78,16 @@ export interface LiveSnapshot {
     subagentTimings: ReadonlyMap<string, DelegationTimingProjection>;
     /** 活跃外部 run（无本地 Session；缺宿主面时 []）。 */
     externalRuns: ExternalRunEntry[];
-    /** 墙钟（epoch 毫秒；外部段 / 活区卡耗时）。 */
+    /** 墙钟（epoch 毫秒；外部段 / 活区卡 / 活动带耗时）。 */
     now?: number;
+    /** ticker 帧（活动带 spinner / 推理 shimmer；空闲 ticker 不递增）。 */
+    tick: number;
+    /** 活动带开关（关 → renderActivityBand 零行，组合器走散行逃生门）。 */
+    activityBandEnabled: boolean;
+    /** 三类缓存 fold 后的活动项（面板不再 fold）。 */
+    activityItems: ActivityItem[];
+    /** 活动带最多占几行（含入口行；fold 后截）。 */
+    activityBandMaxRows: number;
     /** /workflow 面板显隐。 */
     workflowPanelVisible: boolean;
     /** 运行中 + 已结算 run 的视图数组（组合器已把 Map 折叠为视图；含终态汇总）。 */

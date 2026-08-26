@@ -1,6 +1,6 @@
 /**
- * live 区动态段预算：Working 行封顶、欢迎首帧只裁不垫、高水位只涨不缩。
- * 纯函数，不碰 stdout。
+ * live 区动态段预算：Working 行封顶、欢迎首帧只裁不垫、高水位只涨不缩、
+ * 空闲 ticker 跳过组装的 key / spinner 判定。纯函数，不碰 stdout。
  */
 
 /** padDynamicRegion 输入行（与 LiveRegionLine 结构兼容）。 */
@@ -85,3 +85,92 @@ export function nextDynamicBudget(
 
 /** live 区同时展示的进行中工具卡数量上限。 */
 export const LIVE_TOOL_CARD_MAX = 3
+
+/** snapshot 面 + chrome 面合成一帧 idle key（换行分隔，避免字段粘连）。 */
+export function liveIdleKey(parts: { snapshotKey: string; chromeKey: string }): string {
+  return `${parts.snapshotKey}\n${parts.chromeKey}`
+}
+
+/** 同 key 且无 spinner 才跳过；首帧 prevKey 为空、有转圈、key 变都必须组装。 */
+export function shouldSkipIdleAssemble(opts: {
+  prevKey: string | null
+  nextKey: string
+  hasSpinner: boolean
+}): boolean {
+  return !opts.hasSpinner && opts.prevKey === opts.nextKey
+}
+
+/** 任一转圈源为真：ticker 才推进 tick，空闲帧不改 key。 */
+export function liveHasSpinner(flags: {
+  agentRunning: boolean
+  activityRunning: boolean
+  pendingTools: boolean
+  reasoningLive: boolean
+}): boolean {
+  return flags.agentRunning || flags.activityRunning || flags.pendingTools || flags.reasoningLive
+}
+
+/** 一帧 idle 源（不含 now/tick，避免空闲 ticker 自己把 key 打漂）。 */
+export interface LiveIdleSources {
+  agentStatus: string
+  activity: ReadonlyArray<{
+    id: string
+    status: string
+    lastTool?: string
+    toolCalls?: number
+    tokensUsed?: number
+  }>
+  pendingCallIds: readonly string[]
+  activityBandEnabled: boolean
+  compactMode: boolean
+  rows: number
+  columns: number
+  panelFlags: string
+  btwActive: boolean
+  taskNotice: string
+  gitDirty: number
+  apiKeyReady: boolean
+  reasoningChars: number
+  reasoningExpanded: boolean
+  streamPeekChars: number
+  inputValue: string
+  questionPending: boolean
+  approvalPending: boolean
+  approvalTool: string
+  alwaysApprove: boolean
+  newlineMode: boolean
+  slashKey: string
+}
+
+/** 把当前控制面折成 idle key；flush/batcher 路径不读此结果做跳过。 */
+export function assembleIdleKey(src: LiveIdleSources): string {
+  return liveIdleKey({
+    snapshotKey: [
+      src.agentStatus,
+      src.activity.map(item =>
+        `${item.id}:${item.status}:${item.lastTool ?? ''}:${item.toolCalls ?? 0}:${item.tokensUsed ?? 0}`,
+      ).join('|'),
+      src.pendingCallIds.join(','),
+      src.activityBandEnabled ? '1' : '0',
+      src.compactMode ? '1' : '0',
+      `${src.rows}x${src.columns}`,
+      src.panelFlags,
+      src.btwActive ? 'btw' : '',
+      src.taskNotice,
+      String(src.gitDirty),
+      src.apiKeyReady ? '1' : '0',
+      String(src.reasoningChars),
+      src.reasoningExpanded ? '1' : '0',
+      String(src.streamPeekChars),
+    ].join('\n'),
+    chromeKey: [
+      src.inputValue,
+      src.questionPending ? '1' : '0',
+      src.approvalPending ? '1' : '0',
+      src.approvalTool,
+      src.alwaysApprove ? '1' : '0',
+      src.newlineMode ? '1' : '0',
+      src.slashKey,
+    ].join('\n'),
+  })
+}

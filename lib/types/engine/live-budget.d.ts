@@ -1,6 +1,6 @@
 /**
- * live 区动态段预算：Working 行封顶、欢迎首帧只裁不垫、高水位只涨不缩。
- * 纯函数，不碰 stdout。
+ * live 区动态段预算：Working 行封顶、欢迎首帧只裁不垫、高水位只涨不缩、
+ * 空闲 ticker 跳过组装的 key / spinner 判定。纯函数，不碰 stdout。
  */
 /** padDynamicRegion 输入行（与 LiveRegionLine 结构兼容）。 */
 export interface LiveBudgetLine {
@@ -35,3 +35,54 @@ export declare function nextDynamicBudget(highWater: number, dynamicRows: number
 };
 /** live 区同时展示的进行中工具卡数量上限。 */
 export declare const LIVE_TOOL_CARD_MAX = 3;
+/** snapshot 面 + chrome 面合成一帧 idle key（换行分隔，避免字段粘连）。 */
+export declare function liveIdleKey(parts: {
+    snapshotKey: string;
+    chromeKey: string;
+}): string;
+/** 同 key 且无 spinner 才跳过；首帧 prevKey 为空、有转圈、key 变都必须组装。 */
+export declare function shouldSkipIdleAssemble(opts: {
+    prevKey: string | null;
+    nextKey: string;
+    hasSpinner: boolean;
+}): boolean;
+/** 任一转圈源为真：ticker 才推进 tick，空闲帧不改 key。 */
+export declare function liveHasSpinner(flags: {
+    agentRunning: boolean;
+    activityRunning: boolean;
+    pendingTools: boolean;
+    reasoningLive: boolean;
+}): boolean;
+/** 一帧 idle 源（不含 now/tick，避免空闲 ticker 自己把 key 打漂）。 */
+export interface LiveIdleSources {
+    agentStatus: string;
+    activity: ReadonlyArray<{
+        id: string;
+        status: string;
+        lastTool?: string;
+        toolCalls?: number;
+        tokensUsed?: number;
+    }>;
+    pendingCallIds: readonly string[];
+    activityBandEnabled: boolean;
+    compactMode: boolean;
+    rows: number;
+    columns: number;
+    panelFlags: string;
+    btwActive: boolean;
+    taskNotice: string;
+    gitDirty: number;
+    apiKeyReady: boolean;
+    reasoningChars: number;
+    reasoningExpanded: boolean;
+    streamPeekChars: number;
+    inputValue: string;
+    questionPending: boolean;
+    approvalPending: boolean;
+    approvalTool: string;
+    alwaysApprove: boolean;
+    newlineMode: boolean;
+    slashKey: string;
+}
+/** 把当前控制面折成 idle key；flush/batcher 路径不读此结果做跳过。 */
+export declare function assembleIdleKey(src: LiveIdleSources): string;

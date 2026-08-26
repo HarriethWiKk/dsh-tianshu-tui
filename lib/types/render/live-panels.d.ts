@@ -98,3 +98,8 @@ export declare function renderStatusPanel(snapshot: LiveSnapshot): string[];
  * @returns 面板行数组。
  */
 export declare function renderLspPanel(snapshot: LiveSnapshot): string[];
+/**
+ * 活动带：只消费 snapshot 已 fold 的 activityItems。关闭或无 running → 零行。
+ * 关带时的散行逃生门仍由组合器走 renderActivitySection({ enabled: false })。
+ */
+export declare function renderActivityBand(snapshot: LiveSnapshot): string[];

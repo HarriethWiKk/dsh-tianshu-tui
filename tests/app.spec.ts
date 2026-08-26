@@ -7923,3 +7923,29 @@ describe('/key 键路由（审查修复）', () => {
     await app.dispose()
   })
 })
+
+describe('空闲 ticker 跳过组装', () => {
+  it('空闲 ticker 不组装 live 帧（H2 之前就跳过）', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval'] })
+    const render = vi.spyOn(LiveEngine.prototype, 'render')
+    const ctx = makeCtx()
+    const agent = makeAgent('p2-idle')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    try {
+      await app.attach()
+      await new Promise(resolve => setTimeout(resolve, 40))
+      render.mockClear()
+      await vi.advanceTimersByTimeAsync(360)
+      expect(render).not.toHaveBeenCalled()
+    } finally {
+      await app.dispose()
+      render.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+})

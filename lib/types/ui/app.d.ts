@@ -271,6 +271,10 @@ export declare class TuiApp {
     private inputHistoryPath;
     private tick;
     private ticker;
+    /** 上一帧 idle key；overlay 退出时置空，强制下一帧组装。 */
+    private lastIdleKey;
+    /** ticker 路径才允许 shouldSkipIdleAssemble；flush/batcher 必须组装。 */
+    private renderLiveFromTicker;
     private disposed;
     /** attach() 完成后才往 scrollback 写更新提示（避免欢迎页之前的空窗）。 */
     private attached;
@@ -774,6 +778,12 @@ export declare class TuiApp {
     private displayRowsFor;
     /** critical 路径同步穿透：用户交互（提交/审批/按键）不等 16ms 帧边界。 */
     private flushLiveRender;
+    /** 三类缓存 → 活动带 items（idle key / spinner / snapshot 共用）。 */
+    private foldActivityItems;
+    /** 转圈源：agent / 活动带 running / 未结算工具 / 推理展开或流式。 */
+    private hasVisibleSpinner;
+    /** 当前帧 idle key（不含 now/tick）。 */
+    private currentIdleKey;
     /** 渲染一帧 live 区：状态行 + 流式尾巴 + 进行中工具卡 + 输入行。 */
     private renderLive;
     /**
