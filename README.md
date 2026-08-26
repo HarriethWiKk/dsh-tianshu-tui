@@ -128,7 +128,14 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 
 ## 更新说明
 
-当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.17`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.17)）。
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.18`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.18)）。
+
+### 0.1.2-rc.18（2026-08-26）
+
+待办卡离开思考区：挪到输入轨上方，默认列出条目。
+
+- **待办卡贴输入轨上方** — 从 glance/思考上方挪到 chrome（活动带之下、提问/审批/输入轨之上）；小窗口从顶裁动态段时不再把待办裁掉，也不跟思考抢视线
+- **默认列出条目** — 有进行中/待办时计数头 + 条目（进行中置顶），最多 5 条，超出 `└ …(+N)`；全完成仍一行；`/todos all` 看全表不封 5 条。计数头不再带 `· 当前项`
 
 ### 0.1.2-rc.17（2026-08-25）
 

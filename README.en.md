@@ -129,7 +129,14 @@ The companion vision plugin lives in `vision-ask/` if you need image re-interrog
 
 ## Release notes
 
-Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.17`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.17)).
+Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.18`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.18)).
+
+### 0.1.2-rc.18 (2026-08-26)
+
+Todo card leaves the thinking zone: it sits above the input rail and lists items by default.
+
+- **Todo card above the input rail** — moved from above glance/thinking into chrome (below the activity band, above question/approval/input); small windows no longer crop it when trimming the live top, and it no longer fights thinking for attention
+- **Default item list** — when work is open, a count header plus items (in-progress first), up to 5, then `└ …(+N)`; all-completed stays one line; `/todos all` shows the full list without the cap. The count header no longer appends `· current item`
 
 ### 0.1.2-rc.17 (2026-08-25)
 
