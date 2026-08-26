@@ -89,6 +89,7 @@ function commandByName(name: string) {
     openSessionPicker: vi.fn(),
     openKeyDialog: vi.fn(),
     checkForUpdate: vi.fn(),
+    openCommandPalette: vi.fn(),
     sessionCostReport: vi.fn<() => string[]>(() => []),
   }
   const commands = createBuiltinCommands(deps)
@@ -211,12 +212,15 @@ describe('SlashCommandRegistry — 注册/列举/解析', () => {
     expect(registry.hint('/c')).toContain('/clear')
   })
 
-  it('hint：非 / 输入、孤立 /、无匹配均返回 null', () => {
+  it('hint：非 / 输入、孤立 / 返回 null；无匹配返回空态引导（路径类输入静默）', () => {
     const registry = new SlashCommandRegistry()
     registry.register({ name: 'clear', description: '', run: vi.fn() })
     expect(registry.hint('hello')).toBeNull()
     expect(registry.hint('/')).toBeNull()
-    expect(registry.hint('/xyz')).toBeNull()
+    expect(registry.hint('/xyz')).toBe('无匹配命令（Enter 提交查看相近建议）')
+    // 类路径/参数输入不误报无匹配（/src/main.ts、/tmp/foo bar）
+    expect(registry.hint('/src/main.ts')).toBeNull()
+    expect(registry.hint('/tmp/foo bar')).toBeNull()
   })
 })
 
@@ -1027,18 +1031,18 @@ describe('内置命令 — /help', () => {
     expect(BUILTIN_COMMAND_NAMES).toContain('help')
   })
 
-  it('/help 无参：经 deps.listCommands 列出全部命令（名 + argsHint + 描述）', async () => {
+  it('/help 无参：打开命令面板（不再 echo 刷屏全列表）+ 提示单条详情入口', async () => {
     const { cmd, deps } = commandByName('help')
     const registry = new SlashCommandRegistry()
     for (const c of createBuiltinCommands(deps)) registry.register(c)
     vi.mocked(deps.listCommands).mockReturnValue(registry.list())
     const { args, echo } = makeArgs()
     await cmd.run(args)
-    expect(deps.listCommands).toHaveBeenCalledTimes(1)
-    expect(echo).toHaveBeenCalledWith(expect.stringContaining('全部命令'))
-    expect(echo).toHaveBeenCalledWith(expect.stringContaining('/theme <name>|auto|export [name]|default — 切换主题'))
-    expect(echo).toHaveBeenCalledWith(expect.stringContaining('/help [cmd] — 列出全部命令'))
-    expect(echo).toHaveBeenCalledWith(expect.stringContaining('Ctrl+.'))
+    expect(deps.openCommandPalette).toHaveBeenCalledTimes(1)
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('命令面板已打开'))
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('/help <cmd> 查看单条详情'))
+    // 不再逐条 echo 全命令列表（面板承担浏览/过滤）
+    expect(echo).not.toHaveBeenCalledWith(expect.stringContaining('全部命令（'))
   })
 
   it('/help <cmd>：单条详情；未知命令回显提示', async () => {
@@ -1054,15 +1058,15 @@ describe('内置命令 — /help', () => {
     expect(unknown.echo).toHaveBeenCalledWith('未知命令: /nope（/help 查看全部命令）')
   })
 
-  it('#36 回归：不访问 ctx.tui（Cordis 注入代理下属性访问抛 without inject），正常列出命令', async () => {
+  it('#36 回归：不访问 ctx.tui（Cordis 注入代理下属性访问抛 without inject），正常打开面板', async () => {
     const { cmd, deps } = commandByName('help')
     const registry = new SlashCommandRegistry()
     for (const c of createBuiltinCommands(deps)) registry.register(c)
     vi.mocked(deps.listCommands).mockReturnValue(registry.list())
     const { args, echo } = makeArgs() // makeCtx 无 tui 属性——模拟无 tui.commands 服务的真实环境
     await cmd.run(args)
-    expect(deps.listCommands).toHaveBeenCalled()
-    expect(echo).toHaveBeenCalledWith(expect.stringContaining('全部命令'))
+    expect(deps.openCommandPalette).toHaveBeenCalled()
+    expect(echo).toHaveBeenCalledWith(expect.stringContaining('命令面板已打开'))
     expect(echo).not.toHaveBeenCalledWith(expect.stringContaining('命令执行失败'))
   })
 })
@@ -1694,6 +1698,7 @@ describe('内置命令 — /effort', () => {
       openSessionPicker: vi.fn(),
     openKeyDialog: vi.fn(),
     checkForUpdate: vi.fn(),
+      openCommandPalette: vi.fn(),
       sessionCostReport: vi.fn<() => string[]>(() => []),
     }
     const cmd = createBuiltinCommands(deps).find(c => c.name === 'effort')

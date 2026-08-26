@@ -2492,6 +2492,34 @@ describe('TuiApp 命令面板（Ctrl+P overlay）', () => {
     await app.dispose()
   })
 
+  it('/help 无参 → 打开命令面板（分组浏览，不刷全列表）', async () => {
+    const { app, stdin, stdout } = await bootPaletteApp()
+
+    app.handleSubmit('/help')
+    // overlay 激活 + 面板渲染异步落地，waitFor 轮询（与 commands.spec 同款）
+    await vi.waitFor(() => {
+      const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+      expect(written).toContain('命令面板') // overlay 标题
+      expect(written).toContain('/theme')
+    }, { timeout: 2_000, interval: 20 })
+
+    // 面板关闭：Esc 恢复输入轨
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setImmediate(resolve))
+    await app.dispose()
+  })
+
+  it('/help <cmd> 仍走单条详情回显（不打开面板）', async () => {
+    const { app, stdout } = await bootPaletteApp()
+
+    app.handleSubmit('/help model')
+    await new Promise(resolve => setImmediate(resolve))
+
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('/model')
+    await app.dispose()
+  })
+
   it('面板过滤 + Enter 回填 /clear 到输入行，再回车执行命令', async () => {
     const { app, stdin, stdout } = await bootPaletteApp()
 
@@ -3354,6 +3382,16 @@ describe('TuiApp API key 就绪（credentials 分层，非仅 env）', () => {
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     expect(written).toContain('API Key ✓')
     expect(written).not.toContain('/key')
+    await app.dispose()
+  })
+
+  it('首次运行：欢迎页 Tips 含 /help 命令帮助面板引导（onboarding 一次性）', async () => {
+    // VITEST 下 prefs 禁用 → onboarded 恒未标记 → 欢迎页恒展示 onboarding tip
+    const { app, stdout } = boot({ credentials: { configured: true, source: 'file' } })
+    await app.attach()
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('/help')
+    expect(written).toContain('命令帮助面板')
     await app.dispose()
   })
 

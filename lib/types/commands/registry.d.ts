@@ -173,6 +173,8 @@ export interface BuiltinCommandDeps extends StartupCommandDeps {
     requestRestart(): void;
     /** /help：当前注册表的全部命令（TuiApp 是注册表所有者，经 deps 注入而非 ctx 服务）。 */
     listCommands(): SlashCommand[];
+    /** /help 无参：打开命令面板（分组浏览 + 过滤 + Enter 回填；backfill 模式不执行）。 */
+    openCommandPalette(): void;
     /** /yolo：开启/关闭全放行模式（approval always-approve 快捷入口；返回开启后提示）。 */
     setYoloMode(flag: boolean): void;
     /** #31：打开会话选择器。 */

@@ -860,6 +860,16 @@ export class TuiApp {
       // /help：注册表所有者即 TuiApp（this.slash），经 deps 注入——不暴露为 ctx
       // 服务（Cordis 注入代理对未声明属性抛 without inject，见 #36）。
       listCommands: () => this.slash.list(),
+      // /help 无参 → 命令面板（backfill 模式：Enter 回填不执行；palette/overlay
+      // 在 attach 装配，命令执行必然发生在 attach 之后，闭包安全）。与 Ctrl+P
+      // 键路由同构：open + overlay.activate 两步缺一不渲染。
+      openCommandPalette: () => {
+        this.palette?.open(false)
+        if (this.palette !== null && this.overlay !== null) {
+          this.overlay.activate('command-palette')
+        }
+        this.flushLiveRender()
+      },
       setYoloMode: (flag) => { this.setYoloMode(flag) },
       // #31：交互式选择器（/model /theme /session 无参打开）。
       openModelPicker: () => { void this.openModelPicker() },
@@ -1794,6 +1804,14 @@ export class TuiApp {
     commitLine('')
 
     const tips: WelcomeTipItem[] = []
+    // 首次运行 onboarding：欢迎页一次性引导（/help 命令帮助面板），展示后
+    // 写 prefs.onboarded 落盘，之后启动不再重复。VITEST（prefsPath null）下
+    // 不落盘、恒展示（测试密封）。
+    if (this.prefs.onboarded !== true) {
+      tips.push({ keyHint: '/help', label: '命令帮助面板' })
+      this.prefs.onboarded = true
+      this.persistPrefs()
+    }
     // 环境待办优先：API key 缺失是硬阻塞，排最前引导（/key 配置密钥）。
     if (!this.apiKeyReady) {
       tips.push({ keyHint: '/key', label: '配置 API key' })

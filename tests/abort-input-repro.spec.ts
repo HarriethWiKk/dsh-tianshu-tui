@@ -151,13 +151,14 @@ describe('复现：Ctrl+C 打断后输入框可见性', () => {
     await app.dispose()
   })
 
-  it('B: Tab(execute) → Enter 执行 /help → running 中 Ctrl+C → 主屏含输入轨', async () => {
+  it('B: Tab(execute) → Enter 执行 /status → running 中 Ctrl+C → 主屏含输入轨', async () => {
     const { app, ctx, agent, stdin, stdout } = await bootApp()
     // Tab 打开 palette execute 模式
     stdin.emit('data', '\x09')
     await new Promise(r => setImmediate(r))
-    // 过滤到 help 并 Enter 直接执行
-    stdin.emit('data', 'help')
+    // 过滤到 status 并 Enter 直接执行（/help 现打开命令面板，改用无副作用的
+    // 面板切换命令——测试意图是「命令执行后 running 中 Ctrl+C 可取消」）
+    stdin.emit('data', 'status')
     stdin.emit('data', '\r')
     await new Promise(r => setImmediate(r))
     forceRunning(ctx, app)

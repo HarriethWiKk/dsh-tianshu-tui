@@ -48,6 +48,12 @@ describe('parsePrefs 容错', () => {
     expect(parsePrefs(JSON.stringify({ footerInfo: 42 }))).toEqual({})
   })
 
+  it('onboarded 布尔解析（非布尔丢弃）', () => {
+    expect(parsePrefs(JSON.stringify({ onboarded: true }))).toEqual({ onboarded: true })
+    expect(parsePrefs(JSON.stringify({ onboarded: false }))).toEqual({ onboarded: false })
+    expect(parsePrefs(JSON.stringify({ onboarded: 'yes' }))).toEqual({})
+  })
+
   it('非法 JSON / 非对象 / 空串主题 → 空偏好', () => {
     expect(parsePrefs('{broken')).toEqual({})
     expect(parsePrefs('"string"')).toEqual({})

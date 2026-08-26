@@ -236,7 +236,12 @@ export class SlashCommandRegistry {
     const token = input.slice(1)
     if (token === '') return null
     const matches = this.list().filter(c => c.name.startsWith(token))
-    if (matches.length === 0) return null
+    if (matches.length === 0) {
+      // 空态引导：类路径/参数输入（/src/main.ts、/tmp/foo bar）静默不误报；
+      // 其余无匹配提示 Enter 提交看相近建议（纠错闭环入口）。
+      if (token.includes('/') || token.includes('.') || token.includes(' ')) return null
+      return '无匹配命令（Enter 提交查看相近建议）'
+    }
     const parts = matches.map(c => `/${c.name}${c.argsHint === undefined ? '' : ` ${c.argsHint}`}`)
     return `命令: ${parts.join('   ')}`
   }
@@ -274,6 +279,8 @@ export interface BuiltinCommandDeps extends StartupCommandDeps {
   requestRestart(): void
   /** /help：当前注册表的全部命令（TuiApp 是注册表所有者，经 deps 注入而非 ctx 服务）。 */
   listCommands(): SlashCommand[]
+  /** /help 无参：打开命令面板（分组浏览 + 过滤 + Enter 回填；backfill 模式不执行）。 */
+  openCommandPalette(): void
   /** /yolo：开启/关闭全放行模式（approval always-approve 快捷入口；返回开启后提示）。 */
   setYoloMode(flag: boolean): void
   /** #31：打开会话选择器。 */
@@ -773,12 +780,10 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
           echo(`/${command.name}${command.argsHint === undefined ? '' : ` ${command.argsHint}`} — ${command.description}`)
           return
         }
-        echo(`全部命令（${all.length} 条）:`)
-        for (const command of all) {
-          echo(`  /${command.name}${command.argsHint === undefined ? '' : ` ${command.argsHint}`} — ${command.description}`)
-        }
-        echo('快捷键见 Ctrl+. 键位表')
-        echo('分组浏览/过滤: Ctrl+P 命令面板（会话/配置/认证/面板/技能/系统）')
+        // 无参：打开命令面板（分组浏览 + 过滤 + Enter 回填），替代 40+ 条
+        // echo 刷屏；/help <cmd> 单条详情保留。
+        deps.openCommandPalette()
+        echo('命令面板已打开：分组浏览 + 过滤（/help <cmd> 查看单条详情）')
       },
     },
     {

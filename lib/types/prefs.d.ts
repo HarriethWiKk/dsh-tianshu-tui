@@ -32,6 +32,8 @@ export interface TuiPrefs {
     };
     /** 输入区信息密度（缺省 full：状态行 + 指标行）。 */
     footerInfo?: FooterInfoLevel;
+    /** 首次运行 onboarding 已展示（欢迎页一次性引导；缺省未展示）。 */
+    onboarded?: boolean;
     /** 新会话默认 agent 预设 id（/preset … default）。 */
     preset?: string;
     /** 后台完成时发系统通知（缺省开；false 关闭）。 */
