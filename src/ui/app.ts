@@ -264,6 +264,7 @@ import { RewindOverlay, collectUserRewindCheckpoints, type RewindMode, type Rewi
 import { openInEditorDetailed, getEditorCommand } from '../external-editor.js'
 import { FluencyTracker } from '../fluency-hook.js'
 import { expandMentions } from '../mention-expand.js'
+import { notifyOs } from '../os-notify.js'
 import { buildSessionPickerItems, formatSessionAge } from '../restore-session.js'
 // 副作用声明合并：让 ctx.on('approval/request') 的 handler 参数由 cordis 事件
 // 类型推导（user-approval 的 module augmentation）。不 import 具体类型——
@@ -2384,6 +2385,7 @@ export class TuiApp {
         }, this.theme),
         trailingNewline: true,
       })
+      notifyOs({ title: 'dsh · 子代理完成', body: run.label })
       this.renderBatcher.schedule()
     })
     this.subagentDisposer = () => { onSubStart(); onSubEnd(); onRunStart(); onRunEnd() }
@@ -2442,6 +2444,7 @@ export class TuiApp {
           this.workflowRuns.delete(info.id)
           this.completedWorkflowRuns.set(info.id, view)
           this.commitToScrollback({ text: formatWorkflowSummary(view, this.theme), trailingNewline: true })
+          notifyOs({ title: 'dsh · 工作流完成', body: run.meta.name })
           this.flushLiveRender()
         }
       }),
@@ -2458,6 +2461,7 @@ export class TuiApp {
       this.taskDoneDisposer = tasks.onTaskDone((snapshot) => {
         this.taskNotice = `✓ 任务完成: ${snapshot.label}`
         this.taskSnapshots = tasks.list()
+        notifyOs({ title: 'dsh · 任务完成', body: snapshot.label })
         this.flushLiveRender()
       })
       this.taskSurfaceDisposer = tasks.attachSurface('tui')
