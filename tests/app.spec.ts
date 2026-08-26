@@ -2527,12 +2527,12 @@ describe('TuiApp 命令面板（Ctrl+P overlay）', () => {
     await new Promise(resolve => setImmediate(resolve))
 
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).toContain('## 0.1.2-rc.19')
-    expect(written).toContain('/preset')
+    expect(written).toContain('## 0.1.2-rc.20')
+    expect(written).toContain('/info')
     await app.dispose()
   })
 
-  it('/changelog all 含 Unreleased 段；/changelog N 截断', async () => {
+  it('/changelog all 覆盖全部版本；/changelog N 截断', async () => {
     const { app, stdout } = await bootPaletteApp()
 
     app.handleSubmit('/changelog all')
@@ -2541,8 +2541,8 @@ describe('TuiApp 命令面板（Ctrl+P overlay）', () => {
     await new Promise(resolve => setImmediate(resolve))
 
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).toContain('## Unreleased')
-    expect(written).toContain('## 0.1.2-rc.18') // all 覆盖更早版本
+    expect(written).toContain('## 0.1.2-rc.20')
+    expect(written).toContain('## 0.1.1-rc.6') // all 覆盖最早版本
     await app.dispose()
   })
 
