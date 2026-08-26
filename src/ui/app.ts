@@ -105,16 +105,12 @@ import { applyTurnEvent, emptyTurnSummary, type TurnSummaryState } from '../turn
 import { applySummaryEvent, emptySummaryState, summarizeSession, type SummaryState } from '../summary-state.js'
 import { formatTurnSummary as renderTurnSummaryLine } from '../format/turn-summary.js'
 import { getToolFamily } from '../format/tool-meta.js'
-import type {
-  DelegationTreeEntry,
-  DelegationProgressProjection,
-  ExternalRunEntry,
-} from '../delegation-panel.js'
 import {
-  delegationSnapshotSlice, foldWorkflowViews, formatWorkflowSummary, noteForeignProjection,
-  readExternalRuns, renderActivitySection, takeChildStats,
+  delegationSnapshotSlice, foldWorkflowViews, formatWorkflowSummary,
+  renderActivitySection,
 } from './activity-flow.js'
 import { WorkflowSurfaceController } from '../controllers/workflow-surface.js'
+import { DelegationSurfaceController, type SubagentsFacet } from '../controllers/delegation-surface.js'
 import { KeyDialogController } from './key-dialog.js'
 import { KeyFlow } from './key-flow.js'
 import {
@@ -164,15 +160,6 @@ interface ProjectionFacet {
   ) => void): () => void
 }
 
-/** T2.1：委派树 listDescendants 返回项（复用 delegation-panel 的纯数据形状）。 */
-type DelegationEntry = DelegationTreeEntry
-
-/** T2.1：subagents 服务最小面（listDescendants 预取；事件经 ctx.on('subagent/…')）。 */
-interface SubagentsFacet {
-  listDescendants(rootSessionId: SessionId, signal?: AbortSignal): Promise<DelegationEntry[]>
-  activeExternalRuns?: () => ExternalRunEntry[]
-}
-
 /** T2.3：tasks 服务最小面（不引入 dsh-tasks 依赖；id 运行时即 string）。 */
 interface TasksFacet {
   list(): TaskSnapshotView[]
@@ -203,7 +190,6 @@ import {
   type ModelFacet,
 } from '../commands/registry.js'
 import { PickerController } from '../picker.js'
-import { shortSessionLabel } from '../session-label.js'
 import { accumulateUsage, formatSessionCostReport, type SessionCostBucket } from '../format/session-cost.js'
 import { renderTranscript, parseToolArguments, toolResultText, type RenderedRow } from './render.js'
 import { CommandPalette } from '../command-palette.js'
@@ -568,13 +554,29 @@ export class TuiApp {
   private subagentsPanelVisible = false
   /** T2.2：workflow 运行中面板显隐（/workflow 切换）。 */
   private workflowPanelVisible = false
-  /** T2.1：委派树缓存（listDescendants 预取 + subagent/start|end 事件刷新；
-   *  null = subagents 服务缺失/未预取 → 面板降级不可用）。 */
-  private delegationEntries: DelegationEntry[] | null = null
-  /** 对话流 subagent 运行态（runId → 标签/开始时间/childId；end 时结算并提交 scrollback）。 */
-  private subagentRuns = new Map<string, { label: string; startedAt: number; childId: string }>()
-  private readonly childProgress = new Map<string, DelegationProgressProjection>()
-  private externalRuns: ExternalRunEntry[] = []
+  /** T2.1：子代理委派域（树缓存/运行行缓存/他会话投影入口）——提取自本文件，见 controllers/delegation-surface.ts。 */
+  private readonly delegationSurface = new DelegationSurfaceController({
+    getService: () => this.ctx.reflect.get('subagents', false) as SubagentsFacet | undefined,
+    isDisposed: () => this.disposed,
+    schedule: () => { this.renderBatcher.schedule() },
+    onRunFinished: (done) => {
+      this.commitToScrollback({
+        text: formatSubagentDone({
+          width: this.stdout.columns,
+          label: done.label,
+          elapsedMs: done.elapsedMs,
+          stopReason: done.stopReason,
+          stats: done.stats,
+        }, this.theme),
+        trailingNewline: true,
+      })
+      // workflow 活跃时子代理逐条完成会连发通知刷屏：静默单条，由 workflow/end 统一汇总。
+      if (!subagentNotifySuppressed(this.workflowSurface.runningCount)) {
+        notifyOs({ title: 'dsh · 子代理完成', body: done.label }, this.prefs)
+      }
+      this.renderBatcher.schedule()
+    },
+  })
   private readonly activityBandEnabled: boolean
   private readonly activityBandMaxRows: number
   /** T2.2：workflow 事件域（订阅/运行态缓存/终态折叠）——提取自本文件，见 controllers/workflow-surface.ts。 */
@@ -2269,9 +2271,10 @@ export class TuiApp {
       statusLine?.setPlanState(this.planState)
       this.projectionDisposer = projections.onChanged((s, key, value) => {
         if (s.id !== id) {
-          if (noteForeignProjection({ sessionId: String(s.id), key, value, panelVisible: this.subagentsPanelVisible },
-            { childProgress: this.childProgress, subagentRuns: this.subagentRuns.values(), delegationEntries: this.delegationEntries },
-            () => { this.refreshDelegationTree(id) })) this.renderBatcher.schedule()
+          if (this.delegationSurface.handleForeignProjection(
+            { sessionId: String(s.id), key, value },
+            { panelVisible: this.subagentsPanelVisible, rootSessionId: id },
+          )) this.renderBatcher.schedule()
           return
         }
         // 按 key 分流缓存（5 域总线）；todos/plan 有专有消费，其余域仅进缓存。
@@ -2308,43 +2311,10 @@ export class TuiApp {
     // 工具卡走同一 presenter 桥（presenter 为 args 纯函数、桥软降级，replay 安全）。
     this.commitRows(this.renderHistoryRows())
     this.inputLine.setHistory(this.history)
-    // T2.1：委派树预取（listDescendants 是 async——首次 await 入缓存；
-    // subagent/start|end 事件触发 re-await + renderLive 刷新）。
-    // ctx.on 返回 disposer（恒非空）——start/end 必须分别注册，?? 会短路右侧。
-    this.subagentDisposer?.()
-    this.delegationEntries = null
-    this.subagentRuns.clear(); this.childProgress.clear(); this.externalRuns = []
-    const onSubStart = this.ctx.on('subagent/start', () => { this.refreshDelegationTree(id) })
-    const onSubEnd = this.ctx.on('subagent/end', () => { this.refreshDelegationTree(id) })
-    // 对话流 subagent 状态行（grok SubagentBlock 移植，dsh 精简版）：start →
-    // live 区运行行（spinner 动态帧）；end → 终态行提交 scrollback（append）。
-    // label 尽力取委派树缓存（可能滞后 → 回退 id 短哈希，与面板同款兜底）。
-    const onRunStart = this.ctx.on('subagent/start', (info: { runId: string; id: string }) => {
-      this.subagentRuns.set(info.runId, { label: this.subagentLabel(info.id), startedAt: Date.now(), childId: info.id })
-      this.renderBatcher.schedule()
-    })
-    const onRunEnd = this.ctx.on('subagent/end', (info: { runId: string; stopReason: string }) => {
-      const run = this.subagentRuns.get(info.runId)
-      if (run === undefined) return
-      this.subagentRuns.delete(info.runId)
-      this.commitToScrollback({
-        text: formatSubagentDone({
-          width: this.stdout.columns,
-          label: run.label,
-          elapsedMs: Date.now() - run.startedAt,
-          stopReason: info.stopReason,
-          stats: takeChildStats(this.childProgress, run.childId),
-        }, this.theme),
-        trailingNewline: true,
-      })
-      // workflow 活跃时子代理逐条完成会连发通知刷屏：静默单条，由 workflow/end 统一汇总。
-      if (!subagentNotifySuppressed(this.workflowSurface.runningCount)) {
-        notifyOs({ title: 'dsh · 子代理完成', body: run.label }, this.prefs)
-      }
-      this.renderBatcher.schedule()
-    })
-    this.subagentDisposer = () => { onSubStart(); onSubEnd(); onRunStart(); onRunEnd() }
-    this.refreshDelegationTree(id)
+    // T2.1：委派域订阅（树预取 + 对话流运行行；listDescendants 是 async——
+    // 首次 await 入缓存，subagent/start|end 事件触发 re-await + renderLive 刷新）。
+    // start/end 各注册两处 handler（树刷新 + 运行行），disposer 全部收集。
+    this.subagentDisposer = this.delegationSurface.attach(id, (event, cb) => this.ctx.on(event, cb))
     // T2.2：workflow 事件订阅（start/phase/log/agent-start/agent-end/end → 缓存；
     // 跨会话运行，attach 订阅 dispose 释放）。六个 disposer 全部收集——
     // 只存 start 会让其余五个在每次挂载时泄漏。
@@ -2366,37 +2336,6 @@ export class TuiApp {
       this.taskSurfaceDisposer = tasks.attachSurface('tui')
     }
     this.flushLiveRender()
-  }
-
-  /** T2.1：预取委派树（async；空会话/服务缺失时置 null 降级）。 */
-  /**
-   * 对话流 subagent 行的显示标签：委派树缓存命中 label 用之，否则 id 短哈希。
-   * @param id - 子代理会话 id。
-   * @returns 显示标签。
-   */
-  private subagentLabel(id: string): string {
-    for (const e of this.delegationEntries ?? []) {
-      if (e.kind === 'child' && e.id === id) return e.label ?? shortSessionLabel(id)
-    }
-    return shortSessionLabel(id)
-  }
-
-  private refreshDelegationTree(sessionId: SessionId): void {
-    const subagents = this.ctx.reflect.get('subagents', false) as SubagentsFacet | undefined
-    if (subagents === undefined) { this.delegationEntries = null; this.externalRuns = []; return }
-    this.externalRuns = readExternalRuns(subagents)
-    this.renderBatcher.schedule()
-    void subagents.listDescendants(sessionId).then((entries) => {
-      if (this.disposed) return
-      this.delegationEntries = entries
-      this.renderBatcher.schedule()
-    }).catch(() => {
-      // 非 dispose 原因的失败同样要重绘（置空清面板），否则滞留旧树直到
-      // 120ms ticker 自愈；与 then 分支对称调度。
-      if (this.disposed) return
-      this.delegationEntries = null
-      this.renderBatcher.schedule()
-    })
   }
 
   /** T3.2：刷新 /config 投影（宿主服务可缺；终端段始终带上）。 */
@@ -3729,8 +3668,8 @@ export class TuiApp {
       todosExpanded: this.todosExpanded,
       todosItems: this.todosRetained,
       ...delegationSnapshotSlice({
-        subagentsPanelVisible: this.subagentsPanelVisible, delegationEntries: this.delegationEntries,
-        projectionCache: this.projectionCache, externalRuns: this.externalRuns, now,
+        subagentsPanelVisible: this.subagentsPanelVisible, delegationEntries: this.delegationSurface.entries,
+        projectionCache: this.projectionCache, externalRuns: this.delegationSurface.externalRuns(), now,
       }),
       workflowPanelVisible: this.workflowPanelVisible,
       workflowRuns,
@@ -3886,8 +3825,8 @@ export class TuiApp {
     }
 
     for (const line of renderActivitySection({
-      enabled: this.activityBandEnabled, subagentRuns: this.subagentRuns,
-      childProgress: this.childProgress, workflowRuns: this.workflowSurface.runningViews(),
+      enabled: this.activityBandEnabled, subagentRuns: this.delegationSurface.runningEntries(),
+      childProgress: this.delegationSurface.progressView(), workflowRuns: this.workflowSurface.runningViews(),
       tasks: this.taskSnapshots,
       width: cols, maxRows: this.activityBandMaxRows, now, tick: this.tick, theme,
     })) lines.push({ text: line })

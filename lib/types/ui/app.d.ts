@@ -192,13 +192,8 @@ export declare class TuiApp {
     private subagentsPanelVisible;
     /** T2.2：workflow 运行中面板显隐（/workflow 切换）。 */
     private workflowPanelVisible;
-    /** T2.1：委派树缓存（listDescendants 预取 + subagent/start|end 事件刷新；
-     *  null = subagents 服务缺失/未预取 → 面板降级不可用）。 */
-    private delegationEntries;
-    /** 对话流 subagent 运行态（runId → 标签/开始时间/childId；end 时结算并提交 scrollback）。 */
-    private subagentRuns;
-    private readonly childProgress;
-    private externalRuns;
+    /** T2.1：子代理委派域（树缓存/运行行缓存/他会话投影入口）——提取自本文件，见 controllers/delegation-surface.ts。 */
+    private readonly delegationSurface;
     private readonly activityBandEnabled;
     private readonly activityBandMaxRows;
     /** T2.2：workflow 事件域（订阅/运行态缓存/终态折叠）——提取自本文件，见 controllers/workflow-surface.ts。 */
@@ -574,14 +569,6 @@ export declare class TuiApp {
      * @param id - 目标会话 id（activeSessionId 已在调用方设置）。
      */
     private mountSession;
-    /** T2.1：预取委派树（async；空会话/服务缺失时置 null 降级）。 */
-    /**
-     * 对话流 subagent 行的显示标签：委派树缓存命中 label 用之，否则 id 短哈希。
-     * @param id - 子代理会话 id。
-     * @returns 显示标签。
-     */
-    private subagentLabel;
-    private refreshDelegationTree;
     /** T3.2：刷新 /config 投影（宿主服务可缺；终端段始终带上）。 */
     private refreshConfigProjection;
     /** /config notify 与空输入 n：写 prefs 并刷新终端段。 */
