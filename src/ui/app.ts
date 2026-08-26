@@ -112,9 +112,9 @@ import type {
 } from '../delegation-panel.js'
 import {
   delegationSnapshotSlice, foldWorkflowViews, formatWorkflowSummary, noteForeignProjection,
-  readExternalRuns, renderActivitySection, settleWorkflowView, takeChildStats,
+  readExternalRuns, renderActivitySection, takeChildStats,
 } from './activity-flow.js'
-import type { WorkflowRunView } from '../workflow-panel.js'
+import { WorkflowSurfaceController } from '../controllers/workflow-surface.js'
 import { KeyDialogController } from './key-dialog.js'
 import { KeyFlow } from './key-flow.js'
 import {
@@ -191,58 +191,9 @@ interface TaskSnapshotView {
   readonly startedAt: number
 }
 
-/** T2.2：workflow/start|phase|log|agent-start|agent-end|end 事件 payload 的最小 wire 形状。 */
-interface WorkflowRunInfoWire {
-  readonly id: string
-  /** run 的 meta 块（workflow/start 携带；可选——旧形状事件无 meta 时回退 id）。 */
-  readonly meta?: WorkflowMetaWire
-}
-interface WorkflowMetaWire {
-  readonly name: string
-  readonly description?: string
-  readonly phases?: { title: string }[]
-}
-/** 规范化后的 run meta（创建时 name/description 必有值；与 WorkflowMetaInput 形状一致）。 */
-interface WorkflowMetaNormalized {
-  readonly name: string
-  readonly description: string
-  readonly phases?: { title: string }[]
-}
-interface WorkflowAgentWire {
-  readonly seq: number
-  readonly label: string
-  readonly phase?: string
-  readonly childId?: string
-}
-interface WorkflowAgentEndWire extends WorkflowAgentWire {
-  readonly outcome: 'completed' | 'failed' | 'cancelled'
-}
-interface WorkflowResultWire {
-  readonly stopReason: string
-  readonly error?: string
-}
-
-/** 单个 run 保留的最近叙述行上限（workflow/log drop-oldest 防刷屏）。 */
-const WORKFLOW_LOG_CAP = 20
-
 /** 双击 Esc 触发 rewind 的窗口（ms；对齐 Claude Code 的 Esc+Esc 时间回溯）。
  *  比 Ctrl+C 双击退出的 2s 短——rewind 是高频操作，双击节奏更跟手。 */
 const REWIND_DOUBLE_ESC_MS = 1000
-
-/** T2.2：运行中 workflow 缓存项（key = payload.id；随 start 建、end 移除）。 */
-interface WorkflowRunState {
-  readonly id: string
-  /** run 的 meta 块（start 事件携带，创建时规范化——name 缺省回退 id，description 缺省空串）。 */
-  readonly meta: WorkflowMetaNormalized
-  /** run 开始时间（start 事件落地；elapsedMs 数据源）。 */
-  readonly startedAt: number
-  /** 最近一次 workflow/phase 标题；无 phase 事件时为 null。 */
-  phase: string | null
-  /** 已建立的 agent() 调用（agent-start 追加，agent-end 标记 outcome）。 */
-  agents: { seq: number; label: string; childId?: string; outcome?: 'completed' | 'failed' | 'cancelled' }[]
-  /** 脚本叙述行（workflow/log；cap 20 drop-oldest 防刷屏）。 */
-  logs: string[]
-}
 import { WorkflowStatusLine } from '../statusline.js'
 import {
   BUILTIN_COMMAND_NAMES,
@@ -626,10 +577,16 @@ export class TuiApp {
   private externalRuns: ExternalRunEntry[] = []
   private readonly activityBandEnabled: boolean
   private readonly activityBandMaxRows: number
-  /** T2.2：运行中 workflow 缓存（key = payload.id；start 建、end 移除）。 */
-  private readonly workflowRuns = new Map<string, WorkflowRunState>()
-  /** T2.2：已结算 run 视图缓存（workflow/end 折叠；/workflow 面板渲染运行中+已完成）。 */
-  private readonly completedWorkflowRuns = new Map<string, WorkflowRunView>()
+  /** T2.2：workflow 事件域（订阅/运行态缓存/终态折叠）——提取自本文件，见 controllers/workflow-surface.ts。 */
+  private readonly workflowSurface = new WorkflowSurfaceController({
+    onCompleted: (view, name) => {
+      this.commitToScrollback({ text: formatWorkflowSummary(view, this.theme), trailingNewline: true })
+      notifyOs({ title: 'dsh · 工作流完成', body: name }, this.prefs)
+      this.flushLiveRender()
+    },
+    schedule: () => { this.renderBatcher.schedule() },
+    flushLive: () => { this.flushLiveRender() },
+  })
   /** T2.3：后台任务同步快照（tasks.list() 每次事件/会话挂载刷新）。 */
   private taskSnapshots: TaskSnapshotView[] = []
   /** T2.3：onTaskDone 完成通知（live 区提示行；一次性，渲染后清空）。 */
@@ -2381,7 +2338,7 @@ export class TuiApp {
         trailingNewline: true,
       })
       // workflow 活跃时子代理逐条完成会连发通知刷屏：静默单条，由 workflow/end 统一汇总。
-      if (!subagentNotifySuppressed(this.workflowRuns.size)) {
+      if (!subagentNotifySuppressed(this.workflowSurface.runningCount)) {
         notifyOs({ title: 'dsh · 子代理完成', body: run.label }, this.prefs)
       }
       this.renderBatcher.schedule()
@@ -2391,63 +2348,7 @@ export class TuiApp {
     // T2.2：workflow 事件订阅（start/phase/log/agent-start/agent-end/end → 缓存；
     // 跨会话运行，attach 订阅 dispose 释放）。六个 disposer 全部收集——
     // 只存 start 会让其余五个在每次挂载时泄漏。
-    this.workflowDisposer?.()
-    this.workflowRuns.clear()
-    const workflowListeners = [
-      this.ctx.on('workflow/start', (info: WorkflowRunInfoWire) => {
-        // meta 创建时规范化：旧形状事件无 meta 时 name 回退 id、description 空串，
-        // 消费点直接透传不再判空。
-        const meta = info.meta
-        this.workflowRuns.set(info.id, {
-          id: info.id,
-          meta: {
-            name: meta?.name ?? info.id,
-            description: meta?.description ?? '',
-            ...meta?.phases === undefined ? {} : { phases: meta.phases },
-          },
-          startedAt: Date.now(),
-          phase: null,
-          agents: [],
-          logs: [],
-        })
-        this.flushLiveRender()
-      }),
-      this.ctx.on('workflow/phase', (info: WorkflowRunInfoWire, title: string) => {
-        const run = this.workflowRuns.get(info.id)
-        if (run !== undefined) { run.phase = title; this.renderBatcher.schedule() }
-      }),
-      this.ctx.on('workflow/log', (info: WorkflowRunInfoWire, message: string) => {
-        const run = this.workflowRuns.get(info.id)
-        if (run !== undefined) {
-          // cap 20 drop-oldest：脚本刷屏只保留最近叙述，面板不被淹没。
-          run.logs.push(message)
-          if (run.logs.length > WORKFLOW_LOG_CAP) run.logs.splice(0, run.logs.length - WORKFLOW_LOG_CAP)
-          this.renderBatcher.schedule()
-        }
-      }),
-      this.ctx.on('workflow/agent-start', (info: WorkflowRunInfoWire, agent: WorkflowAgentWire) => {
-        const run = this.workflowRuns.get(info.id)
-        if (run !== undefined) { run.agents.push({ seq: agent.seq, label: agent.label, childId: agent.childId ?? '' }); this.renderBatcher.schedule() }
-      }),
-      this.ctx.on('workflow/agent-end', (info: WorkflowRunInfoWire, agent: WorkflowAgentEndWire) => {
-        const run = this.workflowRuns.get(info.id)
-        const slot = run?.agents.find(a => a.seq === agent.seq)
-        if (slot !== undefined) { slot.outcome = agent.outcome; this.renderBatcher.schedule() }
-      }),
-      this.ctx.on('workflow/end', (info: WorkflowRunInfoWire, result: WorkflowResultWire) => {
-        const run = this.workflowRuns.get(info.id)
-        if (run !== undefined) {
-          // 终态折叠为 WorkflowRunView（stopReason/agentsStarted 进 meta；grok 死字段我们消费）
-          const view = this.toWorkflowRunView(run, result)
-          this.workflowRuns.delete(info.id)
-          this.completedWorkflowRuns.set(info.id, view)
-          this.commitToScrollback({ text: formatWorkflowSummary(view, this.theme), trailingNewline: true })
-          notifyOs({ title: 'dsh · 工作流完成', body: run.meta.name }, this.prefs)
-          this.flushLiveRender()
-        }
-      }),
-    ]
-    this.workflowDisposer = () => { for (const d of workflowListeners) d() }
+    this.workflowDisposer = this.workflowSurface.attach((event, cb) => this.ctx.on(event, cb))
     // T2.3：后台任务同步快照 + 完成通知 + 控制面。
     this.taskDoneDisposer?.()
     this.taskSurfaceDisposer?.()
@@ -2496,11 +2397,6 @@ export class TuiApp {
       this.delegationEntries = null
       this.renderBatcher.schedule()
     })
-  }
-
-  /** T2.2：运行态缓存项 → 面板视图（终态含 stopReason/agentsStarted）。 */
-  private toWorkflowRunView(run: WorkflowRunState, result: WorkflowResultWire): WorkflowRunView {
-    return settleWorkflowView(run, result, Date.now())
   }
 
   /** T3.2：刷新 /config 投影（宿主服务可缺；终端段始终带上）。 */
@@ -3808,7 +3704,7 @@ export class TuiApp {
       width: cols,
     }, theme)
     const now = Date.now()
-    const workflowRuns = foldWorkflowViews(this.workflowRuns.values(), this.completedWorkflowRuns.values(), now)
+    const workflowRuns = foldWorkflowViews(this.workflowSurface.runningViews(), this.workflowSurface.completedViews(), now)
     const snapshot: LiveSnapshot = {
       cols,
       theme,
@@ -3991,7 +3887,7 @@ export class TuiApp {
 
     for (const line of renderActivitySection({
       enabled: this.activityBandEnabled, subagentRuns: this.subagentRuns,
-      childProgress: this.childProgress, workflowRuns: this.workflowRuns.values(),
+      childProgress: this.childProgress, workflowRuns: this.workflowSurface.runningViews(),
       tasks: this.taskSnapshots,
       width: cols, maxRows: this.activityBandMaxRows, now, tick: this.tick, theme,
     })) lines.push({ text: line })

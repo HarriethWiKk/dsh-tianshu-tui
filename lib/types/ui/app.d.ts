@@ -201,10 +201,8 @@ export declare class TuiApp {
     private externalRuns;
     private readonly activityBandEnabled;
     private readonly activityBandMaxRows;
-    /** T2.2：运行中 workflow 缓存（key = payload.id；start 建、end 移除）。 */
-    private readonly workflowRuns;
-    /** T2.2：已结算 run 视图缓存（workflow/end 折叠；/workflow 面板渲染运行中+已完成）。 */
-    private readonly completedWorkflowRuns;
+    /** T2.2：workflow 事件域（订阅/运行态缓存/终态折叠）——提取自本文件，见 controllers/workflow-surface.ts。 */
+    private readonly workflowSurface;
     /** T2.3：后台任务同步快照（tasks.list() 每次事件/会话挂载刷新）。 */
     private taskSnapshots;
     /** T2.3：onTaskDone 完成通知（live 区提示行；一次性，渲染后清空）。 */
@@ -584,8 +582,6 @@ export declare class TuiApp {
      */
     private subagentLabel;
     private refreshDelegationTree;
-    /** T2.2：运行态缓存项 → 面板视图（终态含 stopReason/agentsStarted）。 */
-    private toWorkflowRunView;
     /** T3.2：刷新 /config 投影（宿主服务可缺；终端段始终带上）。 */
     private refreshConfigProjection;
     /** /config notify 与空输入 n：写 prefs 并刷新终端段。 */
