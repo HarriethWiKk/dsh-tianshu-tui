@@ -51,6 +51,7 @@ import {
 import { WriteBatcher } from '../engine/write-batcher.js'
 import { InputHandler, type KeyPress, type KeyName } from '../engine/input-handler.js'
 import { InputLine, inputViewportMaxLines } from '../engine/input-line.js'
+import { remapSequences } from '../engine/insert-remap.js'
 import { InputController, type SlashHintEntry } from '../engine/input-controller.js'
 import { ResizeHandler } from '../engine/resize-handler.js'
 import { BlockStreamWriter } from '../block-stream-writer.js'
@@ -766,8 +767,8 @@ export class TuiApp {
     // vim 键位来源（issue #51）：宿主显式配置 > 本地 prefs（/vim default）> 缺省关。
     const vimResolved = options.vimEnabled ?? this.prefs.vimEnabled ?? false
     this.inputLine = new InputLine({
-      history: this.history,
-      vimEnabled: vimResolved,
+      history: this.history, vimEnabled: vimResolved,
+      insertRemapSequences: remapSequences(this.prefs.vimInsertRemaps),
       onSubmit: (text, images) => { this.handleSubmit(text, images) },
       onTabComplete: () => this.handleTabComplete(),
       // vim NORMAL '/' → 历史搜索 overlay（对齐 CC 键位表注记）。

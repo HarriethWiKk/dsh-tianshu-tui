@@ -139,7 +139,7 @@ Full release history: [CHANGELOG.md](CHANGELOG.md) (zh) and [GitHub Releases](ht
 
 - **Full session workspace in a terminal** — live rendering, append-only scrollback, session restore on startup, `/fork` exploration branches, `/rewind` rollback (session truncation + optional file rollback), `/export` to Markdown transcripts, and mid-turn steering (`/steer` / `Ctrl+T`).
 - **End-to-end images** — paste from clipboard (`Ctrl+V` / terminal-menu paste), render as inline terminal graphics (kitty / iTerm2), deliver through the harness attachment service, and let a vision-capable model actually see them — with an automatic vision bridge that describes the image through a separate vision model when the main model cannot see.
-- **A complete input surface** — grok-style slash dropdown menu (fuzzy prefix matching, MRU ordering, ghost previews), `@`-path Tab completion and `@mention` expansion, bracketed paste, optional vim keybindings, external editor (`Ctrl+E`), history search (`Ctrl+F`) — and a full keymap overlay behind `Ctrl+.`.
+- **A complete input surface** — grok-style slash dropdown menu (fuzzy prefix matching, MRU ordering, ghost previews), `@`-path Tab completion and `@mention` expansion, bracketed paste, optional vim keybindings, external editor (`Ctrl+E`), history search (`Ctrl+F`/`Ctrl+R`) — and a full keymap overlay behind `Ctrl+.`.
 - **In-terminal interaction surfaces** — structured question panels (numeric selection, plan-review feedback mode), pending approval cards with inline `diff` previews, mode cycle (`Shift+Tab`: normal → plan → always-approve), command palette, and live panels for status / config / skills / tasks / delegation / workflow.
 - **Reasoning made visible** — the think channel streams as a live header, folds into a compact scrollback line (`✻ 思考 (3.2s) · 12 行`), and expands in place with `Ctrl+O` (competitor-aligned: collapsed by default).
 - **Personalized harness integrations** — `/doctor` terminal diagnostics, `/memory` project-memory browser, `/btw` side questions to a background agent, `/model` + `/effort` hot-switching that takes effect on the current session immediately.
@@ -198,7 +198,7 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 - **Approval cards** — `y`/`N`/`Ctrl+C` settle pending approvals; inline diff previews when the tool is diffable; blind-approval hint when the diff is invisible; non-current-session requests delegate to the next listener.
 - **Mode cycle** — `Shift+Tab` cycles normal → plan → always-approve; the plan state drives the footer badge, and always-approve is session-local (resets on switch/exit).
 - **Live panels** — `/status` (goal/todos/plan projection snapshot; the subagent domains surface under `/subagents`), `/config` (terminal notifications (completion OS notify + BEL bell — the bell still reaches you over SSH) / compact rendering + host settings / permission / credentials), `/skills` browser (↑↓ details), `/tasks` pane, `/subagents` delegation tree, `/workflow` runs. Inspect panels are exclusive; `Esc` closes them. Missing host sections collapse; `/config`'s terminal section does not need the host. Other panels echo a `⚠` warning when their backing service is absent instead of going silently blank.
-- **Command palette (`Ctrl+P`) / keymap (`Ctrl+.`) / history search (`Ctrl+F`) overlays**.
+- **Command palette (`Ctrl+P`) / keymap (`Ctrl+.`) / history search (`Ctrl+F`/`Ctrl+R`) overlays**.
 
 ### Models & vision
 
@@ -247,7 +247,7 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 | `Ctrl+Q` | Quit (same as `/exit`) |
 | `Ctrl+P` | Command palette |
 | `Ctrl+.` | Keymap overlay |
-| `Ctrl+F` | History search (`n`/`N` next, `p`/`P` previous) |
+| `Ctrl+F` / `Ctrl+R` | History search (`n`/`N` next, `p`/`P` previous) |
 | `Ctrl+O` | Expand/collapse the latest reasoning block |
 | `Ctrl+E` | Open the input line in `$EDITOR` (configurable via `editorKey`) |
 | `Ctrl+T` | Mid-turn steering |

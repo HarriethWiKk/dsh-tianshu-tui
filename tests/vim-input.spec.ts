@@ -460,6 +460,35 @@ describe("vim · '/' 历史搜索钩子", () => {
     expect(calls).toBe(1)
     expect(il.value).toBe('/')
   })
+
+  it('Ctrl+R：非 vim 模式触发回调且不改值', () => {
+    let calls = 0
+    const il = new InputLine({ value: 'abc', onOpenHistorySearch: () => { calls++ } })
+    named(il, 'ctrl_r')
+    expect(calls).toBe(1)
+    expect(il.value).toBe('abc')
+  })
+
+  it('Ctrl+R：vim NORMAL 是 redo，不触发搜索回调', () => {
+    let calls = 0
+    const il = new InputLine({ onOpenHistorySearch: () => { calls++ } })
+    il.setVimEnabled(true)
+    typeKeys(il, 'hi\x1bddu')
+    expect(il.value).toBe('hi')
+    named(il, 'ctrl_r')
+    expect(il.value).toBe('')
+    expect(calls).toBe(0)
+  })
+
+  it('Ctrl+R：vim insert 态触发回调（与 Ctrl+F 任意态可用一致）', () => {
+    let calls = 0
+    const il = new InputLine({ onOpenHistorySearch: () => { calls++ } })
+    il.setVimEnabled(true)
+    typeKeys(il, 'ab')
+    named(il, 'ctrl_r')
+    expect(calls).toBe(1)
+    expect(il.vimMode).toBe('insert')
+  })
 })
 
 describe('vim · 折叠粘贴标记跨模式原子性', () => {

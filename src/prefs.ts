@@ -46,6 +46,8 @@ export interface TuiPrefs {
   notifyOs?: boolean
   /** vim 编辑键位（/vim default 持久化；缺省 false）。 */
   vimEnabled?: boolean
+  /** vim insert 两键序列→Esc 映射（如 {"jj":"esc"}；值仅支持 esc，见 insert-remap.ts）。 */
+  vimInsertRemaps?: Record<string, string>
 }
 
 /** 缺省偏好（= 现行为）。 */
@@ -79,6 +81,13 @@ export function parsePrefs(text: string): TuiPrefs {
   }
   if (typeof obj.notifyOs === 'boolean') prefs.notifyOs = obj.notifyOs
   if (typeof obj.vimEnabled === 'boolean') prefs.vimEnabled = obj.vimEnabled
+  if (typeof obj.vimInsertRemaps === 'object' && obj.vimInsertRemaps !== null && !Array.isArray(obj.vimInsertRemaps)) {
+    const remaps: Record<string, string> = {}
+    for (const [key, value] of Object.entries(obj.vimInsertRemaps as Record<string, unknown>)) {
+      if (value === 'esc' && [...key].length === 2) remaps[key] = 'esc'
+    }
+    if (Object.keys(remaps).length > 0) prefs.vimInsertRemaps = remaps
+  }
   if (typeof obj.panels === 'object' && obj.panels !== null) {
     const p = obj.panels as Record<string, unknown>
     const panels: Partial<Record<PersistedPanel, boolean>> = {}

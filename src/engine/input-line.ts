@@ -50,6 +50,8 @@ export interface InputLineOptions {
    * 未注入时 '/' 在 normal 态为 no-op。
    */
   onOpenHistorySearch?: () => void
+  /** vim insert 两键序列→Esc 的完整序列表（如 ['jj']；空/缺省不启用，见 insert-remap.ts）。 */
+  insertRemapSequences?: string[]
 }
 
 /**
@@ -127,6 +129,7 @@ const PASTE_MARKER_RE = /\[paste #(\d+) \+\d+ lines?\]/g
 
 import { ambiguousWideEnabled, charDisplayWidth, displayWidth } from '../width.js'
 import { ANSI } from './ansi.js'
+import { InsertRemapper } from './insert-remap.js'
 import { VimInput, type VimHost } from './vim-input.js'
 
 /**
@@ -417,6 +420,8 @@ export class InputLine {
 
   /** vim 键位引擎（issue #51）：normal/visual 按键与 `.` 重放状态都收敛在这里。 */
   private _vim: VimInput | null = null
+  /** insert 两键序列→Esc 状态机（仅 vim 构造时有前缀才存在；见 insert-remap.ts）。 */
+  private _remapper: InsertRemapper | null = null
 
   /** undo 栈（改前快照）。submit 后清空——上一条输入的文本不得被下一条撤销复活。 */
   private _undoStack: UndoUnit[] = []
@@ -471,6 +476,9 @@ export class InputLine {
     this._history = options.history ?? []
     this._historyIdx = -1
     this._vimEnabled = options.vimEnabled ?? false
+    this._remapper = (options.insertRemapSequences?.length ?? 0) > 0
+      ? new InsertRemapper(options.insertRemapSequences ?? [])
+      : null
     this._vimMode = 'insert'
     this._maxLength = options.maxLength ?? 100000
     this._images = options.images ?? []
@@ -522,6 +530,7 @@ export class InputLine {
     this._vimMode = 'insert'
     this._visualLineWise = false
     this.collapseSelection()
+    this._remapper?.reset()
     if (this._vim !== null) this._vim.reset()
   }
 
@@ -890,6 +899,14 @@ export class InputLine {
       return r === 'handled' ? { type: 'change', value: this._value, cursor: this._cursor } : null
     }
 
+    // ── Ctrl+R 历史搜索：readline 惯例入口（Ctrl+F 的等价别名，见 app 层）──
+    // 放在 vim NORMAL 分支之后：vim 的 Ctrl+R redo 已被上方消费不受遮蔽；
+    // vim VISUAL 分支提前 return 不可达，与 '/' 在 visual 态同样不可达一致。
+    if (name === 'ctrl_r') {
+      this.onOpenHistorySearchCallback?.()
+      return null
+    }
+
     // ── Insert mode ────────────────────────────────────────────
     // Meta/Option key (word-level) — check before switch
     if (meta) {
@@ -1035,6 +1052,7 @@ export class InputLine {
     this._cursor = 0
     this._historyIdx = -1
     this._images = []
+    this._remapper?.reset()
     this._undoStack = []
     this._undoChars = 0
     this._redoStack = []
@@ -1051,13 +1069,31 @@ export class InputLine {
 
   private insertChar(ch: string): InputLineEvent | null {
     if (this._value.length >= this._maxLength) return null
-    if (this._vimEnabled && this._vimMode === 'insert' && this._vim !== null) this._vim.captureTyping(ch)
+    // 注意不把 _vim 非空调进 vimInsert：引擎经 ensureVim 懒创建，insert 态打字时
+    // 通常还是 null；remap 与 `.` 录制只在引擎已存在时才需要触碰它。
+    const vimInsert = this._vimEnabled && this._vimMode === 'insert'
+    if (vimInsert && this._vim !== null) this._vim.captureTyping(ch)
     const kind = classifyInsert(ch)
     this.recordUndo(kind)
     const before = this._value.slice(0, this._cursor)
     const after = this._value.slice(this._cursor)
     this._value = before + ch + after
     this._cursor += ch.length
+    // insert 两键序列（jj→Esc）：首字符已上屏，命中后回删缓冲字符与刚输入的
+    // ch、作废 `.` 录制、退 insert。窗口/光标连续性校验在 remapper 内（无计时器）。
+    if (vimInsert && this._remapper !== null) {
+      const cutFrom = this._remapper.onChar(ch, this._cursor, Date.now())
+      if (cutFrom !== null) {
+        if (this._vim !== null) this._vim.markInsertDirty()
+        // 缓冲字符与刚插入的 ch 连续（onChar 已校验），整段回删
+        this._value = this._value.slice(0, cutFrom) + this._value.slice(this._cursor)
+        this._cursor = cutFrom
+        this._vimMode = 'normal'
+        this.recordUndo('delete')
+        this.onChangeCallback?.(this._value, this._cursor)
+        return { type: 'change', value: this._value, cursor: this._cursor }
+      }
+    }
     if (kind === 'insert-word') this._undoExpectCursor = this._cursor
     this.onChangeCallback?.(this._value, this._cursor)
     return { type: 'change', value: this._value, cursor: this._cursor }

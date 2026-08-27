@@ -40,6 +40,8 @@ export interface TuiPrefs {
     notifyOs?: boolean;
     /** vim 编辑键位（/vim default 持久化；缺省 false）。 */
     vimEnabled?: boolean;
+    /** vim insert 两键序列→Esc 映射（如 {"jj":"esc"}；值仅支持 esc，见 insert-remap.ts）。 */
+    vimInsertRemaps?: Record<string, string>;
 }
 /** 缺省偏好（= 现行为）。 */
 export declare const DEFAULT_PREFS: Readonly<TuiPrefs>;

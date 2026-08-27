@@ -57,6 +57,8 @@ export interface InputLineOptions {
      * 未注入时 '/' 在 normal 态为 no-op。
      */
     onOpenHistorySearch?: () => void;
+    /** vim insert 两键序列→Esc 的完整序列表（如 ['jj']；空/缺省不启用，见 insert-remap.ts）。 */
+    insertRemapSequences?: string[];
 }
 /**
  * 输入框可视行上限：长草稿不占满整屏。
@@ -106,6 +108,8 @@ export declare class InputLine {
     private onOpenHistorySearchCallback?;
     /** vim 键位引擎（issue #51）：normal/visual 按键与 `.` 重放状态都收敛在这里。 */
     private _vim;
+    /** insert 两键序列→Esc 状态机（仅 vim 构造时有前缀才存在；见 insert-remap.ts）。 */
+    private _remapper;
     /** undo 栈（改前快照）。submit 后清空——上一条输入的文本不得被下一条撤销复活。 */
     private _undoStack;
     /** 栈内快照滞留的总字符数（配合 UNDO_TOTAL_CHARS_MAX 防护内存长尾）。 */

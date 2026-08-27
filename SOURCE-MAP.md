@@ -59,6 +59,7 @@
 | src/engine/input-controller.ts | engine/input-controller.ts | modified（类型内联；`tabComplete` Tab 补全状态机驱动） |
 | src/engine/route-key.ts | — | new（回流 tianshu e289f6d980：parseRouteKey 首斜杠分割 provider/model 路由键——模型 id 自身可含 /，picker 行与 /model 实参同一文法） |
 | src/engine/input-handler.ts | engine/input-handler.ts | modified（+Kitty CSI u / xterm modifyOtherKeys 完整解码：Ctrl+字母映射 ctrl_* 名、release 事件只消费、冒号修饰段解析、带修饰可打印键保留 char——天枢 59d00152 同步） |
+| src/engine/insert-remap.ts | — | new（vim insert 两键序列→Esc（jj 等，对标 CC vimInsertModeRemaps）：prefs 校验 + 首字符即时上屏/命中整段回删状态机，1s 窗光标连续性校验无计时器） |
 | src/engine/input-line.ts | engine/input-line.ts | modified（多行 ↑↓ 导航 grapheme 列保持——CJK/emoji 跨行不拆簇；2026-08 天枢长文本优化整文件同步：charDisplayWidth 折行缓存（10 万字符草稿按键 ~1.3s→~10ms）+ 粘贴折叠阈值 100 行/10000 字 + 输入视窗 16 行上限（… 上/下 N 行）+ Home/End/Ctrl+U/K 逻辑行域 + PageUp/Down 翻页 + ↑↓ 软折行视觉导航 + 换行模式粘贴并入草稿） |
 | src/engine/vim-input.ts | engine/vim-input.ts | new（issue #51：vi/vim 键位引擎——Claude Code interactive-mode Vim 表为基准；hjkl/w e b W B E/0$^/ggG/fFtT;,，d c y × motion + 数字前缀 + 文本对象 iw aw iW aW，行级 dd/cc/yy 与 dd-EOF 收边，`.` 重放管线复用 spliceRange 记 undo，visual v/V 两端含字符宿主面） |
 | src/engine/live-budget.ts | — | new（Working 行封顶 / skipPad 只裁不垫 / 动态段预算 / 空闲 ticker key，从 live-engine 抽出守 750 红线） |
