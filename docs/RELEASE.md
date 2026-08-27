@@ -78,6 +78,20 @@ rtk pnpm exec vitest run tests/self-update.spec.ts tests/bundle-contract.spec.ts
 
 Conventional Commits，说明**为什么**发这一版。不要把 `.npmrc` 加进去。
 
+### 6. 打 tag、建 GitHub Release、双推
+
+README「更新说明」的 GitHub Release 链接指向 `releases/tag/v<version>`——不发 Release 链接就是死的：
+
+```sh
+git tag -a v<version> -m "<version>"
+git push github v<version>
+gh release create v<version> --repo huiliyi37/dsh-tianshu-tui --latest \
+  --title "<version>" --notes-file <(sed -n "/^## \[<version>\]/,/^## /p" CHANGELOG.md | head -n -1)
+git push omdsh v<version>
+```
+
+rc.21–rc.23 曾因只发 npm 未建 Release 导致 README/CHANGELOG 链接悬空，2026-08-27 已批量补建。
+
 ### 6. 打标签
 
 ```sh
