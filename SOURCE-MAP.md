@@ -167,6 +167,7 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 | src/theme-detect.ts | theme-detect.ts | modified（pause 对称恢复：仅在进入时为暂停态才 `pause()`） |
 | src/theme-palettes.ts | theme-palettes.ts | modified |
 | src/format/top-bar.ts | — | new（C4 概念稿顶部栏：cwd + 分支 + 模型，纯渲染） |
+| src/theme-contrast.ts | — | new（自定义主题对比度校验：WCAG 相对亮度/对比比；对声明背景名义值 <3.0 警告 fail-open，loadCustomThemes 接线） |
 | src/theme.ts | theme.ts | ported |
 | src/tool-status.ts | tool-status.ts | modified |
 | src/truncation-marker.ts | truncation-marker.ts | ported |

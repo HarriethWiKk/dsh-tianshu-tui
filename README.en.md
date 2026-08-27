@@ -190,7 +190,7 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 - **Turn status** — braille spinner + phase text status line, workflow-run summaries, delegation tree, task pane, config/skills panels as live-region panels; a non-aborted turn with tool calls ends with a dim summary line (`turn N · 读X 改Y · elapsed`) in the scrollback.
 - **Subagent runs** — a live spinner line per run; terminal states commit to scrollback as `✓`/`✗`/`◌` entries.
 - **Window chrome** — welcome page (brand header, friendly short session ids, environment check line), top bar (cwd + git branch + model), and a three-line bottom area: input line (mode-colored bottom edge) → footer (mode badge + key hints) → metrics line (model / token usage / cache hit rate).
-- **Themes** — built-in palettes plus `custom:<name>`; auto terminal detection and 16-color fallbacks.
+- **Themes** — built-in palettes plus `custom:<name>`; auto terminal detection and 16-color fallbacks; honors `NO_COLOR`; custom themes get contrast warnings on load (WCAG < 3.0 against the declared background, non-blocking).
 
 ### Interaction panels
 

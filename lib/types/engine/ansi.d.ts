@@ -123,12 +123,21 @@ export declare function hexToRgb(hex: string): [number, number, number] | null;
  * @returns xterm-256 调色板索引（16-255）
  */
 export declare function rgbToXterm256(r: number, g: number, b: number): number;
+/** 纯函数：给定 env 是否请求无色（便于测试注入）。 */
+export declare function noColorRequested(env?: NodeJS.ProcessEnv): boolean;
+/**
+ * 测试/显式覆写无色开关（只翻本模块旗标；不回改 chalk.level——生产路径由
+ * 模块加载时的初始化统一压制）。测试用后应复原。
+ */
+export declare function setColorSuppressed(v: boolean): void;
+/** 当前是否压制颜色输出（NO_COLOR 已显式请求时 fg/bg 输出空串）。 */
+export declare function isColorSuppressed(): boolean;
 /**
  * 设置前景色。接受 hex（`#a8e6cf`）或 chalk 命名色（`cyan`/`redBright`）。
  * hex 在 truecolor 终端发 38;2，在 256 色终端（chalk.level === 2）量化为 38;5；
- * 命名色发基础 16 色码。无法解析时返回 ''（无着色）。
+ * 命名色发基础 16 色码。无法解析时返回 ''（无着色）。NO_COLOR 请求时恒返回 ''。
  * @param colorValue - hex 颜色字符串或 chalk 命名色
- * @returns SGR 前景色序列；无法解析时为空字符串
+ * @returns SGR 前景色序列；无法解析或无色模式时为空字符串
  */
 export declare function fg(colorValue: string): string;
 /**

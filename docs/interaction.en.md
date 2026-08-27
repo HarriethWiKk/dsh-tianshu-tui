@@ -114,6 +114,7 @@ Above the input track, running work folds into one activity band (`◐ N subagen
 | Command | Effect |
 |---|---|
 | `/theme [name] [default]` | Switch theme (no args opens the picker; Enter/args=this session, S or trailing `default`=startup default) |
+Custom themes (`~/.dsh-tui/themes/*.json`) get contrast warnings on load (WCAG < 3.0 against the declared background, non-blocking); `NO_COLOR` suppresses all theme color output.
 | `/steer <text>` | Steer mid-turn |
 | `/restart` | Restart the current dsh process (same command re-launched; applies plugin updates) |
 | `/exit` | Exit the TUI |

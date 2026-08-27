@@ -115,6 +115,7 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
 | 命令 | 作用 |
 |---|---|
 | `/theme [name] [default]` | 切换主题(无参打开选择器,含 `custom:`; Enter/带参=本会话, S 或末尾 `default`=启动默认);`auto` 随终端明暗;`export [name]` 导出当前主题为自定义模板 |
+自定义主题(`~/.dsh-tui/themes/*.json`)加载时按声明背景做对比度警告(WCAG < 3.0,不阻断);`NO_COLOR` 显式压制全部主题色输出。
 | `/steer <text>` | 中轮转向 |
 | `/restart` | 重启当前 dsh 进程(同命令重新启动;插件更新后生效) |
 | `/exit` | 退出 TUI |

@@ -189,7 +189,7 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 - **轮次状态** — braille spinner + 阶段文本状态行、workflow 运行汇总、委派树、任务窗格、config/skills 面板作为 live-region 面板；turn 结束（非中断）且有工具调用时落 dim 摘要行（`turn N · 读X 改Y · 耗时`）。
 - **Subagent 运行** — 每个运行一条 live spinner 行；终态以 `✓`/`✗`/`◌` 条目落入滚动区。
 - **窗口 chrome** — 欢迎页（品牌头、友好会话短 id、环境检查行）、顶部栏（cwd + git 分支 + 模型）、底部三行区：输入行（底边线随模式着色）→ footer（模式徽标 + 快捷键提示）→ metrics 行（模型 / token 用量 / 缓存命中率）。
-- **主题** — 内置调色板 + `custom:<name>`；自动终端检测与 16 色降级。
+- **主题** — 内置调色板 + `custom:<name>`；自动终端检测与 16 色降级；尊重 `NO_COLOR`；自定义主题加载时按声明背景做对比度警告（WCAG < 3.0，不阻断）。
 
 ### 交互面板
 
