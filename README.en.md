@@ -123,7 +123,9 @@ The companion vision plugin lives in `vision-ask/` if you need image re-interrog
 
 ## Release notes
 
-Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.24`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.24)).
+Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.25`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.25)).
+
+**0.1.2-rc.25 (2026-08-28)**: the P0 interaction trio — unified action registry for keybindings/commands/hints (app.ts ratchet 4359→4140), six-tier approval decisions (new `p` command-prefix whitelist and `f` reject-with-feedback, bash approvals now show the command preview with danger annotations), and mid-turn message queueing (`↑` recall, `Ctrl+Enter` cancel-and-send, abort keeps the queue); plus the `/scroll` pager, completion bell, vim insert remaps, and theme contrast checks.
 
 **0.1.2-rc.24 (2026-08-27)**: full vi/vim editing lands (#51, `/vim` toggle, Claude Code keymap parity) + bundled LSP trio dependency closure fixed (#54: boot-time `ERR_MODULE_NOT_FOUND` under pnpm).
 

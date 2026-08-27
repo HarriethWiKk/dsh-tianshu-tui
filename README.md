@@ -122,7 +122,9 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 
 ## 更新说明
 
-当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.24`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.24)）。
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.25`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.25)）。
+
+**0.1.2-rc.25（2026-08-28）**：P0 交互三连——键位/命令/提示统一 action registry（app.ts 棘轮 4359→4140）、审批卡六档决策梯度（新增 `p` 命令前缀白名单、`f` 拒绝附反馈，bash 审批带命令预览与危险标注）、运行中消息排队（`↑` 收回、`Ctrl+Enter` 插队、打断保队列）；另含 `/scroll` 分页查看器、完成响铃、vim remap、主题对比度校验。
 
 **0.1.2-rc.24（2026-08-27）**：vi/vim 编辑模式完整落地（#51，`/vim` 开关、Claude Code 键位表对标）+ 内置 LSP 三件套依赖闭包补齐（#54：修复 pnpm 下启动即 `ERR_MODULE_NOT_FOUND` 整树失败）。
 

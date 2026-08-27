@@ -3,6 +3,19 @@
 版本更新记录。安装与当前版本见 [README](README.md)；完整历史在此。
 `/changelog` 在 TUI 内查看（默认当前版本，`/changelog all` 全部，`/changelog N` 最近 N 版）。
 
+## [0.1.2-rc.25] - 2026-08-28
+
+P0 交互三连：键位/命令/提示统一 action registry、审批卡六档决策梯度、运行中消息排队与 Ctrl+Enter 插队；另含 /scroll 分页查看器、完成响铃、vim remap、主题对比度校验。
+
+- **统一 action registry** — 键位/命令/提示单一事实源（`src/actions/`）：动作表 + 同域冲突校验 + 双击确认集中布防；handleKey 约 460 行 if 链收敛为约 40 行流水线；8 个 overlay 键路由统一收敛范式；键位表、命令面板分组、footer 提示三处从注册表同源投影，新增键位只改一处。app.ts 棘轮 4359→4140
+- **审批卡六档决策梯度** — `y` 仅此一次 → `p` 此命令前缀不再问（仅 bash 类可提取命令时出现）→ `t` 此工具本会话 → `a` 全放行 → `n` 拒绝 → `f` 拒绝并说明（反馈经 steer 旁路送达 agent）；bash 审批告别盲批：`$ 命令` 预览 + 危险模式标注（`rm -rf` / `curl|sh` / fork bomb 等，只展示不拦截）
+- **运行中消息排队 + 收回 + 插队** — turn 运行中发送进本地队列（输入轨上方可见），turn/end 按序投递，中断不清队；空输入 `↑` 收回队首重新编辑；`Ctrl+Enter` 插队（cancel-and-send：打断在途 + 保留队列 + 落定直发，终端需支持 kitty 键盘协议，`RIVET_KITTY_KEYBOARD=1` 可强制）；手动打断改传 `keepInbox` 不再清宿主 inbox 残留
+- **`/scroll` 分页查看器** — scrollback 全文按消息单元只读浏览：↑↓/jk、PgUp/PgDn、g/G、实时子串搜索 + n/N 跳转、位置状态行
+- **完成事件终端 BEL 响铃** — 子代理/工作流/后台任务完成响铃，SSH 下同样可达（BEL 穿透 pty）；共享系统通知偏好与 CI/测试门闸
+- **vim insert 两键序列 → Esc** — 对标 Claude Code `vimInsertModeRemaps`（如 `jj`，1 秒窗 + 光标连续性双校验防误删）；另补 `Ctrl+R` 历史搜索别名
+- **自定义主题 WCAG 对比度校验 + NO_COLOR 规范** — 主题加载时按声明背景档位近似校验对比度，低于阈值警告不阻断；支持 `NO_COLOR` 环境变量压制颜色
+- **C4 第三波** — composer 附件缩略图域抽成 `controllers/attachment-preview`（app.ts 继续减重）
+
 ## [0.1.2-rc.24] - 2026-08-27
 
 vi/vim 编辑模式完整落地（[#51](https://github.com/huiliyi37/dsh-tianshu-tui/issues/51)）+ 内置 LSP 三件套的 profile 装配修复（[#54](https://github.com/huiliyi37/dsh-tianshu-tui/issues/54)：启动崩溃 ERR_MODULE_NOT_FOUND）。
