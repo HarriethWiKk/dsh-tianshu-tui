@@ -3,7 +3,14 @@
 版本更新记录。安装与当前版本见 [README](README.md)；完整历史在此。
 `/changelog` 在 TUI 内查看（默认当前版本，`/changelog all` 全部，`/changelog N` 最近 N 版）。
 
-## [Unreleased]
+## [0.1.2-rc.24] - 2026-08-27
+
+vi/vim 编辑模式完整落地（[#51](https://github.com/huiliyi37/dsh-tianshu-tui/issues/51)）+ 内置 LSP 三件套的 profile 装配修复（[#54](https://github.com/huiliyi37/dsh-tianshu-tui/issues/54)：启动崩溃 ERR_MODULE_NOT_FOUND）。
+
+- **vi/vim 编辑键位完整支持（[#51](https://github.com/huiliyi37/dsh-tianshu-tui/issues/51)）** — 输入行 Esc 进 NORMAL（底部 `-- NORMAL --` 标签，insert 态隐藏），键位表对标 Claude Code interactive-mode：`h j k l Space`、`w e b W B E`、`0 $ ^`、`gg G`、`f F t T ; ,` 导航与查找重放；`d c y × motion` + 数字前缀（`2dd` / `3w` / `2fa`）；文本对象 `iw aw iW aW`；行级 `dd cc yy Y` 与 `p P` 行级粘贴；`x X D C s S r o O J u` / `Ctrl+R`；`.` 重放上一条变更（o/C/cw 等进入插入段的连打一并复现）。visual `v/V` 选区两端含光标下字符（vim 归属语义）。多行草稿 j/k 保持列移动，单行边缘翻历史；词类口径 `\w + CJK`——中文连续段成词不逐字跳
+- **`/vim [on|off|default]` 运行时开关 + 启动默认持久化** — 无参切换、带参定向；`default` 写入本地 prefs（重启仍生效）；宿主显式传入 `vimEnabled` 配置时优先于 prefs。NORMAL 态 `/` 打开历史搜索 overlay（同 `Ctrl+F`）
+- **内置 LSP 三件套依赖闭包补齐（[#54](https://github.com/huiliyi37/dsh-tianshu-tui/issues/54)）** — rc.23 起三件套把运行时依赖声明为 peerDependencies，pnpm `autoInstallPeers:false` 下不会自动补装，启动即 `ERR_MODULE_NOT_FOUND` 整树失败。现由 TUI 显式声明全部 `@huiliyi37/*` 运行时依赖（cordis / dsh-brand / dsh-llm / dsh-fs / dsh-subprocess / dsh-timeout / dsh-tools / dsh-scope / dsh-agent / dsh-attachment / dsh-code-runtime / dsh-sandbox / dsh-session / dsh-invariants / dsh-system-prompt，统一钉 0.6.0），并新增 bundle 契约守卫防再发
+
 
 社区反馈[vim 编辑模式](https://github.com/huiliyi37/dsh-tianshu-tui/issues/51)：快捷键都用习惯了。
 

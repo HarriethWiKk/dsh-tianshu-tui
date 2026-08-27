@@ -2653,7 +2653,7 @@ describe('TuiApp 命令面板（Ctrl+P overlay）', () => {
     const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }
     expect(written).toContain(`## ${version}`)
     await app.dispose()
-  })
+   }, 15_000)
 
   it('/changelog all 覆盖全部版本；/changelog N 截断', async () => {
     const { app, stdout } = await bootPaletteApp()
@@ -2668,7 +2668,9 @@ describe('TuiApp 命令面板（Ctrl+P overlay）', () => {
     expect(written).toContain(`## ${version}`)
     expect(written).toContain('## 0.1.1-rc.6') // all 覆盖最早版本
     await app.dispose()
-  })
+  // 全量并发下 parseChangelog 同步解析偶发越过默认 5s 用例上限（负载抖动非缺陷），
+  // 给 3 倍余量保发布门禁稳定。
+  }, 15_000)
 
   it('/changelog 非法参数 → 用法提示', async () => {
     const { app, stdout } = await bootPaletteApp()

@@ -122,7 +122,9 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 
 ## 更新说明
 
-当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.23`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.23)）。
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.24`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.24)）。
+
+**0.1.2-rc.24（2026-08-27）**：vi/vim 编辑模式完整落地（#51，`/vim` 开关、Claude Code 键位表对标）+ 内置 LSP 三件套依赖闭包补齐（#54：修复 pnpm 下启动即 `ERR_MODULE_NOT_FOUND` 整树失败）。
 
 **0.1.2-rc.23（2026-08-27）**：LSP 三件套对齐 tianshu-public 0.6.0 官方 seam 线（单 `lsp` 工具四操作 + 本地 provider 默认 tsserver），诊断源能力门控防 `/lsp` 面板退化；宿主 peer 对齐 `^0.1.1-rc.2`。
 

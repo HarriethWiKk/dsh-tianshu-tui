@@ -123,7 +123,9 @@ The companion vision plugin lives in `vision-ask/` if you need image re-interrog
 
 ## Release notes
 
-Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.23`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.23)).
+Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.24`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.24)).
+
+**0.1.2-rc.24 (2026-08-27)**: full vi/vim editing lands (#51, `/vim` toggle, Claude Code keymap parity) + bundled LSP trio dependency closure fixed (#54: boot-time `ERR_MODULE_NOT_FOUND` under pnpm).
 
 **0.1.2-rc.23 (2026-08-27)**: LSP trio aligned to the tianshu-public 0.6.0 official seam line (single `lsp` tool with four operations + local provider defaulting to tsserver), capability-gated diagnostic source prevents `/lsp` panel regression; host peers aligned to `^0.1.1-rc.2`.
 
