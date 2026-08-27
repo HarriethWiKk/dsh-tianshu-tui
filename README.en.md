@@ -170,7 +170,8 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 - **Slash command menu** — typing `/` opens a dropdown with fuzzy prefix matching, `↑↓` / `PageUp` / `PageDown` selection, `Tab` accept, `Enter` submit, MRU ordering, argument-placeholder ghosts, and an input-line ghost preview.
 - **Clipboard & image paste** — `Ctrl+V` reads a clipboard image (falling back to text); terminal-menu paste detects images; pasted paths that look like images are loaded as attachments; `Alt+W` / vim yank copies selection to the system clipboard via OSC52.
 - **Image submission** — attached images show a `📎 N images` marker, render inline under the user bubble on submit, and reach the model through the attachment service; the bubble carries a vision hint (forwarded / bridged via a vision model / not sent). Oversized pastes are adaptively compressed before send: 1568px long-edge clamp (PNG keeps transparency), degrading JPEG 0.82 → 0.55 → 1024px + 0.55 until under the provider cap, never upscaling.
-- **Editing** — vim keybindings (optional), external editor (`Ctrl+E`), Tab file completion, `@mention` expansion, input history, multi-line input, and bracketed paste (multi-line / long pastes land in the input line as one block instead of submitting line by line); the input line is drawn as a full rounded frame.
+- **Vim editing ([#51](https://github.com/huiliyi37/dsh-tianshu-tui/issues/51))** — `Esc` enters NORMAL; the keymap mirrors Claude Code: `h j k l / w e b W B E / 0 $ ^ / gg G / f F t T ; ,`, operators `d c y × motion` with counts, text objects `iw aw iW aW`, linewise `dd cc yy Y` plus `p P` paste, `x X D C s S r o O J u .`; `v/V` visual selections include the character under the cursor (vim ownership semantics). Multi-line drafts move column-wise with `j/k`; CJK runs count as single words. Toggle at runtime with `/vim`; `/vim default` makes it the startup default.
+- **Editing** — external editor (`Ctrl+E`), Tab file completion, `@mention` expansion, input history, multi-line input, and bracketed paste (multi-line / long pastes land in the input line as one block instead of submitting line by line); the input line is drawn as a full rounded frame.
 - **Image re-interrogation** — the companion `@deepseek-ai/dsh-vision-ask` plugin registers sent images and answers targeted model questions via `ask_image` (see [vision-ask](vision-ask/README.md)).
 
 ### Rendering & projection
@@ -215,6 +216,7 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 | `/effort off\|high\|max\|auto` | Set reasoning effort (hot-switched) |
 | `/theme [name]` | Switch theme |
 | `/density` | Toggle compact tool-card rendering |
+| `/vim [on\|off\|default]` | Toggle vi/vim editing keybindings; `default` persists as startup default |
 | `/status` | Toggle the status panel (goal/todos/plan projections + session totals) |
 | `/config [notify [on\|off]]` | Toggle the settings panel (empty-input `n` notify, `d` density). No-arg opens/closes the panel |
 | `/skills` | Toggle the skills browser |

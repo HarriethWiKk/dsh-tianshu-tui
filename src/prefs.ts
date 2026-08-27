@@ -44,6 +44,8 @@ export interface TuiPrefs {
   preset?: string
   /** 后台完成时发系统通知（缺省开；false 关闭）。 */
   notifyOs?: boolean
+  /** vim 编辑键位（/vim default 持久化；缺省 false）。 */
+  vimEnabled?: boolean
 }
 
 /** 缺省偏好（= 现行为）。 */
@@ -76,6 +78,7 @@ export function parsePrefs(text: string): TuiPrefs {
     prefs.footerInfo = obj.footerInfo as FooterInfoLevel
   }
   if (typeof obj.notifyOs === 'boolean') prefs.notifyOs = obj.notifyOs
+  if (typeof obj.vimEnabled === 'boolean') prefs.vimEnabled = obj.vimEnabled
   if (typeof obj.panels === 'object' && obj.panels !== null) {
     const p = obj.panels as Record<string, unknown>
     const panels: Partial<Record<PersistedPanel, boolean>> = {}

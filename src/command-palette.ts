@@ -33,7 +33,7 @@ export const PALETTE_COMMAND_GROUPS: Readonly<Record<string, string>> = {
   compact: '会话',
   // 配置
   theme: '配置', model: '配置', effort: '配置', preset: '配置', density: '配置',
-  glance: '配置', info: '配置', config: '配置', yolo: '配置',
+  glance: '配置', info: '配置', config: '配置', yolo: '配置', vim: '配置',
   // 认证
   key: '认证', login: '认证',
   // 面板

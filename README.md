@@ -169,7 +169,8 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 - **Slash 命令菜单** — 输入 `/` 打开下拉菜单：模糊前缀匹配、`↑↓` / `PageUp` / `PageDown` 选择、`Tab` 接受、`Enter` 提交、MRU 排序、参数占位 ghost 与输入行 ghost 预览。
 - **剪贴板与图片粘贴** — `Ctrl+V` 读取剪贴板图片（回退到文本）；终端菜单粘贴检测图片；看起来像图片的粘贴路径按附件加载；`Alt+W` / vim yank 经 OSC52 把选区复制到系统剪贴板。
 - **图片提交** — 附件图片显示 `📎 N images` 标记，提交时在用户气泡下方以内联图形渲染，并经附件服务到达模型；气泡携带识图提示（已转发 / 经视觉模型桥接 / 未发送）。超大图发送前自适应压缩：长边 1568px 封顶（PNG 保留透明），逐级 JPEG 0.82 → 0.55 → 1024px + 0.55 直到低于 provider 上限，全程只缩不放。
-- **编辑** — vim 键位（可选）、外部编辑器（`Ctrl+E`）、Tab 文件补全、`@mention` 展开、输入历史、多行输入、bracketed paste（多行/长文本粘贴整段进输入行，不逐行提交）；输入行绘制为完整圆角框体。
+- **Vim 编辑键位（[#51](https://github.com/huiliyi37/dsh-tianshu-tui/issues/51)）** — `Esc` 进 NORMAL，键位表对标 Claude Code：`h j k l / w e b W B E / 0 $ ^ / gg G / f F t T ; ,` 导航与查找重放、`d c y × motion` + 数字前缀、文本对象 `iw aw iW aW`、行级 `dd cc yy Y` 与 `p P` 粘贴、`x X D C s S r o O J u .`；`v/V` visual 选区两端含光标下字符。多行草稿 `j/k` 保持列移动；中文连续段成词不逐字跳。运行时 `/vim` 开关，`/vim default` 设为启动默认。
+- **编辑** — 外部编辑器（`Ctrl+E`）、Tab 文件补全、`@mention` 展开、输入历史、多行输入、bracketed paste（多行/长文本粘贴整段进输入行，不逐行提交）；输入行绘制为完整圆角框体。
 - **图片再询问** — 同仓伴生插件 `@deepseek-ai/dsh-vision-ask` 登记已发送图片，并经 `ask_image` 回答模型的定向问题（见 [vision-ask](vision-ask/README.md)）。
 
 ### 渲染与投影
@@ -214,6 +215,7 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 | `/effort off\|high\|max\|auto` | 设置推理等级（热切） |
 | `/theme [name]` | 切换主题 |
 | `/density` | 切换紧凑工具卡渲染 |
+| `/vim [on\|off\|default]` | 切换 vi/vim 编辑键位；`default` 写入启动默认 |
 | `/lsp` | 切换 LSP 诊断面板（agent 触碰文件时自动拉取该文件诊断；诊断徽标上工具卡） |
 | `lsp_goto_definition` · `lsp_find_references` · `lsp_diagnostics` | LSP 模型工具面（伴生插件 `lsp/` 注册；定义跳转 / 引用查找 / 文件诊断） |
 | `/status` | 切换状态面板（goal/todos/plan 投影 + 会话汇总段） |

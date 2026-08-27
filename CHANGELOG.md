@@ -3,6 +3,13 @@
 版本更新记录。安装与当前版本见 [README](README.md)；完整历史在此。
 `/changelog` 在 TUI 内查看（默认当前版本，`/changelog all` 全部，`/changelog N` 最近 N 版）。
 
+## [Unreleased]
+
+社区反馈[vim 编辑模式](https://github.com/huiliyi37/dsh-tianshu-tui/issues/51)：快捷键都用习惯了。
+
+- **vi/vim 编辑键位完整支持（[#51](https://github.com/huiliyi37/dsh-tianshu-tui/issues/51)）** — 输入行 Esc 进 NORMAL（底部 `-- NORMAL --` 标签，insert 态隐藏），键位表对标 Claude Code interactive-mode：`h j k l Space`、`w e b W B E`、`0 $ ^`、`gg G`、`f F t T ; ,` 导航与查找重放；`d c y × motion` + 数字前缀（`2dd` / `3w` / `2fa`）；文本对象 `iw aw iW aW`；行级 `dd cc yy Y` 与 `p P` 行级粘贴；`x X D C s S r o O J u` / `Ctrl+R`；`.` 重放上一条变更（o/C/cw 等进入插入段的连打一并复现）。visual `v/V` 选区两端含光标下字符（vim 归属语义）。多行草稿 j/k 保持列移动，单行边缘翻历史；词类口径 `\w + CJK`——中文连续段成词不逐字跳
+- **`/vim [on|off|default]` 运行时开关 + 启动默认持久化** — 无参切换、带参定向；`default` 写入本地 prefs（重启仍生效）；宿主显式传入 `vimEnabled` 配置时优先于 prefs。NORMAL 态 `/` 打开历史搜索 overlay（同 `Ctrl+F`）
+
 ## [0.1.2-rc.22] - 2026-08-27
 
 LSP 模型工具面随包内置：装 TUI 一个包即得展示桥 + 模型工具面，不再单独装配社区插件。

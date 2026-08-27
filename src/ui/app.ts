@@ -548,7 +548,6 @@ export class TuiApp {
   private readonly editorKey: KeyName
   /** 外部编辑器命令注入（测试用）；缺省走环境变量/平台缺省。 */
   private readonly editorCommand: string | undefined
-  private readonly vimEnabled: boolean
   /** T1.1：5 域投影缓存（snapshot 全量 + onChanged 按 key 分流；服务缺失时为 null → 整体降级）。 */
   private projectionCache: Partial<Record<ProjectionKey, unknown>> | null = null
   /** T4：任务窗格——sessionProjections 任务单元投影快照（服务缺失时为 null）。 */
@@ -735,7 +734,6 @@ export class TuiApp {
     this.onRestart = options.onRestart
     this.editorKey = options.editorKey ?? 'ctrl_e'
     this.editorCommand = options.editorCommand
-    this.vimEnabled = options.vimEnabled ?? false
     this.activityBandEnabled = options.activityBand !== false
     this.activityBandMaxRows = options.activityBandMaxRows ?? 5
     this.supportsVision = options.vision?.supportsVision ?? false
@@ -765,11 +763,15 @@ export class TuiApp {
       vision: () => ({ supportsVision: this.supportsVision, bridgeEnabled: this.visionBridgeEnabled, bridgeSource: this.visionBridgeSource }),
     })
     this.input = new InputHandler({ stdin: options.stdin, mode: 'input' })
+    // vim 键位来源（issue #51）：宿主显式配置 > 本地 prefs（/vim default）> 缺省关。
+    const vimResolved = options.vimEnabled ?? this.prefs.vimEnabled ?? false
     this.inputLine = new InputLine({
       history: this.history,
-      vimEnabled: this.vimEnabled,
+      vimEnabled: vimResolved,
       onSubmit: (text, images) => { this.handleSubmit(text, images) },
       onTabComplete: () => this.handleTabComplete(),
+      // vim NORMAL '/' → 历史搜索 overlay（对齐 CC 键位表注记）。
+      onOpenHistorySearch: () => { this.toggleHistorySearchOverlay() },
       // 附件列表变化 → 重算 composer 缩略图（半块预览；装饰性增强，失败静默）。
       onImagesChange: (images) => { void this.refreshAttachmentPreview(images) },
       // slash 菜单状态随输入变化刷新（键入/粘贴/外部 setValue 统一入口；
@@ -999,6 +1001,30 @@ export class TuiApp {
         }
         this.renderBatcher.schedule()
         echo(echoSessionOnly('density', this.compactMode ? '紧凑' : '宽松'))
+      },
+    })
+    // issue #51：vi/vim 编辑键位运行时开关（无参切换；带参 on|off 定向；default
+    // 把当前值设为启动默认——对齐 /density 的 default 语义与 CC 的编辑模式配置）。
+    this.slash.register({
+      name: 'vim',
+      description: '切换 vi/vim 编辑键位（带参 default=设为启动默认）',
+      argsHint: '[on|off|default]',
+      run: ({ text, echo }) => {
+        const arg = text.trim()
+        if (!['', 'on', 'off', 'default'].includes(arg)) {
+          echo('用法：/vim 或 /vim [on|off|default]')
+          return
+        }
+        if (arg === 'default') {
+          this.prefs.vimEnabled = this.inputLine.vimEnabled
+          this.persistPrefs()
+          echo(echoSavedDefault('vim', this.inputLine.vimEnabled ? 'on' : 'off'))
+          return
+        }
+        const next = arg === '' ? !this.inputLine.vimEnabled : arg === 'on'
+        this.inputLine.setVimEnabled(next)
+        this.renderBatcher.schedule()
+        echo(echoSessionOnly('vim', next ? 'on' : 'off'))
       },
     })
     // 输入区信息密度档位：full 两行（状态行 + 指标行）/ compact 仅状态行 /
@@ -2057,6 +2083,24 @@ export class TuiApp {
     })
   }
 
+  /**
+   * C2 项 2：历史搜索 overlay 开关（Ctrl+F 与 vim NORMAL '/' 共用入口）。
+   * 打开时快照 transcript 消息；已打开则关闭。
+   */
+  private toggleHistorySearchOverlay(): void {
+    const overlay = this.overlay
+    const search = this.searchOverlay
+    /* v8 ignore next -- overlay/searchOverlay 在 attach 时恒创建，null 仅类型收窄 */
+    if (overlay !== null && search !== null) {
+      if (overlay.activeId() === 'search') {
+        overlay.deactivate()
+      } else {
+        search.setMessages(this.transcript?.view.messages ?? [])
+        overlay.activate('search')
+      }
+    }
+  }
+
   /** P1：偏好原子落盘（禁用态 no-op；prefs 已就地变更）。 */
   private persistPrefs(): void {
     if (this.prefsPath === null) return
@@ -2944,17 +2988,7 @@ export class TuiApp {
     // C2 项 2：Ctrl+F 历史搜索 overlay。打开时快照 transcript 消息；
     // 再按一次或 Esc 关闭。palette 打开时不拦截（palette 优先，见下）。
     if (key.name === 'ctrl_f' && this.palette?.isOpen() !== true) {
-      const overlay = this.overlay
-      const search = this.searchOverlay
-      /* v8 ignore next 2 -- overlay/searchOverlay 在 attach 时恒创建（L539-547），null 仅类型收窄 */
-      if (overlay !== null && search !== null) {
-        if (overlay.activeId() === 'search') {
-          overlay.deactivate()
-        } else {
-          search.setMessages(this.transcript?.view.messages ?? [])
-          overlay.activate('search')
-        }
-      }
+      this.toggleHistorySearchOverlay()
       return
     }
     // /key：API Key 对话框打开——Ctrl+V 读剪贴板文本进 Key 字段；其余键交给
@@ -3160,7 +3194,7 @@ export class TuiApp {
       // 窗口过期后第二次仅刷新时间戳。
       // vim normal 下 Esc 是空操作：布防/触发都跳过——vim 用户离开 insert 后
       // 习惯性补按 Esc，不该弹出 rewind overlay（天枢 59d00152 同步）。
-      const vimEscNoop = this.vimEnabled && this.inputLine.vimMode === 'normal'
+      const vimEscNoop = this.inputLine.vimEnabled && this.inputLine.vimMode === 'normal'
       if (!vimEscNoop) {
         const now = Date.now()
         if (this.escRewindPendingSince !== 0 && now - this.escRewindPendingSince < REWIND_DOUBLE_ESC_MS) {
@@ -4047,7 +4081,7 @@ export class TuiApp {
     for (const line of slashLines) lines.push({ text: line })
 
     // 输入行；vim 模式标签（Phase 6.5：normal/visual 态可见，insert 态隐藏）
-    if (this.vimEnabled && this.inputLine.vimMode !== 'insert') {
+    if (this.inputLine.vimEnabled && this.inputLine.vimMode !== 'insert') {
       const modeLabel = this.inputLine.vimMode === 'visual'
         ? (this.inputLine.visualLineWise ? '-- VISUAL LINE --' : '-- VISUAL --')
         : '-- NORMAL --'

@@ -8,7 +8,7 @@
  */
 
 /** 启动项种类（回显与 /xxx default 提示共用）。 */
-export type StartupKind = 'theme' | 'model' | 'effort' | 'density' | 'preset'
+export type StartupKind = 'theme' | 'model' | 'effort' | 'density' | 'preset' | 'vim'
 
 /** 剥末尾 default 标志：`/theme paper default` → rest=paper persist=true。 */
 export function splitDefaultFlag(text: string): { rest: string; persist: boolean } {
@@ -27,6 +27,7 @@ const SESSION_HINT: Record<StartupKind, string> = {
   effort: '/effort default',
   density: '/density default',
   preset: '/preset default',
+  vim: '/vim default',
 }
 
 const SESSION_VERB: Record<StartupKind, (value: string) => string> = {
@@ -35,6 +36,7 @@ const SESSION_VERB: Record<StartupKind, (value: string) => string> = {
   effort: value => `推理等级已设为 ${value}`,
   density: value => `已切换为${value}`,
   preset: value => `已切换为 ${value}`,
+  vim: value => `vim 键位已${value === 'off' ? '关闭' : '开启'}: ${value}`,
 }
 
 const DEFAULT_LABEL: Record<StartupKind, string> = {
@@ -43,6 +45,7 @@ const DEFAULT_LABEL: Record<StartupKind, string> = {
   effort: '推理等级',
   density: '密度',
   preset: '预设',
+  vim: 'vim 键位',
 }
 
 /** 仅本会话回显：点名本会话 + 如何写默认。 */
@@ -65,6 +68,6 @@ export function effortSelection(
 
 /** 写启动默认回显：主题说重启，其余说新会话。 */
 export function echoSavedDefault(kind: StartupKind, value: string): string {
-  const when = kind === 'theme' || kind === 'density' ? '重启后仍生效' : '新会话起始生效'
+  const when = kind === 'theme' || kind === 'density' || kind === 'vim' ? '重启后仍生效' : '新会话起始生效'
   return `已设为默认${DEFAULT_LABEL[kind]}：${value}（${when}）`
 }
