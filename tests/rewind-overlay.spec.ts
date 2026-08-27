@@ -143,25 +143,25 @@ describe('RewindOverlay 状态机', () => {
     expect(rows.some(r => r.includes('回退完成：1 个文件（2 个文件因快照缺失未回退）'))).toBe(true)
   })
 
-  it('list/mode 阶段 Esc 返回 true（装配方负责 deactivate）', () => {
+  it('list 阶段 Esc 返回 close；mode 阶段 Esc 回到 list（handled）', () => {
     const ov = new RewindOverlay()
     ov.setMessages(MESSAGES, vi.fn())
-    expect(ov.handleKey('escape', '')).toBe(true)
+    expect(ov.handleKey('escape', '')).toBe('close')
     ov.handleKey('return', '')
-    expect(ov.handleKey('escape', '')).toBe(true)
+    expect(ov.handleKey('escape', '')).toBe('handled')
   })
 
-  it('mode 阶段 Esc 回到 list，再 Esc 仍只返回 true', () => {
+  it('mode 阶段 Esc 回到 list，再 Esc 返回 close', () => {
     const ov = new RewindOverlay()
     ov.setMessages(MESSAGES, vi.fn())
     ov.handleKey('return', '')
     expect(ov.render(80, 20).some(r => r.includes('只截断会话'))).toBe(true)
-    expect(ov.handleKey('escape', '')).toBe(true)
+    expect(ov.handleKey('escape', '')).toBe('handled')
     const after = ov.render(80, 20).map(r => r.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, ''))
     expect(after.some(r => r.includes('hello'))).toBe(true)
     expect(after.some(r => r.includes('只截断会话'))).toBe(false)
     expect(after.some(r => r.includes('选检查点'))).toBe(true)
-    expect(ov.handleKey('escape', '')).toBe(true)
+    expect(ov.handleKey('escape', '')).toBe('close')
   })
 
   it('矮窗口仍把提示行留在最后一行（不超过 height）', () => {
@@ -188,7 +188,7 @@ describe('RewindOverlay 状态机', () => {
     const ov = new RewindOverlay()
     ov.setMessages([], vi.fn())
     expect(ov.selectedSeq()).toBe(-1)
-    expect(ov.handleKey('return', '')).toBe(true) // 无选中 → 视为取消
+    expect(ov.handleKey('return', '')).toBe('handled') // 无选中 → 不进入 mode
     expect(ov.render(80, 20)[1]).toContain('↑↓')
   })
 })

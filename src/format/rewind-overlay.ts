@@ -4,12 +4,13 @@
  * 阶段 1（list）：展示用户检查点（turn/text/seq），↑↓/j k 移动，Enter 选中目标。
  * 阶段 2（mode）：convo（仅截断会话）/ code（仅文件回退）/ both（两者）。
  * 执行回调由装配方提供（TuiApp.rewindSession 接 FileHistory + SessionStore）。
- * list 的 Esc/Ctrl+C 由装配方关闭；mode 的 Esc 回到 list。
+ * 键位路由收敛在本类 handleKey（统一返回词表 'close'|'handled'）：list/done
+ * 阶段的 Esc 与任意阶段的 Ctrl+C → close；mode 的 Esc 回到 list。
  *
  * 数据源：装配方过滤后的用户检查点（TranscriptMessage：seq/turn/text）。
  */
 
-import type { OverlayRenderer } from '../engine/overlay-engine.js'
+import type { OverlayKeyResult, OverlayRenderer } from '../engine/overlay-engine.js'
 import { color } from '../engine/ansi.js'
 import type { RivetTheme } from '../theme.js'
 import { getTheme } from '../theme.js'
@@ -98,7 +99,7 @@ export class RewindOverlay implements OverlayRenderer {
   }
 
   /**
-   * done 阶段（结果已显示，装配方应关闭 overlay）。
+   * done 阶段（结果已显示；handleKey 对任意键返回 close）。
    * @returns 处于 done 阶段时 true。
    */
   isDone(): boolean {
@@ -106,7 +107,7 @@ export class RewindOverlay implements OverlayRenderer {
   }
 
   /**
-   * list 阶段由装配方对 Esc/Ctrl+C 直接关闭；mode 阶段 Esc 先回到 list。
+   * list 阶段（handleKey 对 Esc 返回 close；mode 阶段 Esc 先回到 list）。
    * @returns 处于 list 阶段时 true。
    */
   isListPhase(): boolean {
@@ -114,42 +115,47 @@ export class RewindOverlay implements OverlayRenderer {
   }
 
   /**
-   * 处理按键；返回 true 表示已消费。
+   * 键位路由（scroll-pager 范式收敛——Esc/Ctrl+C 关闭判定收进类内，装配方
+   * 只做 deactivate/rerender）：Ctrl+C 任意阶段 → close；list 阶段 ↑↓/jk
+   * 移动、Enter 进粒度选择、Esc → close；mode 阶段 1/2/3 执行、Esc 回 list；
+   * done 阶段任意键 → close；executing 吞掉全部键。
    * @param name - 按键名（up/down/return/escape/ctrl_c 等）。
    * @param char - 可打印字符（j/k 移动，1/2/3 选粒度）。
-   * @returns 已消费时 true（list 的 Esc/Ctrl+C 由装配方关闭；mode 的 Esc 回到 list）。
+   * @returns close = 请求关闭（装配方 deactivate）；handled = 已消费。
    */
-  handleKey(name: string, char: string): boolean {
+  handleKey(name: string, char: string): OverlayKeyResult {
+    if (name === 'ctrl_c') return 'close'
     if (this.phase === 'list') {
+      if (name === 'escape') return 'close'
       if (name === 'up' || char === 'k') {
         this.selected = Math.max(0, this.selected - 1)
-        return true
+        return 'handled'
       }
       if (name === 'down' || char === 'j') {
         this.selected = Math.min(this.messages.length - 1, this.selected + 1)
-        return true
+        return 'handled'
       }
       if (name === 'return') {
         if (this.selectedSeq() >= 0) this.phase = 'mode'
-        return true
+        return 'handled'
       }
-      return name === 'escape' || name === 'ctrl_c'
+      return 'handled'
     }
     if (this.phase === 'mode') {
       if (char === '1' || char === '2' || char === '3') {
         // MODE_KEYS 覆盖 '1'/'2'/'3' 全部键；find 失败时降级为不执行（无崩溃）。
         this.mode = MODE_KEYS.find(k => k.key === char)?.mode ?? null
         void this.run()
-        return true
+        return 'handled'
       }
       if (name === 'escape') {
         this.phase = 'list'
-        return true
+        return 'handled'
       }
-      return name === 'ctrl_c'
+      return 'handled'
     }
-    // done 阶段：任何键关闭（由装配方 deactivate）。
-    return this.phase === 'done'
+    // done 阶段：任何键关闭；executing（含 null 未激活防御）吞掉全部键。
+    return this.phase === 'done' ? 'close' : 'handled'
   }
 
   /** 执行回退（mode 阶段选中后）。 */

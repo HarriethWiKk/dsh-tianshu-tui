@@ -8,7 +8,7 @@
  * - 输入实时搜索（type 即重算），n/N 循环跳转，Esc 退出
  */
 
-import type { OverlayRenderer } from '../engine/overlay-engine.js'
+import type { OverlayKeyResult, OverlayRenderer } from '../engine/overlay-engine.js'
 import { color } from '../engine/ansi.js'
 import type { RivetTheme } from '../theme.js'
 import { getTheme } from '../theme.js'
@@ -112,6 +112,34 @@ export class HistorySearchOverlay implements OverlayRenderer {
       const haystack = sensitive ? message.text : message.text.toLowerCase()
       if (haystack.includes(q)) this.matches.push(i)
     }
+  }
+
+  /**
+   * 键位路由（scroll-pager 范式收敛）：Esc/Ctrl+C → close；Backspace 退格；
+   * n/N、p/P 循环跳匹配；其余可打印字符进 query（输入实时重算）。
+   * @param name - 按键名。
+   * @param char - 可打印字符（控制键为 ''）。
+   * @returns close = 请求关闭；handled = 已消费（含无 char 的控制键——吞掉）。
+   */
+  handleKey(name: string, char: string): OverlayKeyResult {
+    if (name === 'escape' || name === 'ctrl_c') return 'close'
+    if (name === 'backspace') {
+      this.backspace()
+      return 'handled'
+    }
+    if (char === 'n' || char === 'N') {
+      this.goNext()
+      return 'handled'
+    }
+    if (char === 'p' || char === 'P') {
+      this.goPrev()
+      return 'handled'
+    }
+    if (char !== '') {
+      this.type(char)
+      return 'handled'
+    }
+    return 'handled'
   }
 
   render(width: number, height: number): string[] {

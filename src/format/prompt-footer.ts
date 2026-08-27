@@ -103,6 +103,10 @@ export interface FormatPromptFooterInput {
   approvalPending?: boolean
   /** 检查类面板打开：提示 esc 关闭。 */
   inspectOpen?: boolean
+  /** 审批挂起提示段覆盖（action registry 投影，见 actions/projections）；缺省用内置文案。 */
+  approvalHints?: readonly string[]
+  /** 检查面板提示段覆盖（同上）；缺省用内置文案。 */
+  inspectHints?: readonly string[]
   /** 右侧状态段（token/模型/API 等）；右对齐合并进同一行，放不下从后丢段。 */
   rightSegments?: readonly string[]
   /**
@@ -111,6 +115,12 @@ export interface FormatPromptFooterInput {
    */
   tipIndex?: number
 }
+
+/** 审批挂起提示段缺省文案（与 actions/builtin-actions 的 approval 域 footerHint 同源对齐）。 */
+const DEFAULT_APPROVAL_HINTS: readonly string[] = ['y 允许', 'n 拒绝', 'a 放行', 'esc 取消']
+
+/** 检查面板提示段缺省文案（inspect.close 动作 footerHint + 静态「/ 命令」尾段）。 */
+const DEFAULT_INSPECT_HINTS: readonly string[] = ['esc 关闭', '/ 命令']
 
 /**
  * 渲染底部 footer：mode 段 + 快捷键提示段，右侧状态段右对齐合并进同一行。
@@ -128,9 +138,9 @@ export function formatPromptFooter(input: FormatPromptFooterInput, theme: RivetT
     ? theme.warning
     : alwaysApprove === true ? theme.error : CHROME_INACTIVE_SHIMMER
   const hints = input.approvalPending === true
-    ? ['y 允许', 'n 拒绝', 'a 放行', 'esc 取消']
+    ? [...(input.approvalHints ?? DEFAULT_APPROVAL_HINTS)]
     : input.inspectOpen === true
-      ? ['esc 关闭', '/ 命令']
+      ? [...(input.inspectHints ?? DEFAULT_INSPECT_HINTS)]
       : [footerTipForIndex(input.tipIndex ?? footerTipIndex())]
   // 从后往前丢段直到放得下（mode 恒保留）。
   let segs = hints

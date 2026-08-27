@@ -116,7 +116,7 @@ describe('MemoryBrowserOverlay', () => {
     })
     const overlay = new MemoryBrowserOverlay(THEME)
     overlay.setItems(page1, { ...mockSources(), fetchPage }, true)
-    // 翻页（handleKey 同步返回 boolean，内部 void nextPage()；await 边界让
+    // 翻页（handleKey 同步返回 'handled'，内部 void nextPage()；await 边界让
     // fetchPage 微任务链完成，等价原 `await handleKey(...)` 的时序）
     overlay.handleKey('ctrl_n', '')
     await Promise.resolve()
@@ -131,10 +131,10 @@ describe('MemoryBrowserOverlay', () => {
     expect(lines.some(l => l.includes('暂无记忆'))).toBe(true)
   })
 
-  it('Esc/Ctrl+C 返回消费（装配方关闭 overlay）', () => {
+  it('Esc/Ctrl+C 返回 close（装配方据此 deactivate）', () => {
     const overlay = new MemoryBrowserOverlay(THEME)
     overlay.setItems([item('a1', 'x')], mockSources(), false)
-    expect(overlay.handleKey('escape', '')).toBe(true)
-    expect(overlay.handleKey('ctrl_c', '')).toBe(true)
+    expect(overlay.handleKey('escape', '')).toBe('close')
+    expect(overlay.handleKey('ctrl_c', '')).toBe('close')
   })
 })

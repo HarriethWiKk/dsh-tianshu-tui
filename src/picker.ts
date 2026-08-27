@@ -12,6 +12,7 @@
  */
 
 import { color } from './engine/ansi.js'
+import type { OverlayKeyResult } from './engine/overlay-engine.js'
 import type { RivetTheme } from './theme.js'
 import { displayWidth } from './width.js'
 
@@ -303,6 +304,48 @@ export class PickerController {
   /** 是否注入了 S 设为默认钩子（键路由据此决定是否消费 s/S）。 */
   canSaveDefault(): boolean {
     return this.onSaveDefault !== null
+  }
+
+  /**
+   * 键位路由（scroll-pager 范式收敛；装配方只做 activate/deactivate/rerender）：
+   * Esc/Ctrl+C/q → close（触发 onCancel 还原预览）；↑↓/jk 移动、PageUp/PageDown
+   * 翻页 → handled；Enter commit → close；s/S 仅在注入 onSaveDefault 时
+   * saveDefault → close（否则吞掉不动作——与原装配方分支门控一致）；
+   * 其余键吞掉（overlay 独占焦点）。
+   * @param name - 按键名。
+   * @param char - 可打印字符（控制键为 ''）。
+   * @returns close = 请求关闭；handled = 已消费。
+   */
+  handleKey(name: string, char: string): OverlayKeyResult {
+    if (name === 'escape' || name === 'ctrl_c' || char === 'q') {
+      this.close()
+      return 'close'
+    }
+    if (name === 'up' || char === 'k') {
+      this.move(-1)
+      return 'handled'
+    }
+    if (name === 'down' || char === 'j') {
+      this.move(1)
+      return 'handled'
+    }
+    if (name === 'pageup') {
+      this.move(-10)
+      return 'handled'
+    }
+    if (name === 'pagedown') {
+      this.move(10)
+      return 'handled'
+    }
+    if (name === 'return') {
+      this.commit()
+      return 'close'
+    }
+    if ((char === 's' || char === 'S') && this.canSaveDefault()) {
+      this.saveDefault()
+      return 'close'
+    }
+    return 'handled'
   }
 
   /**

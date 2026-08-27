@@ -7,7 +7,7 @@
  * 键位路由收敛在本类 handleKey，装配方（TuiApp）只做 activate/deactivate。
  */
 
-import type { OverlayRenderer } from '../engine/overlay-engine.js'
+import type { OverlayKeyResult, OverlayRenderer } from '../engine/overlay-engine.js'
 import { color } from '../engine/ansi.js'
 import type { RivetTheme } from '../theme.js'
 import { getTheme } from '../theme.js'
@@ -20,8 +20,8 @@ import {
   type TranscriptMessage,
 } from '../scrollback-transcript.js'
 
-/** handleKey 结果：close = 请求关闭 overlay；handled = 已消费。 */
-export type PagerKeyResult = 'close' | 'handled'
+/** handleKey 结果：close = 请求关闭 overlay；handled = 已消费（统一词表 OverlayKeyResult）。 */
+export type PagerKeyResult = OverlayKeyResult
 
 export class ScrollPagerOverlay implements OverlayRenderer {
   private messages: TranscriptMessage[] = []

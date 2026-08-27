@@ -18,6 +18,12 @@
 
 | Target (this package) | Upstream (Tianshu src/tui/) | Status |
 |---|---|---|
+| src/actions/types.ts | — | new（统一 action registry 类型：KeyBinding/KeyAction/ActionContext/BlockingKeyContext） |
+| src/actions/registry.ts | — | new（ActionRegistry：match + 同域键位冲突校验 + confirmMs 双击布防集中管理） |
+| src/actions/builtin-actions.ts | — | new（内置键位动作表：原 handleKey if 链动作化，early/main/tail 相位对齐原分支位置） |
+| src/actions/key-contexts.ts | — | new（阻塞态键上下文统一接口：question/btw/approval/inspect 的 isActive/handleKey 轮询） |
+| src/actions/overlay-router.ts | — | new（overlay 键路由委派表驱动化：activeId → 键目标，'close'|'handled' 收尾 deactivate/rerender） |
+| src/actions/projections.ts | — | new（展示面投影：keymap 条目 / footer 提示段从动作表生成） |
 | src/activity-status.ts | activity-status.ts | modified |
 | src/activity-store.ts | activity-store.ts | modified |
 | src/adapter/agent-scope-service.ts | — | new（isolate 服务优先从 agent 预设面读：compact / planMode / workflowEngine） |

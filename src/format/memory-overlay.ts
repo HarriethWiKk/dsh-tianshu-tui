@@ -11,13 +11,13 @@
  *   含 'x' 的过滤词，可用大写 'X' 代替——但 'X' 目前同 x 语义。后续可选：改为
  *   dd 双键确认删除，释放单 x 给过滤。）
  * - Ctrl+N/Ctrl+P：下/上一页（分页，每页 20 条）
- * - Esc/Ctrl+C：关闭（装配方 deactivate）
+ * - Esc/Ctrl+C：关闭（handleKey 返回 'close'，装配方 deactivate）
  *
  * 数据源由装配方注入（TuiApp.openMemoryBrowser 经 memory 服务 list/delete），
  * overlay 本身不碰 I/O——纯状态机 + 渲染（对齐 RewindOverlay 模式）。
  */
 
-import type { OverlayRenderer } from '../engine/overlay-engine.js'
+import type { OverlayKeyResult, OverlayRenderer } from '../engine/overlay-engine.js'
 import { color } from '../engine/ansi.js'
 import type { RivetTheme } from '../theme.js'
 import { getTheme } from '../theme.js'
@@ -86,40 +86,42 @@ export class MemoryBrowserOverlay implements OverlayRenderer {
   }
 
   /**
-   * 处理按键；返回 true 表示已消费（Esc/Ctrl+C 由装配方关闭 overlay）。
+   * 键位路由（scroll-pager 范式收敛——Esc/Ctrl+C 关闭判定收进类内）。
    * @param name - 按键名（up/down/backspace/ctrl_n/ctrl_p/escape/ctrl_c 等）。
    * @param char - 可打印字符（j/k 移动，x/X 删除，其余进过滤 query）。
-   * @returns 已消费时 true。
+   * @returns close = 请求关闭（Esc/Ctrl+C）；handled = 已消费（含空格等未
+   *   映射键——overlay 独占焦点，吞掉不穿透输入行）。
    */
-  handleKey(name: string, char: string): boolean {
-    if (this.deleting) return true
+  handleKey(name: string, char: string): OverlayKeyResult {
+    if (name === 'escape' || name === 'ctrl_c') return 'close'
+    if (this.deleting) return 'handled'
     if (name === 'up' || char === 'k') {
       this.selected = Math.max(0, this.selected - 1)
-      return true
+      return 'handled'
     }
     if (name === 'down' || char === 'j') {
       this.selected = Math.min(this.filtered.length - 1, this.selected + 1)
-      return true
+      return 'handled'
     }
     if (name === 'backspace') {
       if (this.query !== '') {
         this.query = this.query.slice(0, -1)
         this.selected = Math.min(this.selected, Math.max(0, this.filtered.length - 1))
       }
-      return true
+      return 'handled'
     }
     if (char === 'x' || char === 'X') {
       void this.deleteSelected()
-      return true
+      return 'handled'
     }
-    if (name === 'ctrl_n') { void this.nextPage(); return true }
-    if (name === 'ctrl_p') { void this.prevPage(); return true }
+    if (name === 'ctrl_n') { void this.nextPage(); return 'handled' }
+    if (name === 'ctrl_p') { void this.prevPage(); return 'handled' }
     if (char !== '' && char !== ' ') {
       this.query += char
       this.selected = 0
-      return true
+      return 'handled'
     }
-    return name === 'escape' || name === 'ctrl_c'
+    return 'handled'
   }
 
   /** 删除当前选中项（异步：onDelete + refetch 刷新；失败静默保持列表）。 */

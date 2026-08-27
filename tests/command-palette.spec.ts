@@ -11,11 +11,15 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { BUILTIN_COMMAND_NAMES, type SlashCommand } from '../src/commands/registry.js'
+import {
+  createBuiltinCommands,
+  type BuiltinCommandDeps,
+  type SlashCommand,
+  type SlashCommandCategory,
+} from '../src/commands/registry.js'
 import type { RivetTheme } from '../src/theme.js'
 import {
   CommandPalette,
-  PALETTE_COMMAND_GROUPS,
   applyPaletteEvent,
   emptyPaletteState,
   filterPalette,
@@ -40,21 +44,27 @@ function plain(lines: readonly string[]): string[] {
   return lines.map(l => l.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, ''))
 }
 
-function cmd(name: string, description: string, argsHint?: string): SlashCommand {
-  return { name, description, ...(argsHint === undefined ? {} : { argsHint }), run: vi.fn() }
+function cmd(name: string, description: string, argsHint?: string, category?: SlashCommandCategory): SlashCommand {
+  return {
+    name,
+    description,
+    ...(argsHint === undefined ? {} : { argsHint }),
+    ...(category === undefined ? {} : { category }),
+    run: vi.fn(),
+  }
 }
 
 const SAMPLE: readonly SlashCommand[] = [
-  cmd('theme', '切换主题', '<name>'),
-  cmd('clear', '清空当前会话滚动区并收起命令面板'),
-  cmd('compact', '压缩当前会话'),
-  cmd('steer', '中轮转向', '<text>'),
+  cmd('theme', '切换主题', '<name>', '配置'),
+  cmd('clear', '清空当前会话滚动区并收起命令面板', undefined, '会话'),
+  cmd('compact', '压缩当前会话', undefined, '会话'),
+  cmd('steer', '中轮转向', '<text>', '会话'),
 ]
 
 const THEME = fakeTheme()
 
 describe('toPaletteEntries — 数据源投影', () => {
-  it('SlashCommand → PaletteEntry（argsHint 可选，自动分组）', () => {
+  it('SlashCommand → PaletteEntry（argsHint 可选，分组取 category）', () => {
     const entries = toPaletteEntries(SAMPLE)
     expect(entries).toHaveLength(4)
     expect(entries[0]).toEqual({ name: 'theme', description: '切换主题', argsHint: '<name>', group: '配置' })
@@ -64,9 +74,16 @@ describe('toPaletteEntries — 数据源投影', () => {
     expect(entries[3]?.group).toBe('会话') // steer 归会话组
   })
 
-  it('内置命令分组表覆盖全部 BUILTIN_COMMAND_NAMES（新增命令必须补分组）', () => {
-    for (const name of BUILTIN_COMMAND_NAMES) {
-      expect(PALETTE_COMMAND_GROUPS[name], `/命令 ${name} 未登记分组`).toBeDefined()
+  it('未标注 category 的命令归「其他」', () => {
+    const entries = toPaletteEntries([cmd('external', '外部插件命令')])
+    expect(entries[0]?.group).toBe('其他')
+  })
+
+  it('内置命令工厂产物逐一标注 category（命令面板分组单一事实来源）', () => {
+    // deps 只被捕获不被调用——Proxy 桩满足装配形状（BuiltinCommandDeps 全方法）。
+    const deps = new Proxy({}, { get: () => vi.fn() }) as unknown as BuiltinCommandDeps
+    for (const command of createBuiltinCommands(deps)) {
+      expect(command.category, `/命令 ${command.name} 未标注 category`).toBeDefined()
     }
   })
 })

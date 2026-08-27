@@ -2,7 +2,10 @@
  * command-palette — Ctrl+P 命令面板 / Tab 命令菜单（纯状态机 + 渲染）。
  *
  * 数据源 = SlashCommandRegistry（getCommands 现取，插件扩展后可见）；
+ * 分组 = SlashCommand.category（命令注册时携带；未标注归「其他」）；
  * 过滤 = 名称/描述子串 + 名称子序列，前缀优先；状态机 open/type/backspace/move/close。
+ * 键位路由收敛在本类 handleKey（scroll-pager 范式：'close'|'handled'），
+ * 装配方（TuiApp）只做 activate/deactivate/rerender 与 commit 结果分流。
  * 两种确认模式：
  * - backfill（Ctrl+P，缺省）：Enter 回填 `/name ` 到输入框，用户续写参数。
  * - execute（Tab 空输入框打开，#31 参考 Claude Code）：Enter 直接执行 `/name`
@@ -10,6 +13,7 @@
  */
 import type { SlashCommand } from './commands/registry.js'
 import { color } from './engine/ansi.js'
+import type { OverlayKeyResult } from './engine/overlay-engine.js'
 import type { RivetTheme } from './theme.js'
 import { displayWidth } from './width.js'
 
@@ -20,27 +24,6 @@ export interface PaletteEntry {
   argsHint?: string
   /** 分组名（浏览可发现性）；缺省归「其他」。 */
   group?: string
-}
-
-/**
- * 内置命令分组表（name → 组名）。外部插件命令不在表内 → 归「其他」。
- * 新增内置命令时在此补一条，命令面板即自动分组。
- */
-export const PALETTE_COMMAND_GROUPS: Readonly<Record<string, string>> = {
-  // 会话
-  session: '会话', fork: '会话', branch: '会话', clear: '会话', scroll: '会话', steer: '会话',
-  exit: '会话', restart: '会话', btw: '会话', memory: '会话', remember: '会话', export: '会话',
-  compact: '会话',
-  // 配置
-  theme: '配置', model: '配置', effort: '配置', preset: '配置', density: '配置',
-  glance: '配置', info: '配置', config: '配置', yolo: '配置', vim: '配置',
-  // 认证
-  key: '认证', login: '认证',
-  // 面板
-  status: '面板', todos: '面板', tasks: '面板', subagents: '面板', workflow: '面板',
-  goal: '面板', skills: '面板', rewind: '面板', lsp: '面板',
-  // 系统
-  mcp: '系统', doctor: '系统', update: '系统', cost: '系统', help: '系统', changelog: '系统',
 }
 
 /** 分组渲染顺序（稳定排序；表外组名追加到尾部）。 */
@@ -73,7 +56,7 @@ export function emptyPaletteState(): PaletteState {
 }
 
 /**
- * SlashCommand → 面板条目（自动填分组；表外命令归「其他」）。
+ * SlashCommand → 面板条目（分组取命令注册时携带的 category；未标注归「其他」）。
  * @param commands - 注册表命令列表。
  * @returns 面板条目（argsHint 缺省时不带该字段；group 恒有值）。
  */
@@ -81,7 +64,7 @@ export function toPaletteEntries(commands: readonly SlashCommand[]): PaletteEntr
   return commands.map(c => ({
     name: c.name,
     description: c.description,
-    group: PALETTE_COMMAND_GROUPS[c.name] ?? PALETTE_FALLBACK_GROUP,
+    group: c.category ?? PALETTE_FALLBACK_GROUP,
     ...(c.argsHint === undefined ? {} : { argsHint: c.argsHint }),
   }))
 }
@@ -252,6 +235,8 @@ export class CommandPalette {
   private readonly getTheme: () => RivetTheme
   /** 确认模式：true = execute（Enter 直接执行 `/name`）；false = backfill（回填 `/name `）。 */
   private executeMode = false
+  /** Enter commit 结果暂存（handleKey 路径；装配方 takeCommit 取走后清空）。 */
+  private pendingCommit: { entry: PaletteEntry; text: string; execute: boolean } | null = null
 
   constructor(opts: CommandPaletteOptions) {
     this.getCommands = opts.getCommands
@@ -344,6 +329,47 @@ export class CommandPalette {
     return this.executeMode
       ? { entry, text: `/${entry.name}`, execute: true }
       : { entry, text: paletteCommitText(entry), execute: false }
+  }
+
+  /**
+   * 键位路由（scroll-pager 范式收敛；装配方只做 deactivate/rerender 与
+   * takeCommit 分流）：Esc/Ctrl+C → close（不提交、不回填输入行——真机 A6
+   * 修复语义）；Enter → commit 暂存 + close；↑/↓ 移动选中；其余可打印字符
+   * 进查询。Backspace 维持吞掉不删（装配方历史路由语义——query 只增不减）。
+   * @param name - 按键名。
+   * @param char - 可打印字符（控制键为 ''）。
+   * @returns close = 请求关闭；handled = 已消费。
+   */
+  handleKey(name: string, char: string): OverlayKeyResult {
+    if (name === 'escape' || name === 'ctrl_c') {
+      this.close()
+      return 'close'
+    }
+    if (name === 'return') {
+      this.pendingCommit = this.commit()
+      this.close()
+      return 'close'
+    }
+    if (name === 'up' || name === 'down') {
+      this.move(name === 'up' ? -1 : 1)
+      return 'handled'
+    }
+    if (char !== '') {
+      this.type(char)
+      return 'handled'
+    }
+    return 'handled'
+  }
+
+  /**
+   * 取走最近一次 Enter 的 commit 结果（无选中时为 null）；取后清空。
+   * 装配方据此分流：execute 直接执行 `/name`；backfill 回填 `/name ` 输入框。
+   * @returns commit 结果；无（Esc 关闭/无匹配）为 null。
+   */
+  takeCommit(): { entry: PaletteEntry; text: string; execute: boolean } | null {
+    const committed = this.pendingCommit
+    this.pendingCommit = null
+    return committed
   }
 
   /**

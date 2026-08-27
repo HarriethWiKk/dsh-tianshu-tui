@@ -1,14 +1,17 @@
 /**
  * 快捷键面板（grok-build Ctrl+. 键位清单弹层移植）。
  *
- * 纯函数层：KEYMAP_ENTRIES 是当前实现的完整快捷键表单一事实来源，
- * renderKeymapPanel 把条目渲染为两列对齐行（键位左列 + 动作右列），
- * 窄宽降级为单列紧凑行、超宽截断不破版。TuiApp 把它注册为 overlay
- * 渲染器，Ctrl+. 触发进出。
+ * 纯函数层：KEYMAP_ENTRIES 由 action registry（actions/builtin-actions）投影
+ * 生成 + 输入层静态补充行（Enter 提交、Ctrl+U 等 InputLine 内部键位不经
+ * registry 路由）归并——键位提示单一事实来源是动作表。renderKeymapPanel
+ * 把条目渲染为两列对齐行（键位左列 + 动作右列），窄宽降级为单列紧凑行、
+ * 超宽截断不破版。TuiApp 把它注册为 overlay 渲染器，Ctrl+. 触发进出。
  *
  * @module @deepseek-ai/dsh-tianshu-tui/format/keymap-panel
  */
 
+import { createBuiltinActions } from '../actions/builtin-actions.js'
+import { projectKeymapEntries, type ProjectedKeymapEntry } from '../actions/projections.js'
 import { displayWidth } from '../width.js'
 
 /** 快捷键面板条目：键位 + 动作说明。 */
@@ -19,31 +22,27 @@ export interface KeymapEntry {
   action: string
 }
 
-/** 当前实现的完整快捷键表（新增键位时在此登记，面板自动跟随）。
- *  与 README 快捷键表同源维护；审批卡的 y/N/a/Ctrl+C 为上下文键位，
- *  由审批卡自带提示承担，不在此列。 */
-export const KEYMAP_ENTRIES: KeymapEntry[] = [
-  { keys: 'Enter', action: '发送' },
-  { keys: 'Shift+Enter', action: '换行（或 \\+Enter 续行）' },
-  { keys: 'Ctrl+N', action: '新会话' },
-  { keys: 'Ctrl+S', action: '恢复最近会话' },
-  { keys: 'Ctrl+Q', action: '退出' },
-  { keys: 'Ctrl+P', action: '命令面板' },
-  { keys: 'Ctrl+.', action: '快捷键面板' },
-  { keys: 'Ctrl+F / Ctrl+R', action: '历史搜索（n/N 跳转）' },
-  { keys: 'Ctrl+O', action: '展开/收起推理块' },
-  { keys: 'Ctrl+E', action: '外部编辑器' },
-  { keys: 'Ctrl+T', action: '中轮转向' },
-  { keys: 'Ctrl+V', action: '粘贴剪贴板图片/文本' },
-  { keys: 'Ctrl+U', action: '删除到行首' },
-  { keys: 'Ctrl+C', action: '打断当前回合（空闲双击退出）' },
-  { keys: 'Shift+Tab', action: '模式循环 normal→plan→always-approve' },
-  { keys: 'Tab', action: '@-路径补全 / 接受 slash 选中项' },
-  { keys: '↑/↓', action: '输入历史（菜单打开时为选择；运行中排队时 ↑ 取回队首）' },
-  { keys: 'PageUp/PageDown', action: 'slash 菜单翻页' },
-  { keys: 'Alt+W', action: '复制选区到系统剪贴板（OSC52）' },
-  { keys: 'Esc', action: '取消/关闭检查面板（空闲双击 rewind）' },
+/**
+ * 输入层静态补充行（InputLine/slash 菜单内部键位，不经 action registry 路由；
+ * order 与动作表的 keymapOrder 归并对齐原表序）。
+ */
+const INPUT_LAYER_ROWS: readonly (ProjectedKeymapEntry & { order: number })[] = [
+  { order: 10, keys: 'Enter', action: '发送' },
+  { order: 20, keys: 'Shift+Enter', action: '换行（或 \\+Enter 续行）' },
+  { order: 130, keys: 'Ctrl+U', action: '删除到行首' },
+  { order: 160, keys: 'Tab', action: '@-路径补全 / 接受 slash 选中项' },
+  { order: 180, keys: 'PageUp/PageDown', action: 'slash 菜单翻页' },
+  { order: 190, keys: 'Alt+W', action: '复制选区到系统剪贴板（OSC52）' },
 ]
+
+/** 当前实现的完整快捷键表（新增键位时在 actions/builtin-actions 登记，面板自动跟随）。
+ *  与 README 快捷键表同源维护；审批卡的 y/N/a/Ctrl+C 为上下文键位（context:
+ *  'approval'，由审批卡自带提示承担），不在此列。 */
+export const KEYMAP_ENTRIES: KeymapEntry[] = projectKeymapEntries(
+  // keymap 是模块级静态表——editorKey 取缺省 ctrl_e 投影（与改动前的静态表一致）。
+  createBuiltinActions({ editorKey: 'ctrl_e' }),
+  INPUT_LAYER_ROWS,
+)
 
 /** 键位列宽：最长键位 + 2 列间隔。 */
 function keyColumnWidth(entries: readonly KeymapEntry[]): number {

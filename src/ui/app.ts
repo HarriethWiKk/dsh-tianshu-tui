@@ -174,9 +174,6 @@ interface TaskSnapshotView {
   readonly startedAt: number
 }
 
-/** 双击 Esc 触发 rewind 的窗口（ms；对齐 Claude Code 的 Esc+Esc 时间回溯）。
- *  比 Ctrl+C 双击退出的 2s 短——rewind 是高频操作，双击节奏更跟手。 */
-const REWIND_DOUBLE_ESC_MS = 1000
 import { WorkflowStatusLine } from '../statusline.js'
 import {
   BUILTIN_COMMAND_NAMES,
@@ -228,7 +225,6 @@ import { QuestionController } from '../controllers/question-controller.js'
 import { BtwController } from '../controllers/btw-controller.js'
 import { SessionManager, resumeModelSelection } from '../controllers/session-manager.js'
 import { InspectSurfaceController } from '../controllers/inspect-surface.js'
-import { inspectKeyAction } from './inspect-panels.js'
 import { renderBtwPanel } from '../format/btw-panel.js'
 import { CHROME_GUTTER, formatWelcomeHero, type WelcomeEnvCheck, type WelcomeTipItem } from '../format/welcome.js'
 import { formatWhaleLogo, WHALE_MIN_ROWS } from '../format/whale.js'
@@ -236,8 +232,23 @@ import { formatTopBar } from '../format/top-bar.js'
 import { livePresetShort } from '../preset-catalog.js'
 import { formatTurnStatus } from '../format/turn-status.js'
 import { formatFooterInfo } from '../format/prompt-footer.js'
+import {
+  ActionRegistry,
+  EXIT_WINDOW_MS,
+} from '../actions/registry.js'
+import { createBuiltinActions } from '../actions/builtin-actions.js'
+import {
+  createApprovalKeyContext,
+  createBtwKeyContext,
+  createInspectKeyContext,
+  createQuestionKeyContext,
+  createSlashMenuKeyContext,
+} from '../actions/key-contexts.js'
+import { OverlayKeyRouter } from '../actions/overlay-router.js'
+import { projectApprovalHints, projectInspectHints } from '../actions/projections.js'
+import type { ActionContext, BlockingKeyContext } from '../actions/types.js'
 import { formatInputFrame } from '../format/input-frame.js'
-import { formatSlashMenu, SLASH_MENU_MAX_ROWS } from '../format/slash-menu.js'
+import { formatSlashMenu } from '../format/slash-menu.js'
 import { formatSubagentDone } from '../format/subagent-line.js'
 import { glanceStatusSegments } from '../format/glance-bar.js'
 import { buildGlanceMetrics } from '../format/glance-metrics.js'
@@ -501,9 +512,21 @@ export class TuiApp {
   private memoryOverlay: MemoryBrowserOverlay | null = null
   /** #31：交互式选择器 overlay（/model /theme /session 无参打开；上下键选择）。 */
   private picker: PickerController | null = null
-  /** 双击 Esc 触发 rewind：第一次 Esc 的时间戳（0 = 无待定；窗口内第二次 Esc
-   *  打开 rewind overlay，对齐 Claude Code 的 Esc+Esc 时间回溯）。 */
-  private escRewindPendingSince = 0
+  /** 统一 action registry：键路由/快捷键面板/footer 提示的单一事实来源。 */
+  private readonly actions: ActionRegistry
+  /** 动作执行上下文门面（createActionContext 装配；闭包注入私有方法）。 */
+  private readonly actionCtx: ActionContext
+  /** 阻塞态键上下文轮询表（现状顺序保持：question > btw > approval）。 */
+  private readonly blockingKeys: readonly BlockingKeyContext[]
+  /** slash 命令菜单键上下文（轮询位置在主段动作之后、inspect 之前——现状顺序）。 */
+  private readonly menuKeys: BlockingKeyContext
+  /** inspect 上下文键（轮询位置在 slash 菜单之后——现状顺序保持）。 */
+  private readonly inspectKeys: BlockingKeyContext
+  /** overlay 键路由器（key-dialog/picker/search/scroll/rewind/memory/palette 委派）。 */
+  private readonly overlayRouter: OverlayKeyRouter
+  /** footer 上下文提示段（registry 投影；构造期一次性投影，动作表静态）。 */
+  private readonly footerApprovalHints: readonly string[]
+  private readonly footerInspectHints: readonly string[]
   /** Phase 9d：流利度追踪（tool 事件 → 渲染策略；stale 提示消费于 renderLive）。 */
   private readonly fluency = new FluencyTracker()
   /** Phase 5.3：底部 glance（状态/错误行派生 + 节流；renderLive 消费 current()）。 */
@@ -911,6 +934,7 @@ export class TuiApp {
     // /steer 复用既有中轮转向入口（Phase 6.2）。
     this.slash.register({
       name: 'steer',
+      category: '会话',
       description: '中轮转向（中途纠正方向）',
       argsHint: '<text>',
       run: (args) => { this.handleSteer(args.text) },
@@ -920,6 +944,7 @@ export class TuiApp {
     // command_wiring 维度）。subagent/subagentTiming 两域由 /subagents 面板消费。
     this.slash.register({
       name: 'status',
+      category: '面板',
       description: '切换状态面板（goal/todos/plan 投影快照）',
       run: () => { void this.inspect.toggle('status') },
     })
@@ -929,6 +954,7 @@ export class TuiApp {
     // 明细行只封顶展示，完整清单仍在 /status。
     this.slash.register({
       name: 'todos',
+      category: '面板',
       description: '切换待办面板（无参显隐；all 看全表）',
       argsHint: '[all]',
       run: ({ text }) => {
@@ -953,6 +979,7 @@ export class TuiApp {
     // T3.2：/config 设置面板（终端通知可配；宿主段缺失则折叠）。
     this.slash.register({
       name: 'config',
+      category: '配置',
       description: '切换设置面板（n 通知 · d 密度）',
       argsHint: '[notify [on|off]]',
       run: async ({ text, echo }) => {
@@ -972,6 +999,7 @@ export class TuiApp {
     // 服务缺失时面板恒空，回显警告）。
     this.slash.register({
       name: 'skills',
+      category: '面板',
       description: '切换技能浏览面板',
       run: () => { void this.inspect.toggle('skills') },
     })
@@ -979,6 +1007,7 @@ export class TuiApp {
     // 即实例化；server 未安装时回显警告，面板渲染「未安装」空态）。
     this.slash.register({
       name: 'lsp',
+      category: '面板',
       description: '切换 LSP 诊断面板（本地语言服务）',
       run: () => { void this.inspect.toggle('lsp') },
     })
@@ -986,6 +1015,7 @@ export class TuiApp {
     // /compact 前缀歧义——resolveSlashCommand 最小唯一前缀会拒掉歧义输入）。
     this.slash.register({
       name: 'density',
+      category: '配置',
       description: '切换紧凑渲染（带参 default=设为启动默认）',
       argsHint: '[default]',
       run: ({ text, echo }) => {
@@ -1008,6 +1038,7 @@ export class TuiApp {
     // 把当前值设为启动默认——对齐 /density 的 default 语义与 CC 的编辑模式配置）。
     this.slash.register({
       name: 'vim',
+      category: '配置',
       description: '切换 vi/vim 编辑键位（带参 default=设为启动默认）',
       argsHint: '[on|off|default]',
       run: ({ text, echo }) => {
@@ -1033,6 +1064,7 @@ export class TuiApp {
     // 注册在 /glance 前——菜单环绕末项契约测试锚定 /glance。
     this.slash.register({
       name: 'info',
+      category: '配置',
       description: '切换输入区信息密度（full 两行 / compact 状态行 / off 全关）',
       run: ({ echo }) => {
         const current = this.prefs.footerInfo ?? 'full'
@@ -1047,6 +1079,7 @@ export class TuiApp {
     // 自动更新提示（updateNoticeText）已引导本命令——用户更新后即可知道改了什么。
     this.slash.register({
       name: 'changelog',
+      category: '系统',
       description: '查看版本更新内容（默认当前版本；all 全部；N 最近 N 版）',
       argsHint: '[all|N]',
       run: ({ text, echo }) => {
@@ -1085,6 +1118,7 @@ export class TuiApp {
     })
     this.slash.register({
       name: 'glance',
+      category: '配置',
       description: '切换 footer metrics 段显隐（如 /glance cost）',
       argsHint: '[segment]',
       run: ({ text, echo }) => {
@@ -1183,6 +1217,43 @@ export class TuiApp {
     })
     // P3：多会话快照层（不持有会话生命周期；tab 栏渲染时 list() 派生）。
     this.sessionManager = new SessionManager(this.ctx)
+    // 统一 action registry 装配（键路由数据源）：动作只经 ActionContext 门面
+    // 触达本类私有方法，registry 本身不 import 本类。构造期一次性投影 footer
+    // 上下文提示段（动作表静态——editorKey 已在上方定值）。
+    this.actionCtx = this.createActionContext()
+    this.actions = new ActionRegistry(createBuiltinActions({ editorKey: this.editorKey }))
+    this.blockingKeys = [
+      createQuestionKeyContext({
+        question: this.question,
+        inputLine: this.inputLine,
+        settle: answer => { this.settleQuestion(answer) },
+        cancel: () => { this.cancelQuestion() },
+        flushLive: () => { this.flushLiveRender() },
+      }),
+      createBtwKeyContext({ btw: this.btw, flushLive: () => { this.flushLiveRender() } }),
+      createApprovalKeyContext({ approval: this.approval, registry: this.actions, ctx: this.actionCtx }),
+    ]
+    this.inspectKeys = createInspectKeyContext({ inspect: this.inspect, inputLine: this.inputLine })
+    this.menuKeys = createSlashMenuKeyContext({
+      inputController: this.inputController,
+      accept: opts => { this.acceptSlashCompletion(opts) },
+      flushLive: () => { this.flushLiveRender() },
+    })
+    this.overlayRouter = new OverlayKeyRouter({
+      overlay: () => this.overlay,
+      keyDialog: () => this.keyDialog,
+      picker: () => this.picker,
+      search: () => this.searchOverlay,
+      scroll: () => this.scrollPager,
+      rewind: () => this.rewindOverlay,
+      memory: () => this.memoryOverlay,
+      palette: () => this.palette,
+      pasteKeyDialog: dialog => { void this.pasteClipboardIntoKeyDialog(dialog) },
+      submit: text => { this.handleSubmit(text) },
+      backfill: text => { this.inputLine.setValue(text) },
+    })
+    this.footerApprovalHints = projectApprovalHints(this.actions.list())
+    this.footerInspectHints = projectInspectHints(this.actions.list())
   }
 
   /** Phase 8：审批 answerer 订阅的 disposer（dispose 时解绑）。 */
@@ -2913,454 +2984,35 @@ export class TuiApp {
     return runUpdateCheck({ cachePath: defaultUpdateCachePath() })
   }
 
-  /** 键路由：Enter 提交 / Ctrl-C 取消或退出 / 上下键历史 / 其余交给 InputLine。 */
+  /**
+   * 键路由（统一 action registry）：布防清扫 → 早段全局动作（overlay 之前——
+   * shift_tab/ctrl_n 等在面板打开时先生效，现状语义保持）→ overlay 委派
+   * （scroll-pager 范式）→ 阻塞上下文轮询（question > btw > approval）→
+   * 主段动作（esc 打断/关 inspect/双击 rewind、ctrl_c、ctrl_o、editorKey、
+   * ctrl_t、ctrl_v）→ slash 菜单 → inspect 上下文键 → 尾段动作（空 Tab/
+   * Alt+Backspace/↑↓）→ InputLine 兜底。
+   */
   private handleKey(key: KeyPress): void {
-    if (key.name !== 'ctrl_c' && this.inputController.ctrlCPendingSince !== 0) {
-      this.inputController.ctrlCPendingSince = 0
+    // 双击布防清扫：非某 confirmMs 动作触发键的键到达即撤防（对齐原
+    // ctrlCPendingSince/escRewindPendingSince 两处的「非同键打断」清理）。
+    this.actions.sweepConfirms(key)
+    const ctx = this.actionCtx
+    const early = this.actions.match(key, ctx, { phase: 'early', context: 'global' })
+    if (early !== null && early.run(ctx, key) !== false) return
+    // overlay 独占焦点（key-dialog/picker/search/scroll/rewind/memory/palette）。
+    if (this.overlayRouter.route(key)) return
+    // 阻塞态轮询：挂起交互独占键盘（T3.1 提问 → P1 侧问 → Phase 8 审批）。
+    for (const blocking of this.blockingKeys) {
+      if (blocking.isActive() && blocking.handleKey(key)) return
     }
-    // 双击 Esc 待定窗口：任何非 Esc 键打断（与 ctrlCPendingSince 同模式）。
-    if (key.name !== 'escape' && this.escRewindPendingSince !== 0) {
-      this.escRewindPendingSince = 0
-    }
-    // A5：空输入 Enter 切换最后一张进行中工具卡的展开/收起（非空时 Enter 是
-    // 提交路径，不劫持；工具卡已结算时 callId 不匹配自然失效）。
-    if (key.name === 'return' && this.inputLine.value === '') {
-      const pending = this.transcript?.view.tools.filter(t => t.result === undefined) ?? []
-      const latest = pending[pending.length - 1]
-      if (latest !== undefined) {
-        this.expandedToolCallId = this.expandedToolCallId === latest.callId ? null : latest.callId
-        this.flushLiveRender()
-        return
-      }
-    }
-    // C3 项 4：Shift+Tab 三态循环（Normal → Plan → Always-Approve → Normal）。
-    if (key.name === 'shift_tab') {
-      this.cycleMode()
-      return
-    }
-    // C4 概念稿 A：欢迎页菜单入口快捷键——新会话 / 恢复会话 / 退出。
-    // 语义与菜单行提示一致（grok menu.rs 的 ctrl+w/ctrl+s/ctrl+q 对齐）；
-    // 任意时刻可用（新会话即 /session new 语义，退出即 Ctrl+Q / 连按两次 Ctrl+C）。
-    // 注意：ctrl_n 在此劫持 InputLine 的 historyNext（L791）、ctrl_p 早已被
-    // 命令面板劫持（historyPrev）——输入历史导航由 ↑/↓ 承担，此处不留键。
-    if (key.name === 'ctrl_n') {
-      void this.newSession()
-      return
-    }
-    if (key.name === 'ctrl_s') {
-      void this.restoreRecentOtherSession()
-      return
-    }
-    // 会话 tab 栏：Ctrl+X 循环下一个（Ctrl+Tab 终端编码不可靠，不用）。
-    if (key.name === 'ctrl_q') {
-      if (this.onExit !== undefined) this.onExit()
-      return
-    }
-    // Ctrl+P 命令面板：先于 inputLine 拦截（ctrl_p 原被 historyPrev 占用）。
-    if (key.name === 'ctrl_p') {
-      const palette = this.palette
-      const overlay = this.overlay
-      /* v8 ignore next 2 -- palette/overlay 在 attach 时恒创建（L539-547），null 仅类型收窄 */
-      if (palette !== null && overlay !== null) {
-        if (palette.isOpen()) {
-          palette.close()
-          overlay.deactivate()
-        } else {
-          palette.open()
-          overlay.activate('command-palette')
-        }
-      }
-      return
-    }
-    // Ctrl+. 快捷键面板：静态键位表弹层（grok-build 同款键位清单；再按一次关闭）。
-    if (key.name === 'ctrl_.') {
-      const overlay = this.overlay
-      /* v8 ignore next -- overlay 在 attach 时恒创建，null 仅类型收窄 */
-      if (overlay !== null) {
-        if (overlay.activeId() === 'keymap') overlay.deactivate()
-        else overlay.activate('keymap')
-      }
-      return
-    }
-    // C2 项 2：Ctrl+F 历史搜索 overlay。打开时快照 transcript 消息；
-    // 再按一次或 Esc 关闭。palette 打开时不拦截（palette 优先，见下）。
-    if (key.name === 'ctrl_f' && this.palette?.isOpen() !== true) {
-      this.toggleHistorySearchOverlay()
-      return
-    }
-    // /key：API Key 对话框打开——Ctrl+V 读剪贴板文本进 Key 字段；其余键交给
-    // 对话框状态机（输入态收字符/退格/Enter/Esc，confirm-unknown 强存），
-    // wantsClose 后 deactivate（Esc/Ctrl+C 由对话框状态机置关闭请求）。
-    if (this.overlay?.activeId() === 'key-dialog' && this.keyDialog !== null) {
-      const dialog = this.keyDialog
-      if (key.name === 'ctrl_v') {
-        void this.pasteClipboardIntoKeyDialog(dialog)
-        return
-      }
-      dialog.handleKey(key.name, key.char)
-      if (dialog.wantsClose()) {
-        this.overlay.deactivate()
-      } else {
-        this.overlay.rerender()
-      }
-      return
-    }
-    // #31：选择器 overlay 打开：↑/↓（j/k）移动、PageUp/PageDown 翻页、
-    // Enter 确认、Esc/Ctrl+C/q 关闭。优先于输入行（overlay 独占焦点）。
-    if (this.overlay?.activeId() === 'picker' && this.picker !== null) {
-      const picker = this.picker
-      if (key.name === 'escape' || key.name === 'ctrl_c' || key.char === 'q') {
-        picker.close()
-        this.overlay.deactivate()
-      } else if (key.name === 'up' || key.char === 'k') {
-        picker.move(-1)
-        this.overlay.rerender()
-      } else if (key.name === 'down' || key.char === 'j') {
-        picker.move(1)
-        this.overlay.rerender()
-      } else if (key.name === 'pageup') {
-        picker.move(-10)
-        this.overlay.rerender()
-      } else if (key.name === 'pagedown') {
-        picker.move(10)
-        this.overlay.rerender()
-      } else if (key.name === 'return') {
-        picker.commit()
-        this.overlay.deactivate()
-      } else if ((key.char === 's' || key.char === 'S') && picker.canSaveDefault()) {
-        picker.saveDefault()
-        this.overlay.deactivate()
-      }
-      return
-    }
-    // 搜索 overlay 打开：可打印字符进 query，Backspace 退格，n/N 跳转，Esc 关闭。
-    if (this.overlay?.activeId() === 'search' && this.searchOverlay !== null) {      if (key.name === 'escape' || key.name === 'ctrl_c') {
-        this.overlay.deactivate()
-      } else if (key.name === 'backspace') {
-        this.searchOverlay.backspace()
-        this.overlay.rerender()
-      } else if (key.char === 'n' || key.char === 'N') {
-        this.searchOverlay.goNext()
-        this.overlay.rerender()
-      } else if (key.char === 'p' || key.char === 'P') {
-        this.searchOverlay.goPrev()
-        this.overlay.rerender()
-      } else if (key.char !== '') {
-        this.searchOverlay.type(key.char)
-        this.overlay.rerender()
-      }
-      return
-    }
-    if (this.overlay?.activeId() === 'scroll' && this.scrollPager !== null) {
-      const act = this.scrollPager.handleKey(key.name, key.char)
-      if (act === 'close') this.overlay.deactivate()
-      else this.overlay.rerender()
-      return
-    }
-    // C3 项 3：rewind overlay——Ctrl+C 与 list/done 阶段的 Esc 立即关闭（对齐
-    // memory，否则首次 Ctrl+C 走不到进程退出）；mode 的 Esc 由状态机收回列表。
-    if (this.overlay?.activeId() === 'rewind' && this.rewindOverlay !== null) {
-      if (key.name === 'ctrl_c' ||
-        (key.name === 'escape' && (this.rewindOverlay.isListPhase() || this.rewindOverlay.isDone()))) {
-        this.overlay.deactivate()
-        return
-      }
-      if (this.rewindOverlay.handleKey(key.name, key.char)) {
-        this.overlay.rerender()
-      }
-      if (this.rewindOverlay.isDone()) {
-        this.overlay.deactivate()
-      }
-      return
-    }
-    // P2：memory 浏览器打开——Esc/Ctrl+C 关闭；其余键转发 overlay 状态机。
-    if (this.overlay?.activeId() === 'memory' && this.memoryOverlay !== null) {
-      if (key.name === 'escape' || key.name === 'ctrl_c') {
-        this.overlay.deactivate()
-      } else if (this.memoryOverlay.handleKey(key.name, key.char)) {
-        this.overlay.rerender()
-      }
-      return
-    }
-    // 面板打开：↑/↓ 移动选中，字符进面板查询，Enter 提交回填输入行。
-    // type/move 后 rerender——overlay 无自动 ticker，不重绘则过滤/选中不刷新。
-    if (this.palette?.isOpen() === true) {
-      if (key.name === 'escape' || key.name === 'ctrl_c') {
-        // 真机 A6：Esc/Ctrl+C 关闭面板（与 search/memory overlay 一致），不提交、
-        // 不回填输入行。此前只有 Enter 能关闭（会把 /命令 回填进输入行），
-        // Esc 被三个分支漏掉后直接 return 吞掉——面板底栏却提示 "Esc 关闭"。
-        this.overlay?.deactivate()
-        this.palette.close()
-      } else if (key.name === 'return') {
-        const committed = this.palette.commit()
-        this.overlay?.deactivate()
-        this.palette.close()
-        if (committed !== null) {
-          // execute 模式（Tab 命令菜单，#31）：直接执行无参命令
-          // （/model /theme /session → 对应选择器）；backfill 模式（Ctrl+P）回填。
-          if (committed.execute) this.handleSubmit(committed.text)
-          else this.inputLine.setValue(committed.text)
-        }
-      } else if (key.name === 'up' || key.name === 'down') {
-        this.palette.move(key.name === 'up' ? -1 : 1)
-        this.overlay?.rerender()
-      } else if (key.char !== '') {
-        this.palette.type(key.char)
-        this.overlay?.rerender()
-      }
-      return
-    }
-    // T3.1：结构化提问挂起中——数字键选选项（1-based），Esc/Ctrl+C 取消；
-    // plan-review 卡 f 键进入反馈输入模式（文本走 inputLine，Enter 提交）。
-    if (this.question.isPending) {
-      const peek = this.question.peek()
-      const item = peek?.request.questions[0]
-      if (this.question.feedbackMode) {
-        if (key.name === 'return') {
-          const feedback = this.inputLine.value
-          this.inputLine.setValue('')
-          // 反馈路径选择「非 approve 的选项」（plan-mode 按 selected !== approve
-          // + custom 判定 keep-planning；label 从 options 推导，不硬编码）。
-          const keepLabel = item?.options?.find(o => o.label !== item.intent?.approve)?.label
-            ?? item?.options?.[0]?.label ?? ''
-          this.settleQuestion({ answers: [{ id: item?.id ?? '', selected: [keepLabel], custom: feedback }] })
-        } else if (key.name === 'escape' || key.name === 'ctrl_c') {
-          this.question.setFeedbackMode(false)
-          this.flushLiveRender()
-        } else {
-          this.inputLine.handleKey(key.name, key.char, key.ctrl, key.meta, key.shift, key.inline === true)
-          this.flushLiveRender()
-        }
-      } else if (key.name === 'escape' || key.name === 'ctrl_c') {
-        this.cancelQuestion()
-      } else if (item !== undefined && item.intent?.kind === 'plan-review' && (key.char === 'f' || key.char === 'F')) {
-        this.question.setFeedbackMode(true)
-        this.inputLine.setValue('')
-        this.flushLiveRender()
-      } else if (item !== undefined && item.options !== undefined && /^[0-9]$/.test(key.char)) {
-        const idx = Number(key.char) - 1
-        const option = item.options[idx]
-        if (option !== undefined) {
-          this.settleQuestion({ answers: [{ id: item.id, selected: [option.label] }] })
-        }
-      }
-      return
-    }
-    // P1：/btw 侧问挂起中——Esc/Ctrl+C 关闭（done 折叠答案入 scrollback；
-    // loading 取消并销毁 btw agent；error 直接清除）。question 分支优先。
-    if (this.btw.isActive && (key.name === 'escape' || key.name === 'ctrl_c')) {
-      this.btw.dismiss()
-      this.flushLiveRender()
-      return
-    }
-    // Phase 8：审批挂起中——y/N 决定，Ctrl+C/Esc 取消，其余键忽略（不干扰输入行）
-    if (this.approval.isPending) {
-      if (key.char === 'y' || key.char === 'Y') {
-        this.settleApproval('allowed-once')
-      } else if (key.char === 'n' || key.char === 'N') {
-        this.settleApproval('rejected')
-      } else if (key.char === 'a' || key.char === 'A') {
-        // 本会话放行：先开 always-approve，再结算当前请求（与 Shift+Tab 进 auto 不同——
-        // 挂起中的这一张也立刻通过，而不是只影响后续请求）。
-        this.approval.setAlwaysApprove(true)
-        this.statusLine?.setAlwaysApprove(true)
-        this.settleApproval('allowed-once')
-      } else if (key.char === 't' || key.char === 'T') {
-        // 任务4a 工具级会话白名单：该工具本会话内后续请求自动放行，其他工具
-        // 仍逐卡审批——比 `a` 全放行收敛，比每次 `y` 免重复决策。
-        const pendingReq = this.approval.peek()?.req
-        if (pendingReq !== undefined) {
-          this.approval.allowTool(pendingReq.toolName)
-          this.settleApproval('allowed-once')
-        }
-      } else if (key.name === 'ctrl_c' || key.name === 'escape') {
-        this.settleApproval('cancelled')
-      }
-      return
-    }
-    // Esc 打断：对齐 Claude Code 单次 Esc 停止输出。位于挂起交互分支之后——
-    // overlay/菜单打开时 Esc 仍先关面板；仅「无挂起交互 + running」才打断；
-    // 空闲不动作（不退出、不触发任何东西）。lone ESC 走 80ms 防误触派发，
-    // 与 Ctrl+C 的即时打断形成互补。
-    if (key.name === 'escape' && !this.inputController.slashMenu.open) {
-      if (this.liveAgent?.state.status === 'running') {
-        this.handleAbort()
-        return
-      }
-      if (this.inspect.any()) {
-        this.inspect.dispatch({ type: 'close' })
-        this.escRewindPendingSince = 0
-        return
-      }
-      // 空闲：双击 Esc（窗口内第二次）触发 rewind（CC 的 Esc+Esc 时间回溯）；
-      // 第一次只记时间戳并继续流向后续分支（vim 等空闲 Esc 语义保留），
-      // 窗口过期后第二次仅刷新时间戳。
-      // vim normal 下 Esc 是空操作：布防/触发都跳过——vim 用户离开 insert 后
-      // 习惯性补按 Esc，不该弹出 rewind overlay（天枢 59d00152 同步）。
-      const vimEscNoop = this.inputLine.vimEnabled && this.inputLine.vimMode === 'normal'
-      if (!vimEscNoop) {
-        const now = Date.now()
-        if (this.escRewindPendingSince !== 0 && now - this.escRewindPendingSince < REWIND_DOUBLE_ESC_MS) {
-          this.escRewindPendingSince = 0
-          this.rewindSession()
-          return
-        }
-        this.escRewindPendingSince = now
-      }
-    }
-    if (key.name === 'ctrl_c') {
-      // Windows 控制台（PowerShell/conhost）下 Ctrl+C 可能同时产生 0x03 字节
-      // 与 SIGINT：记录字节处理时间，供 index.ts 的 SIGINT 防抖（双触发时
-      // SIGINT 忽略，避免刚打断的 TUI 被 teardown 拆掉——「输入框消失」）。
-      // Kitty flag 1 下 Ctrl+C 是 CSI 99;5u 而非 0x03，同样走此分支。
-      const now = Date.now()
-      this.lastCtrlCAt = now
-      const empty = this.inputLine.value === ''
-      const pending = this.inputController.ctrlCPendingSince
-      const within = pending !== 0 && now - pending < InputController.EXIT_WINDOW_MS
-      // 窗口内第二次 Ctrl+C 恒退出（不要求空输入）：第一次（无论打断、清空还是
-      // 布防提示）已表达退出意图，草稿/在途不再拦路——「连按两次退出」对
-      // 「有草稿想退出」与「打断后立刻退出」同样成立（天枢 59d00152 语义）。
-      if (this.onExit !== undefined && within) {
-        this.inputController.ctrlCPendingSince = 0
-        this.onExit()
-        return
-      }
-      if (this.liveAgent?.state.status === 'running') {
-        this.handleAbort()
-        // 打断同时布防连按窗口（有草稿也布防）：agent 落定前第二次 Ctrl+C
-        // 直接退出，不再要求等 agent 变 idle 后重按。
-        if (this.onExit !== undefined) {
-          this.inputController.ctrlCPendingSince = now
-        } else {
-          this.inputController.ctrlCPendingSince = 0
-        }
-        this.flushLiveRender()
-        return
-      }
-      if (empty && this.onExit !== undefined) {
-        this.inputController.ctrlCPendingSince = now
-        this.flushLiveRender()
-        return
-      }
-      if (!empty) {
-        // 空闲草稿：清空输入行（shell 语义；setValue 记 undo，Ctrl+Z 可恢复）
-        // 并布防连按窗口——第二次 Ctrl+C 即退出，无「已取消」噪音。
-        this.inputLine.setValue('')
-        if (this.onExit !== undefined) {
-          this.inputController.ctrlCPendingSince = now
-        }
-        this.flushLiveRender()
-        return
-      }
-      this.inputController.ctrlCPendingSince = 0
-      this.handleAbort()
-      return
-    }
-    if (key.name === 'ctrl_o') {
-      // 展开/收起最近推理块：流式进行中展开全文、已落底块展开正文（scrollback
-      // append-only——正文在 live 区展示，头行保持折叠）。无推理块时落到
-      // 下方 editorKey（缺省 ctrl_e；恢复 opencode 的 ctrl+o=展开语义）。
-      if (this.reasoningText !== '' || this.lastReasoningBlock !== null) {
-        this.reasoningExpanded = !this.reasoningExpanded
-        this.renderBatcher.schedule()
-        return
-      }
-    }
-    if (key.name === this.editorKey) {
-      // Phase 6.4：外部编辑器——当前输入行内容进 $EDITOR，保存退出后回填。
-      // 编辑器是外部进程，必须暂时退出 raw-mode（否则编辑器收到的是字节流
-      // 而非终端交互）；spawn 结束后恢复。任何路径（含编辑器失败）都恢复。
-      this.openExternalEditor()
-      return
-    }
-    if (key.name === 'ctrl_t') {
-      // 中轮转向：把当前输入行作为转向提交（空输入 no-op），并清空输入行。
-      const text = this.inputLine.value.trim()
-      if (text !== '') {
-        this.inputLine.setValue('')
-        this.handleSteer(text)
-      }
-      return
-    }
-    // Ctrl+V：剪贴板图片粘贴（先于普通输入处理；无图时 fallback 剪贴板文本）。
-    if (key.name === 'ctrl_v') {
-      void this.handleCtrlV()
-      return
-    }
-    // slash 命令菜单打开：拦截导航/接受/关闭键（grok slash_dropdown 键路由
-    // 对齐；Ctrl+P/N 已被命令面板/新会话占用，用 ↑↓ 与 PageUp/Down）。
-    if (this.inputController.slashMenu.open) {
-      if (key.name === 'up' || key.name === 'down') {
-        this.inputController.moveSlashSelection(key.name === 'up' ? -1 : 1)
-        this.flushLiveRender()
-        return
-      }
-      if (key.name === 'pageup' || key.name === 'pagedown') {
-        this.inputController.scrollSlashSelection(key.name === 'pageup' ? -SLASH_MENU_MAX_ROWS : SLASH_MENU_MAX_ROWS)
-        this.flushLiveRender()
-        return
-      }
-      if (key.name === 'tab') {
-        this.acceptSlashCompletion()
-        return
-      }
-      if (key.name === 'return') {
-        this.acceptSlashCompletion({ submit: true })
-        return
-      }
-      if (key.name === 'escape') {
-        this.inputController.closeSlash()
-        this.flushLiveRender()
-        return
-      }
-    }
-    const inspectAct = inspectKeyAction({
-      name: key.name, char: key.char,
-      empty: this.inputLine.value === '',
-      vimInsert: this.inputLine.vimMode === 'insert',
-      flags: this.inspect.flags(),
-    })
-    if (inspectAct !== null && inspectAct.type !== 'close') {
-      this.inspect.dispatch(inspectAct)
-      return
-    }
-    // 空输入框 Tab → 命令菜单（palette execute 模式，#31 参考 Claude Code）：
-    // 选命令回车直接执行（/model → 模型选择器），省去输入 /cmd 一步。
-    // 非空输入框 Tab 走 @ 补全（下方 inputLine.handleKey → onTabComplete）；
-    // slash 菜单打开时 Tab 已被上方分支拦截（接受补全）。
-    if (key.name === 'tab' && this.inputLine.value === '') {
-      const palette = this.palette
-      const overlay = this.overlay
-      /* v8 ignore next 2 -- palette/overlay 在 attach 时恒创建，null 仅类型收窄 */
-      if (palette !== null && overlay !== null) {
-        palette.open(true)
-        overlay.activate('command-palette')
-        this.flushLiveRender()
-      }
-      return
-    }
-    // 空行 Alt+Backspace → 移除末张附件：有文本时 Alt+Backspace 仍是词删除
-    //（空行上词删除本就是空操作，两职责零冲突）；📎 行同步更新。
-    if (key.name === 'backspace' && key.meta
-      && this.inputLine.value === '' && this.inputLine.images.length > 0) {
-      this.inputLine.removeImage(this.inputLine.images.length - 1)
-      this.flushLiveRender()
-      return
-    }
-    if (key.name === 'up' || key.name === 'down') {
-      // 排队取回（对标 CC）：空输入 ↑ 取回队首回输入行。
-      if (key.name === 'up' && this.inputLine.value === '' && this.submitQueue.size() > 0) {
-        const first = this.submitQueue.takeFirst()
-        if (first !== undefined) this.inputLine.setValue(first.text, first.text.length)
-        this.flushLiveRender()
-        return
-      }
-      // 交给 InputLine 的历史导航（InputLineEvent 'history' 不消费即已处理）
-      this.inputLine.handleKey(key.name, key.char, key.ctrl, key.meta, key.shift, key.inline === true)
-      this.flushLiveRender()
-      return
-    }
+    const main = this.actions.match(key, ctx, { phase: 'main', context: 'global' })
+    if (main !== null && main.run(ctx, key) !== false) return
+    // slash 命令菜单打开：导航/接受/关闭键（轮询位置保持：主段动作之后）。
+    if (this.menuKeys.isActive() && this.menuKeys.handleKey(key)) return
+    // inspect 上下文键（/config n 通知、d 密度；/skills j/k 移动选中）。
+    if (this.inspectKeys.isActive() && this.inspectKeys.handleKey(key)) return
+    const tail = this.actions.match(key, ctx, { phase: 'tail', context: 'global' })
+    if (tail !== null && tail.run(ctx, key) !== false) return
     const event = this.inputLine.handleKey(key.name, key.char, key.ctrl, key.meta, key.shift, key.inline === true)
     // 选区剪切/复制的 OSC52 drain：Ctrl+K 剪切 / Alt+W 复制写系统剪贴板
     // （终端支持 OSC52 时生效，不支持者无害忽略）。vim yank（p/P、Alt+Y）走
@@ -3375,6 +3027,131 @@ export class TuiApp {
       this.stdout.write(osc52Clipboard(clip))
     }
     if (event !== null) this.flushLiveRender()
+  }
+
+  /** A5：最后一张进行中工具卡（空输入 Enter 展开目标）；无则 undefined。 */
+  private latestPendingToolCall(): TranscriptToolCall | undefined {
+    const pending = this.transcript?.view.tools.filter(t => t.result === undefined) ?? []
+    return pending[pending.length - 1]
+  }
+
+  /**
+   * 动作执行上下文门面（actions/types.ts 的 ActionContext）：动作表的 when/run
+   * 只经此触达本类私有方法——registry 不 import 本类。读取方法即原 handleKey
+   * 各分支的判定条件原样搬出；confirmMs 原语转发 registry 布防状态。
+   */
+  private createActionContext(): ActionContext {
+    return {
+      hasExit: this.onExit !== undefined,
+      isRunning: () => this.liveAgent?.state.status === 'running',
+      inputEmpty: () => this.inputLine.value === '',
+      slashMenuOpen: () => this.inputController.slashMenu.open,
+      inspectAny: () => this.inspect.any(),
+      vimNormalEsc: () => this.inputLine.vimEnabled && this.inputLine.vimMode === 'normal',
+      hasReasoning: () => this.reasoningText !== '' || this.lastReasoningBlock !== null,
+      hasPendingToolCard: () => this.latestPendingToolCall() !== undefined,
+      hasImages: () => this.inputLine.images.length > 0,
+      hasQueuedSubmits: () => this.submitQueue.size() > 0,
+      paletteOpen: () => this.palette?.isOpen() === true,
+      approvalPending: () => this.approval.isPending,
+      confirmArm: (id, now) => { this.actions.confirmArm(id, now) },
+      confirmWithin: (id, now) => this.actions.confirmWithin(id, now),
+      confirmDisarm: (id) => { this.actions.confirmDisarm(id) },
+      cycleMode: () => { this.cycleMode() },
+      newSession: () => { void this.newSession() },
+      restoreRecentSession: () => { void this.restoreRecentOtherSession() },
+      requestExit: () => { this.onExit?.() },
+      // Ctrl+P 命令面板开关（再按一次关闭）。
+      togglePalette: () => {
+        const palette = this.palette
+        const overlay = this.overlay
+        /* v8 ignore next 3 -- palette/overlay 在 attach 时恒创建（键路由仅 attach 后可达），null 仅类型收窄 */
+        if (palette !== null && overlay !== null) {
+          if (palette.isOpen()) {
+            palette.close()
+            overlay.deactivate()
+          } else {
+            palette.open()
+            overlay.activate('command-palette')
+          }
+        }
+      },
+      // 空输入框 Tab → 命令菜单（palette execute 模式，#31 参考 Claude Code）。
+      openPaletteMenu: () => {
+        const palette = this.palette
+        const overlay = this.overlay
+        /* v8 ignore next 3 -- palette/overlay 在 attach 时恒创建，null 仅类型收窄 */
+        if (palette !== null && overlay !== null) {
+          palette.open(true)
+          overlay.activate('command-palette')
+          this.flushLiveRender()
+        }
+      },
+      // Ctrl+. 快捷键面板开关（grok-build 同款键位清单；再按一次关闭）。
+      toggleKeymap: () => {
+        const overlay = this.overlay
+        /* v8 ignore next 2 -- overlay 在 attach 时恒创建，null 仅类型收窄 */
+        if (overlay !== null) {
+          if (overlay.activeId() === 'keymap') overlay.deactivate()
+          else overlay.activate('keymap')
+        }
+      },
+      toggleHistorySearch: () => { this.toggleHistorySearchOverlay() },
+      toggleLatestToolCard: () => {
+        const latest = this.latestPendingToolCall()
+        /* v8 ignore next -- when 守卫（hasPendingToolCard）已保证有进行中工具卡；防御 */
+        if (latest === undefined) return
+        this.expandedToolCallId = this.expandedToolCallId === latest.callId ? null : latest.callId
+        this.flushLiveRender()
+      },
+      abort: () => { this.handleAbort() },
+      inspectClose: () => { this.inspect.dispatch({ type: 'close' }) },
+      rewindSession: () => { this.rewindSession() },
+      toggleReasoning: () => {
+        this.reasoningExpanded = !this.reasoningExpanded
+        this.renderBatcher.schedule()
+      },
+      openExternalEditor: () => { this.openExternalEditor() },
+      steerInput: () => {
+        // 中轮转向：把当前输入行作为转向提交（空输入 no-op），并清空输入行。
+        const text = this.inputLine.value.trim()
+        if (text !== '') {
+          this.inputLine.setValue('')
+          this.handleSteer(text)
+        }
+      },
+      pasteClipboard: () => { void this.handleCtrlV() },
+      removeLastImage: () => {
+        this.inputLine.removeImage(this.inputLine.images.length - 1)
+        this.flushLiveRender()
+      },
+      recallQueuedSubmit: () => {
+        const first = this.submitQueue.takeFirst()
+        if (first !== undefined) this.inputLine.setValue(first.text, first.text.length)
+        this.flushLiveRender()
+      },
+      passHistoryKey: (key) => {
+        this.inputLine.handleKey(key.name, key.char, key.ctrl, key.meta, key.shift, key.inline === true)
+        this.flushLiveRender()
+      },
+      // 空闲草稿清空（shell 语义；setValue 记 undo，Ctrl+Z 可恢复）。
+      clearInput: () => { this.inputLine.setValue('') },
+      markCtrlC: (now) => { this.lastCtrlCAt = now },
+      flushLive: () => { this.flushLiveRender() },
+      settleApproval: (outcome) => { this.settleApproval(outcome) },
+      approveAlways: () => {
+        this.approval.setAlwaysApprove(true)
+        this.statusLine?.setAlwaysApprove(true)
+        this.settleApproval('allowed-once')
+      },
+      approveToolSession: () => {
+        const pendingReq = this.approval.peek()?.req
+        if (pendingReq !== undefined) {
+          this.approval.allowTool(pendingReq.toolName)
+          this.settleApproval('allowed-once')
+        }
+      },
+    }
   }
 
   /**
@@ -3934,10 +3711,11 @@ export class TuiApp {
         : policy.staleLevel === 'warn' ? theme.warning : theme.secondary
       lines.push({ text: color(`⏳ ${policy.staleMessage}`, staleColor) })
     }
-    const ctrlCPendingSince = this.inputController.ctrlCPendingSince
-    if (ctrlCPendingSince !== 0) {
-      if (Date.now() - ctrlCPendingSince >= InputController.EXIT_WINDOW_MS) {
-        this.inputController.ctrlCPendingSince = 0
+    // 双击退出布防提示行（布防状态由 action registry 的 confirmMs 集中管理）。
+    const exitArmedSince = this.actions.confirmSince('app.interrupt')
+    if (exitArmedSince !== 0) {
+      if (Date.now() - exitArmedSince >= EXIT_WINDOW_MS) {
+        this.actions.confirmDisarm('app.interrupt')
       } else {
         lines.push({ text: color('再按 Ctrl+C 退出 · Ctrl+Q 立即退出', theme.muted) })
       }
@@ -4161,6 +3939,9 @@ export class TuiApp {
       alwaysApprove: this.approval.alwaysApprove,
       approvalPending: this.approval.isPending,
       inspectOpen: this.inspect.any(),
+      // 上下文提示段由 action registry 投影（actions/projections；同源动作表）。
+      approvalHints: this.footerApprovalHints,
+      inspectHints: this.footerInspectHints,
       level: this.prefs.footerInfo ?? 'full',
       ...(rightSegments !== undefined ? { rightSegments } : {}),
       ...(bottomMetrics !== null ? { metrics: { ...bottomMetrics, hideSegments: this.prefs.glance?.hideSegments } } : {}),

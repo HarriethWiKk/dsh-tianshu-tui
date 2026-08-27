@@ -65,6 +65,7 @@ function echoEffort(persist: boolean, hot: boolean, label: string): string {
 export function createThemeCommand(deps: StartupCommandDeps): SlashCommand {
   return {
     name: 'theme',
+    category: '配置',
     description: '切换主题（Enter/带参=本会话；S 或末尾 default=启动默认；auto/export 子命令）',
     argsHint: '<name>|auto|export [name]|default',
     run: ({ text, echo }) => {
@@ -101,6 +102,7 @@ export function createThemeCommand(deps: StartupCommandDeps): SlashCommand {
 export function createModelCommand(deps: StartupCommandDeps): SlashCommand {
   return {
     name: 'model',
+    category: '配置',
     description: '查看或切换模型（带参=本会话；S 或末尾 default=启动默认；spark-flash / spark-pro 映射官方 flash / pro）',
     argsHint: '[provider/model | spark-flash | spark-pro] [effort] [default]',
     run: async ({ text, echo, ctx }) => {
@@ -149,6 +151,7 @@ export function createModelCommand(deps: StartupCommandDeps): SlashCommand {
 export function createEffortCommand(deps: StartupCommandDeps): SlashCommand {
   return {
     name: 'effort',
+    category: '配置',
     description: '设置推理等级（带参=本会话；S 或末尾 default=启动默认；auto 回模型默认）',
     argsHint: '[off|high|max|auto|default]',
     run: async ({ text, echo, ctx }) => {
@@ -191,6 +194,7 @@ export function createEffortCommand(deps: StartupCommandDeps): SlashCommand {
 export function createPresetCommand(deps: StartupCommandDeps): SlashCommand {
   return {
     name: 'preset',
+    category: '配置',
     description: '查看/切换 agent 预设（带参=本会话；末尾 default=启动默认；仅空白会话可换）',
     argsHint: '[id] [default]',
     run: async ({ text, echo, ctx }) => {

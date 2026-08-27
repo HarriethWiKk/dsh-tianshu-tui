@@ -20,7 +20,7 @@
  * @module dsh-tui/key-dialog
  */
 
-import type { OverlayRenderer } from '../engine/overlay-engine.js'
+import type { OverlayKeyResult, OverlayRenderer } from '../engine/overlay-engine.js'
 import { color } from '../engine/ansi.js'
 import type { RivetTheme } from '../theme.js'
 import { truncateToDisplayWidth } from '../width.js'
@@ -178,11 +178,14 @@ export class KeyDialogController implements OverlayRenderer {
    * 输入态：字符/退格编辑、Enter 提交（空值不提交）、Esc/Ctrl+C 取消；
    * confirm-unknown 态：Enter 强存、Esc/Ctrl+C 取消；终态说明态：Enter/Esc 关闭；
    * 瞬时态（probing/saving）：Esc/Ctrl+C 关闭（迟到结果按 openFlag 守卫丢弃），其余忽略。
+   * 返回 'close' 时同时置 wantsClose（装配方 deactivate；统一返回词表后
+   * 装配方直接消费返回值，wantsClose 保留给既有调用面/测试）。
    * @param name - 按键名（return/escape/backspace/ctrl_c 等）。
    * @param char - 可打印字符（控制键为 ''）。
+   * @returns close = 请求关闭；handled = 已消费。
    */
-  handleKey(name: string, char: string): void {
-    if (!this.openFlag) return
+  handleKey(name: string, char: string): OverlayKeyResult {
+    if (!this.openFlag) return 'handled'
     switch (this.phase) {
       case 'input':
         if (name === 'escape' || name === 'ctrl_c') {
@@ -196,21 +199,22 @@ export class KeyDialogController implements OverlayRenderer {
           this.value += char
           this.error = null
         }
-        return
+        break
       case 'confirm-unknown':
         if (name === 'return') void this.persist(this.value)
         else if (name === 'escape' || name === 'ctrl_c') this.closeRequested = true
-        return
+        break
       case 'probing':
       case 'saving':
         if (name === 'escape' || name === 'ctrl_c') this.closeRequested = true
-        return
+        break
       case 'saved':
       case 'blocked':
       case 'unavailable':
         if (name === 'return' || name === 'escape' || name === 'ctrl_c') this.closeRequested = true
-        return
+        break
     }
+    return this.closeRequested ? 'close' : 'handled'
   }
 
   /**

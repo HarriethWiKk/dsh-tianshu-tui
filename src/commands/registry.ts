@@ -60,6 +60,9 @@ export interface SlashCommandArgs {
   rerender: () => void
 }
 
+/** 内置命令分组（命令面板展示组名；未标注的命令归「其他」）。 */
+export type SlashCommandCategory = '会话' | '配置' | '认证' | '面板' | '系统'
+
 /** 一条 slash 命令。 */
 export interface SlashCommand {
   /** 命令名（不含 / 前缀；小写，互不为前缀歧义时才能唯一解析）。 */
@@ -68,6 +71,8 @@ export interface SlashCommand {
   description: string
   /** 可选参数 ghost 提示（如 `<name>`）。 */
   argsHint?: string
+  /** 命令面板分组（数据源单一事实：注册时携带；缺省归「其他」）。 */
+  category?: SlashCommandCategory
   /** 执行命令。可 async；抛错由分发层捕获并回显失败信息。 */
   run(args: SlashCommandArgs): void | Promise<void>
 }
@@ -306,6 +311,7 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
     createThemeCommand(deps),
     {
       name: 'session',
+      category: '会话',
       description: '会话管理：new 新建，list 列出，switch 切换',
       argsHint: 'new|list|switch <id>',
       run: async ({ text, echo, ctx }) => {
@@ -353,6 +359,7 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
     },
     {
       name: 'fork',
+      category: '会话',
       description: '分叉当前会话（复制历史到新会话并切换）',
       argsHint: '[directive]',
       run: async ({ text, echo }) => {
@@ -363,6 +370,7 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
     },
     {
       name: 'rewind',
+      category: '面板',
       description: '回退到一条用户消息（C3 项 3：会话截断 + 可选文件回退）',
       argsHint: '',
       run: ({ echo }) => {
@@ -373,6 +381,7 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
     },
     {
       name: 'branch',
+      category: '会话',
       description: '分叉当前会话（/fork 别名）',
       run: async ({ echo }) => {
         const id = await deps.forkSession()
@@ -382,16 +391,19 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
     createModelCommand(deps),
     {
       name: 'key',
+      category: '认证',
       description: '配置模型供应商 API 密钥（选择供应商 → 掩码输入 + 联网验证；保存即生效）',
       run: () => { deps.openKeyDialog() },
     },
     {
       name: 'login',
+      category: '认证',
       description: '配置模型供应商 API 密钥（/key 别名）',
       run: () => { deps.openKeyDialog() },
     },
     {
       name: 'update',
+      category: '系统',
       description: '检查插件更新（对照 npm latest；发现新版提示手动更新命令）',
       run: async ({ echo }) => {
         const result = await deps.checkForUpdate()
@@ -408,6 +420,7 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
     createPresetCommand(deps),
     {
       name: 'clear',
+      category: '会话',
       description: '清空当前会话滚动区并收起命令面板',
       run: ({ echo }) => {
         deps.clearScrollback()
@@ -416,6 +429,7 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
     },
     {
       name: 'scroll',
+      category: '会话',
       description: '分页查看会话转录（滚动 / 搜索 / n·N 跳转）',
       run: () => {
         deps.openScrollPager()
@@ -423,6 +437,7 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
     },
     {
       name: 'compact',
+      category: '会话',
       description: '压缩当前会话（需 compact 服务）',
       run: async ({ text: _text, echo, ctx, sessionId }) => {
         // reflect.get 读取可选服务（Cordis 4 注入代理：属性访问未注册服务
@@ -453,6 +468,7 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
     },
     {
       name: 'goal',
+      category: '面板',
       description: '目标管理：查看/创建/暂停/恢复/完成/阻塞（需 goal 服务）',
       argsHint: '[create <objective>|pause|resume|complete|block]',
       run: ({ text, echo, ctx, sessionId }) => {
@@ -534,6 +550,7 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
     },
     {
       name: 'tasks',
+      category: '面板',
       description: '任务窗格：无参切换；kill <id> 终止后台任务',
       argsHint: '[kill <id>]',
       run: ({ text, echo, ctx }) => {
@@ -565,16 +582,19 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
     },
     {
       name: 'subagents',
+      category: '面板',
       description: '切换委派树面板（subagent 层级投影）',
       run: () => { deps.toggleSubagentsPanel() },
     },
     {
       name: 'workflow',
+      category: '面板',
       description: '切换 workflow 运行中面板',
       run: () => { deps.toggleWorkflowPanel() },
     },
     {
       name: 'btw',
+      category: '会话',
       description: '侧问：向后台 agent 提问（不中断当前对话）',
       argsHint: '<question>',
       run: async ({ text, echo }) => {
@@ -589,6 +609,7 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
     },
     {
       name: 'remember',
+      category: '会话',
       description: '保存一条项目记忆（写入 .dsh/memory/global.md）',
       argsHint: '<text>',
       run: async ({ text, echo, ctx }) => {
@@ -608,6 +629,7 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
     },
     {
       name: 'memory',
+      category: '会话',
       description: '打开记忆浏览器；delete <id> 直接删除',
       argsHint: '[delete <id>]',
       run: async ({ text, echo, ctx }) => {
@@ -639,6 +661,7 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
     },
     {
       name: 'doctor',
+      category: '系统',
       description: '终端诊断：检测终端能力并输出报告；fix <id> 查看修复指引',
       argsHint: '[fix <id>]',
       run: ({ text, echo }) => {
@@ -688,6 +711,7 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
     },
     {
       name: 'mcp',
+      category: '系统',
       description: 'MCP 状态：列出已连接 server 与工具数；tools <name> 查看工具清单',
       argsHint: '[tools <server>]',
       run: ({ text, echo, ctx }) => {
@@ -731,6 +755,7 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
     },
     {
       name: 'export',
+      category: '会话',
       description: '导出当前会话转录为 Markdown 文件（T3）',
       argsHint: '[path]',
       run: async ({ text, echo }) => {
@@ -743,16 +768,19 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
     },
     {
       name: 'exit',
+      category: '会话',
       description: '退出 TUI（与 Ctrl+Q 相同）',
       run: () => { deps.requestExit() },
     },
     {
       name: 'restart',
+      category: '会话',
       description: '重启当前 dsh 进程（同命令重新启动；插件更新后无需手动重跑）',
       run: () => { deps.requestRestart() },
     },
     {
       name: 'yolo',
+      category: '配置',
       description: '全放行模式：审批不再逐项询问（on 开启 / off 关闭；等价 Shift+Tab 进 always-approve）',
       argsHint: 'on|off',
       run: ({ text, echo }) => {
@@ -773,6 +801,7 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
     },
     {
       name: 'help',
+      category: '系统',
       description: '列出全部命令与用法（/help <cmd> 查看单条详情）',
       argsHint: '[cmd]',
       run: ({ text, echo }) => {
@@ -797,6 +826,7 @@ export function createBuiltinCommands(deps: BuiltinCommandDeps): SlashCommand[] 
     },
     {
       name: 'cost',
+      category: '系统',
       description: '当前会话累计用量与成本估算（按模型分桶）',
       argsHint: '',
       run: ({ echo }) => {
