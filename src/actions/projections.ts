@@ -65,19 +65,23 @@ export interface ProjectedKeymapEntry {
 
 /**
  * keymap 面板条目投影：动作表（global 域、keymapOrder 非缺省、非 keymapHidden）
- * 与输入层静态补充行按 order 归并排序。
+ * 与输入层静态补充行按 order 归并排序。requiresKittyKeyboard 的动作按 caps
+ * 过滤——终端不支持 kitty 键盘增强时该行隐身（键位本不可达，展示即死键）。
  * @param actions - 动作表（registry.list()）。
  * @param extra - 输入层静态补充行（带 order 对齐原表序）。
+ * @param caps - 终端能力面（缺省视为不支持 kitty 键盘增强 → 门控行隐身）。
  * @returns 归并排序后的 keymap 条目。
  */
 export function projectKeymapEntries(
   actions: readonly KeyAction[],
   extra: readonly (ProjectedKeymapEntry & { order: number })[] = [],
+  caps: { kittyKeyboard?: boolean } = {},
 ): ProjectedKeymapEntry[] {
   const rows: Array<ProjectedKeymapEntry & { order: number }> = [...extra]
   for (const action of actions) {
     if (action.keymapHidden === true || action.keymapOrder === undefined) continue
     if ((action.context ?? 'global') !== 'global') continue
+    if (action.requiresKittyKeyboard === true && caps.kittyKeyboard !== true) continue
     rows.push({
       order: action.keymapOrder,
       keys: action.keysLabel ?? keyBindingsLabel(action.keys),

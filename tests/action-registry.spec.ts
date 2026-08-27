@@ -34,7 +34,7 @@ import {
   projectInspectHints,
 } from '../src/actions/projections.js'
 import type { ActionContext, KeyAction } from '../src/actions/types.js'
-import { KEYMAP_ENTRIES } from '../src/format/keymap-panel.js'
+import { keymapEntries } from '../src/format/keymap-panel.js'
 import { QuestionController } from '../src/controllers/question-controller.js'
 import { InspectSurfaceController } from '../src/controllers/inspect-surface.js'
 
@@ -78,6 +78,7 @@ function makeCtx(state: {
     toggleReasoning: vi.fn(),
     openExternalEditor: vi.fn(),
     steerInput: vi.fn(),
+    cancelAndSend: vi.fn(),
     pasteClipboard: vi.fn(),
     removeLastImage: vi.fn(),
     recallQueuedSubmit: vi.fn(),
@@ -345,11 +346,26 @@ describe('ctrl_o / editorKey — 无推理块落编辑键的现存语义', () =>
   })
 })
 
+describe('input.cancel-and-send — Ctrl+Enter 插队（running + 非空输入守卫）', () => {
+  it('running 且输入非空时命中并执行；空闲或空输入不消费（落后续路由）', () => {
+    const { registry, ctx, calls } = makeCtx({ running: true, inputEmpty: false })
+    const hit = registry.match(key('ctrl_return'), ctx, { phase: 'main' })
+    expect(hit?.id).toBe('input.cancel-and-send')
+    hit?.run(ctx, key('ctrl_return'))
+    expect(calls.cancelAndSend).toHaveBeenCalledTimes(1)
+    const idle = makeCtx({ running: false, inputEmpty: false })
+    expect(registry.match(key('ctrl_return'), idle.ctx, { phase: 'main' })).toBeNull()
+    const empty = makeCtx({ running: true, inputEmpty: true })
+    expect(registry.match(key('ctrl_return'), empty.ctx, { phase: 'main' })).toBeNull()
+  })
+})
+
 // ── 展示面投影（行为锚点） ───────────────────────────────────
 
 describe('keymap 投影 — 与原静态表逐行一致', () => {
-  it('KEYMAP_ENTRIES 完整复刻原 20 行表（顺序 + 文案）', () => {
-    expect(KEYMAP_ENTRIES).toEqual([
+  it('keymapEntries 完整复刻原 20 行表（顺序 + 文案；不支持 kitty 键盘时）', () => {
+    // 空 env = 不支持 kitty 键盘增强：requiresKittyKeyboard 行（Ctrl+Enter）隐身。
+    expect(keymapEntries({})).toEqual([
       { keys: 'Enter', action: '发送' },
       { keys: 'Shift+Enter', action: '换行（或 \\+Enter 续行）' },
       { keys: 'Ctrl+N', action: '新会话' },
@@ -371,6 +387,13 @@ describe('keymap 投影 — 与原静态表逐行一致', () => {
       { keys: 'Alt+W', action: '复制选区到系统剪贴板（OSC52）' },
       { keys: 'Esc', action: '取消/关闭检查面板（空闲双击 rewind）' },
     ])
+  })
+
+  it('caps 支持时多出 Ctrl+Enter 插队行（紧随 Ctrl+T，order 115）', () => {
+    const rows = keymapEntries({ TERM: 'xterm-kitty' })
+    expect(rows).toHaveLength(21)
+    const steerIdx = rows.findIndex(r => r.keys === 'Ctrl+T')
+    expect(rows[steerIdx + 1]).toEqual({ keys: 'Ctrl+Enter', action: '打断并立即发送（插队）' })
   })
 
   it('keyBindingLabel：ctrl 前缀大写化、语义名表、meta 前缀', () => {

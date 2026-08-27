@@ -78,6 +78,9 @@ export interface KeyAction {
   readonly keymapOrder?: number
   /** true = 不投影进 keymap 面板（同键合并行由他条承担 / 内部动作）。 */
   readonly keymapHidden?: boolean
+  /** true = 键位只在 kitty 键盘增强协议下可达（CSI u 修饰键编码）；keymap
+   *  投影按终端能力过滤（不支持的终端永不收到该键，行隐身避免展示死键）。 */
+  readonly requiresKittyKeyboard?: boolean
   /** footer 上下文提示段文案（approval 域投影用）；缺省不进 footer。 */
   readonly footerHint?: string
   /** 执行体（只经 ActionContext 操作 TuiApp）。 */
@@ -154,6 +157,9 @@ export interface ActionContext {
   openExternalEditor(): void
   /** Ctrl+T 中轮转向：非空输入行转向提交并清空；空输入 no-op。 */
   steerInput(): void
+  /** Ctrl+Enter 插队（cancel-and-send）：打断当前回合（keepInbox）并在落定后
+   *  经正常提交路径直发输入行草稿（controllers/submit-queue 承担编排）。 */
+  cancelAndSend(): void
   /** Ctrl+V 剪贴板图片粘贴（无图 fallback 文本）。 */
   pasteClipboard(): void
   /** 空行 Alt+Backspace：移除末张图片附件。 */

@@ -84,6 +84,7 @@ export type KeyName =
   | 'ctrl_.'
   | 'ctrl_y'
   | 'ctrl_q'
+  | 'ctrl_return'
   | 'shift_tab'
   | 'unknown'
 
@@ -694,7 +695,9 @@ function decodeEnhancedKey(seq: string): EnhancedKey | null {
 
 /**
  * Kitty 修饰键：1 + shift + alt*2 + ctrl*4。flag 1 下 Ctrl+C 是 code 99（'c'）
- * + mod 5。Ctrl+字母与控制码映射到既有 ctrl_* 名；带修饰的可打印键保留
+ * + mod 5。Ctrl+字母与控制码映射到既有 ctrl_* 名；Ctrl+Enter（code 13 +
+ * ctrl 位，如 CSI 13;5u）映射为 ctrl_return（Shift+Enter 等不含 ctrl 位的
+ * 修饰 Enter 仍是 return，shift/meta 位经返回值保留）；带修饰的可打印键保留
  * char（Alt+数字等场景由上层消费）。
  */
 function enhancedKeyFromCode(
@@ -708,7 +711,7 @@ function enhancedKeyFromCode(
   let name: KeyName | null = null
   let char = ''
   if (code === 27) name = 'escape'
-  else if (code === 13) name = 'return'
+  else if (code === 13) name = ctrl ? 'ctrl_return' : 'return'
   else if (code === 9) name = shift ? 'shift_tab' : 'tab'
   else if (code === 127 || code === 8) name = 'backspace'
   else if (ctrl && code >= 97 && code <= 122) name = CTRL_CODES[code - 96] ?? 'unknown'

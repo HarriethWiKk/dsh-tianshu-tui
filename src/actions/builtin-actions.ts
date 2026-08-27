@@ -6,7 +6,7 @@
  *   ctrl_p 命令面板、ctrl_. 快捷键面板、ctrl_f 历史搜索。
  * - main（阻塞上下文轮询之后）：esc 三连（打断 > 关 inspect > 双击 rewind 布防）、
  *   ctrl_c（打断/清空/双击退出）、ctrl_o 推理展开、editorKey 外部编辑器、
- *   ctrl_t 转向、ctrl_v 粘贴。
+ *   ctrl_t 转向、ctrl_return 插队（cancel-and-send）、ctrl_v 粘贴。
  * - tail（slash 菜单与 inspect 上下文键之后）：空 Tab 命令菜单、Alt+Backspace
  *   删附件、↑↓ 排队取回/历史透传。
  * approval 域（y/p/t/a/n/f/esc）只经 approval 阻塞上下文轮询，不参与常规 match。
@@ -244,6 +244,22 @@ export function createBuiltinActions(options: BuiltinActionsOptions): KeyAction[
       hint: '中轮转向',
       keymapOrder: 110,
       run: ctx => { ctx.steerInput() },
+    },
+    {
+      // Ctrl+Enter 插队（cancel-and-send）：running 且输入非空时打断当前回合
+      //（cancel 带 keepInbox，宿主 inbox 未消费消息保留），落定后直发输入行
+      // 草稿——与 Ctrl+T steer（不打断在途 step）互补。键位只在 kitty 键盘
+      // 增强协议下可达（CSI 13;5u）：attach 按 caps 推送 flag 1，不支持的终端
+      // 永不收到该序列（天然静默）；keymap 行按 caps 过滤（requiresKittyKeyboard）。
+      id: 'input.cancel-and-send',
+      keys: [{ name: 'ctrl_return' }],
+      when: ctx => ctx.isRunning() && !ctx.inputEmpty(),
+      category: '会话',
+      hint: '打断并立即发送（插队）',
+      keysLabel: 'Ctrl+Enter',
+      keymapOrder: 115,
+      requiresKittyKeyboard: true,
+      run: ctx => { ctx.cancelAndSend() },
     },
     {
       // Ctrl+V：剪贴板图片粘贴（先于普通输入处理；无图时 fallback 剪贴板文本）。

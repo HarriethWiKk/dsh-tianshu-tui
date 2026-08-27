@@ -1,43 +1,59 @@
 /**
  * keymap-panel.spec.ts — 快捷键面板纯函数（grok-build Ctrl+. 弹层移植）。
  *
- * 覆盖：KEYMAP_ENTRIES 完整性（含自引用条目）、两列对齐渲染、
- * 窄宽截断/降级不破版。
+ * 覆盖：keymapEntries 完整性（含自引用条目）、caps 门控行显隐（kitty 键盘
+ * 增强才可达的 Ctrl+Enter）、两列对齐渲染、窄宽截断/降级不破版。
+ * 所有用例显式注入 env（{} = 不支持 kitty 键盘增强），与宿主机终端解耦。
  */
 import { describe, expect, it } from 'vitest'
-import { KEYMAP_ENTRIES, renderKeymapPanel } from '../src/format/keymap-panel.js'
+import { keymapEntries, renderKeymapPanel, type KeymapEntry } from '../src/format/keymap-panel.js'
 import { displayWidth } from '../src/width.js'
 
-describe('KEYMAP_ENTRIES', () => {
+/** 不支持 kitty 键盘增强的基线表（Ctrl+Enter 行隐身）。 */
+const ENTRIES: KeymapEntry[] = keymapEntries({})
+/** 支持 kitty 键盘增强时的表（Ctrl+Enter 行出现）。 */
+const KITTY_ENV = { TERM: 'xterm-kitty' }
+
+describe('keymapEntries', () => {
   it('包含自引用条目（Ctrl+. 打开本面板）', () => {
-    expect(KEYMAP_ENTRIES).toContainEqual({ keys: 'Ctrl+.', action: '快捷键面板' })
+    expect(ENTRIES).toContainEqual({ keys: 'Ctrl+.', action: '快捷键面板' })
   })
 
   it('覆盖核心键位（Enter/Ctrl+P/Ctrl+O/Ctrl+E/Tab/Esc）', () => {
-    const keys = KEYMAP_ENTRIES.map(e => e.keys)
+    const keys = ENTRIES.map(e => e.keys)
     for (const expected of ['Enter', 'Ctrl+P', 'Ctrl+O', 'Ctrl+E', 'Tab', 'Esc']) {
       expect(keys).toContain(expected)
     }
   })
 
   it('Ctrl+O 恢复为推理展开语义，外部编辑器移驻 Ctrl+E', () => {
-    expect(KEYMAP_ENTRIES).toContainEqual({ keys: 'Ctrl+O', action: '展开/收起推理块' })
-    expect(KEYMAP_ENTRIES).toContainEqual({ keys: 'Ctrl+E', action: '外部编辑器' })
+    expect(ENTRIES).toContainEqual({ keys: 'Ctrl+O', action: '展开/收起推理块' })
+    expect(ENTRIES).toContainEqual({ keys: 'Ctrl+E', action: '外部编辑器' })
+  })
+
+  it('caps 门控：不支持时 Ctrl+Enter 行隐身，支持时出现', () => {
+    expect(ENTRIES.find(e => e.keys === 'Ctrl+Enter')).toBeUndefined()
+    expect(keymapEntries(KITTY_ENV)).toContainEqual({ keys: 'Ctrl+Enter', action: '打断并立即发送（插队）' })
   })
 })
 
 describe('renderKeymapPanel', () => {
   it('渲染标题 + 空行 + 全部条目', () => {
-    const rows = renderKeymapPanel(80)
+    const rows = renderKeymapPanel(80, {})
     expect(rows[0]).toBe('快捷键')
     // 标题 + 空行 + 条目数
-    expect(rows).toHaveLength(2 + KEYMAP_ENTRIES.length)
+    expect(rows).toHaveLength(2 + ENTRIES.length)
+  })
+
+  it('caps 支持时渲染多出一行（Ctrl+Enter 插队）', () => {
+    expect(renderKeymapPanel(80, KITTY_ENV)).toHaveLength(2 + ENTRIES.length + 1)
+    expect(renderKeymapPanel(80, KITTY_ENV).some(r => r.includes('Ctrl+Enter'))).toBe(true)
   })
 
   it('两列对齐：键位列宽 = 最长键位 + 2', () => {
-    const rows = renderKeymapPanel(80)
+    const rows = renderKeymapPanel(80, {})
     // 每行键位后至少 2 列间隔；用 Ctrl+Shift+Enter 这种最长键位验证对齐
-    const colWidth = Math.max(...KEYMAP_ENTRIES.map(e => e.keys.length)) + 2
+    const colWidth = Math.max(...ENTRIES.map(e => e.keys.length)) + 2
     for (const row of rows.slice(2)) {
       const keyPart = row.slice(0, colWidth)
       expect(keyPart.trimEnd().length).toBeLessThanOrEqual(colWidth)
@@ -45,15 +61,15 @@ describe('renderKeymapPanel', () => {
   })
 
   it('每个条目键位出现在对应行首', () => {
-    const rows = renderKeymapPanel(80)
-    for (const entry of KEYMAP_ENTRIES) {
+    const rows = renderKeymapPanel(80, {})
+    for (const entry of ENTRIES) {
       const matched = rows.some(row => row.includes(entry.keys) && row.includes(entry.action))
       expect(matched, `条目 ${entry.keys} → ${entry.action} 应成行出现`).toBe(true)
     }
   })
 
   it('窄宽（放不下动作列）时动作截断不破版', () => {
-    const rows = renderKeymapPanel(20)
+    const rows = renderKeymapPanel(20, {})
     for (const row of rows) {
       // 显示宽度才是破版判据（CJK 与截断省略号让 length 与宽度脱钩）
       expect(displayWidth(row)).toBeLessThanOrEqual(20)
@@ -61,13 +77,13 @@ describe('renderKeymapPanel', () => {
   })
 
   it('极端窄宽（<12）仅标题+空行', () => {
-    const rows = renderKeymapPanel(10)
+    const rows = renderKeymapPanel(10, {})
     expect(rows).toEqual(['快捷键', ''])
   })
 
   it('紧凑单列降级：键位列宽 ≥ width 时键位不截断、动作截断', () => {
     // 最长键位 PageUp/PageDown(15) → keyCol=17；width 12/13 触发紧凑分支
-    const rows = renderKeymapPanel(12)
+    const rows = renderKeymapPanel(12, {})
     expect(rows.length).toBeGreaterThan(2)
     for (const row of rows.slice(2)) {
       expect(row.length).toBeLessThanOrEqual(12)
@@ -76,6 +92,6 @@ describe('renderKeymapPanel', () => {
   })
 
   it('窄于 12 的宽度不抛错', () => {
-    expect(() => renderKeymapPanel(5)).not.toThrow()
+    expect(() => renderKeymapPanel(5, {})).not.toThrow()
   })
 })

@@ -78,7 +78,7 @@ import {
 import { createForkedAgent } from '../adapter/fork-agent.js'
 import { sessionTitleFor } from '../adapter/session-title.js'
 import { updateNoticeText, autoRestartNoticeText, updateNoticePackage, readOwnVersion, readOwnChangelog, parseChangelog, simplifyChangelogMarkdown, checkForUpdate as runUpdateCheck, defaultUpdateCachePath, type UpdateCheckResult } from '../self-update.js'
-import { supportsOsc52 } from '../term-caps.js'
+import { kittyKeyboardPopSeq, kittyKeyboardPushSeq, supportsOsc52 } from '../term-caps.js'
 import { getTheme, getActiveThemeName, setTheme, type RivetTheme } from '../theme.js'
 import { displayWidth, ambiguousWideEnabled } from '../width.js'
 import { detectTerminalBackground, autoThemeFor } from '../theme-detect.js'
@@ -107,7 +107,7 @@ import { WorkflowSurfaceController } from '../controllers/workflow-surface.js'
 import { DelegationSurfaceController, type SubagentsFacet } from '../controllers/delegation-surface.js'
 import { CommitSurface } from '../controllers/commit-surface.js'
 import { AttachmentPreviewController } from '../controllers/attachment-preview.js'
-import { formatQueueLine, SubmitQueueController } from '../controllers/submit-queue.js'
+import { cancelAndSendInput, formatQueueLine, SubmitQueueController } from '../controllers/submit-queue.js'
 import { KeyDialogController } from './key-dialog.js'
 import { KeyFlow } from './key-flow.js'
 import {
@@ -1343,9 +1343,9 @@ export class TuiApp {
     // 跳过）。放在 paste/OSC 11 之前，避免半初始化终端上空等；否则 newSession
     // 快照到 config 默认模型，欢迎页误报 API Key ✗。
     await this.waitForServicesReady(['settings', 'credentials'])
-    // bracketed paste：粘贴的多行文本被终端包裹为整段（行尾 CR 不再逐行触发
-    // Enter 提交）；onPaste 处理器把整段插入输入行（超阈值折叠为标记）。
-    this.stdout.write(ANSI.BRACKETED_PASTE_ON)
+    // bracketed paste + kitty 键盘增强（caps 支持时推送 flag 1：Ctrl+Enter 等修饰键
+    // 以 CSI u 上报，不支持则序列被忽略、键位天然静默）：粘贴整段包裹进输入行。
+    this.stdout.write(ANSI.BRACKETED_PASTE_ON + kittyKeyboardPushSeq())
     this.pasteDisposer?.()
     this.pasteDisposer = this.input.onPaste((text) => { void this.handlePaste(text) })
     // 目标 6：'auto' 才走系统终端配色探测（OSC 11 → dark/light）；显式主题直接生效。
@@ -2614,7 +2614,7 @@ export class TuiApp {
     // /name 经 looksLikeFilePath 走文本流，host 的 pre-step 手势注入技能体。
     this.skillSurface.recordGesture(trimmed)
     this.pushHistory(trimmed)
-    // 运行中排队（对标 CC）：宿主 followup 无取回 API——本地排队才能 ↑ 取回；turn/end 按序投递。
+    // 运行中排队（对标 CC）：本地队列让 ↑ 取回不惊动宿主（取舍见 submit-queue 模块头）；turn/end 按序投递。
     if (this.liveAgent?.state.status === 'running') {
       this.submitQueue.push(expanded, images)
       this.flushLiveRender()
@@ -2758,7 +2758,7 @@ export class TuiApp {
     return this.approval.handle(req, next)
   }
 
-  /** 取消当前运行（Esc/Ctrl+C）：cancel agent、丢弃未发出的流式/推理缓冲并重置流渲染。 */
+  /** 取消当前运行（Esc/Ctrl+C）：cancel agent（keepInbox——宿主 inbox 未消费的 steer/排队残留保留）、丢弃未发出的流式/推理缓冲并重置流渲染。 */
   /** 最近一次 Ctrl+C 字节（0x03）处理时间戳；0 = 未处理过（SIGINT 防抖用）。 */
   private lastCtrlCAt = 0
 
@@ -2784,13 +2784,13 @@ export class TuiApp {
   }
 
   handleAbort(): void {
-    // 防御：打断优先于 overlay——释放任何激活的全屏 overlay（palette/search/
-    // rewind/picker），保证主屏（含输入轨）在下一帧必然恢复。按键路径上 overlay
-    // 分支先于 ctrl_c 分支拦截，此防御覆盖未来新增路径在 overlay 激活时调 abort。
+    // 防御：打断优先于 overlay——释放激活的全屏 overlay（palette/search/rewind/picker），
+    // 保证主屏（含输入轨）下一帧必然恢复（覆盖未来新增路径在 overlay 激活时调 abort）。
     this.overlay?.deactivate()
     this.palette?.close()
     this.picker?.close()
-    this.controls?.cancel({ kind: 'user' })
+    // keepInbox：手动打断不清宿主 inbox——未消费的 steer/排队残留留到下一轮（与本地队列不清队一致）。
+    this.controls?.cancel({ kind: 'user' }, { keepInbox: true })
     // 先丢弃流式残文再提交中止提示：提交编舞会同步重绘一帧，残尾若还留在
     // peek/pending 里就会把上一个 run 的残留画进那一帧（提交与丢弃的次序
     // 曾被延迟重绘掩盖，同步化后必须理顺）。
@@ -2803,9 +2803,8 @@ export class TuiApp {
   }
 
   /**
-   * Phase 6.4：打开外部编辑器编辑当前输入行。编辑器是外部进程，必须暂时
-   * 退出 raw-mode（编辑器需要正常终端交互）；spawnSync 阻塞期间 ticker 暂停。
-   * 任何路径（含编辑器失败）都恢复 raw-mode。编辑结果回填输入行。
+   * Phase 6.4：打开外部编辑器编辑当前输入行。编辑器是外部进程，必须暂时退出
+   * raw-mode（spawnSync 阻塞期间 ticker 暂停），任何路径（含失败）都恢复。编辑结果回填输入行。
    */
   private openExternalEditor(): void {
     // 编辑器接管终端前退出 raw-mode；spawn 结束（含失败）恢复。
@@ -3108,12 +3107,14 @@ export class TuiApp {
       },
       openExternalEditor: () => { this.openExternalEditor() },
       steerInput: () => {
-        // 中轮转向：把当前输入行作为转向提交（空输入 no-op），并清空输入行。
         const text = this.inputLine.value.trim()
         if (text !== '') {
           this.inputLine.setValue('')
           this.handleSteer(text)
         }
+      },
+      cancelAndSend: () => {
+        cancelAndSendInput({ input: this.inputLine, controls: this.controls ?? undefined, abort: () => { this.handleAbort() }, submit: (t, i) => { this.handleSubmit(t, i) } })
       },
       pasteClipboard: () => { void this.handleCtrlV() },
       removeLastImage: () => {
@@ -3129,7 +3130,6 @@ export class TuiApp {
         this.inputLine.handleKey(key.name, key.char, key.ctrl, key.meta, key.shift, key.inline === true)
         this.flushLiveRender()
       },
-      // 空闲草稿清空（shell 语义；setValue 记 undo，Ctrl+Z 可恢复）。
       clearInput: () => { this.inputLine.setValue('') },
       markCtrlC: (now) => { this.lastCtrlCAt = now },
       flushLive: () => { this.flushLiveRender() },
@@ -4112,7 +4112,7 @@ export class TuiApp {
     // overlay 若仍在 alt screen，先退回主屏（1049l），否则进程退出后部分
     // 终端会把用户留在备用屏。
     this.overlay?.deactivate()
-    this.stdout.write(ANSI.BRACKETED_PASTE_OFF)
+    this.stdout.write(kittyKeyboardPopSeq() + ANSI.BRACKETED_PASTE_OFF)
     this.pasteDisposer?.()
     this.pasteDisposer = null
     this.input.dispose()
