@@ -88,6 +88,7 @@
 | src/format/lsp-diagnostics.ts | — | new（诊断展示纯函数：工具卡徽标 + /lsp 面板段，severity 语义色） |
 | src/format/hidden-lines.ts | format/hidden-lines.ts | ported |
 | src/format/history-search-overlay.ts | — | new |
+| src/format/scroll-pager-overlay.ts | — | new（/scroll 分页查看器 overlay：scrollback-transcript 消费端——消息单元滚动浏览/实时搜索/n·N 跳转/g·G 首尾，键位路由收敛类内） |
 | src/format/input-frame.ts | — | new（输入轨：上下圆角横线 ╭─╮/╰─╯，左右不封，纯渲染） |
 | src/format/keymap-panel.ts | — | new |
 | src/format/live-card.ts | — | new（活区共享卡片 chrome：›/⠋/✗/? 状态形 + ⎿ body + suffix 右起丢弃——工具卡/委派树/后台任务统一语言，天枢 f636eb0e 同步） |

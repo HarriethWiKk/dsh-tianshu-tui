@@ -214,6 +214,7 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 | `/fork [directive]` · `/branch` | 分叉当前会话，可选带起始指令 |
 | `/rewind` | 两阶段回滚（消息列表 → 粒度） |
 | `/export [path]` | 导出转录为 Markdown |
+| `/scroll` | 分页查看器：全文浏览转录（滚动 / 实时搜索 / `n`·`N` 跳转 / `g`·`G` 首尾） |
 | `/clear` | 清空滚动区视图 |
 | `/compact` | 压缩会话上下文 |
 | `/steer <text>` | 中轮转向（不中断地纠正方向） |

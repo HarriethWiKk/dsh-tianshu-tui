@@ -67,6 +67,7 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
 | `/fork [directive]` · `/branch` | 分叉当前会话(历史复制到新子会话) |
 | `/rewind` | 两阶段回滚(会话截断 + 可选文件回退) |
 | `/export [path]` | 导出转录为 Markdown |
+| `/scroll` | 分页查看器:全文浏览转录(↑↓/PgUp/PgDn 滚动、实时搜索、`n`/`N` 跳转、`g`/`G` 首尾) |
 | `/clear` | 清空滚动区视图 |
 | `/compact` | 压缩会话上下文(需 compact 服务) |
 
@@ -154,6 +155,6 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
 
 ## Overlay 体系
 
-全屏 overlay(命令面板、键位表、历史搜索、rewind、记忆浏览器、选择器)共享同一套
+全屏 overlay(命令面板、键位表、历史搜索、rewind、记忆浏览器、分页查看器、选择器)共享同一套
 生命周期:打开进 alt screen、Esc/Ctrl+C 关闭、关闭后补写暂存 scrollback。流式输出
 不会盖住打开的 overlay。

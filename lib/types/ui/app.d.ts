@@ -229,6 +229,7 @@ export declare class TuiApp {
     private modelRef;
     /** C2 项 2：历史搜索 overlay（Ctrl+F；attach 时注册，消息快照激活时提供）。 */
     private searchOverlay;
+    private scrollPager;
     /** /todos 紧凑待办面板显隐（/todos 切换；数据源为 todos 投影的保留快照）。 */
     private todosPanelVisible;
     /** /todos all 看全表（false = 默认最多 5 条）。 */
@@ -507,6 +508,8 @@ export declare class TuiApp {
      * 打开时快照 transcript 消息；已打开则关闭。
      */
     private toggleHistorySearchOverlay;
+    /** /scroll 分页查看器开关：打开时快照 CommitEngine 全文，已打开则关闭。 */
+    private toggleScrollPager;
     /** P1：偏好原子落盘（禁用态 no-op；prefs 已就地变更）。 */
     private persistPrefs;
     /** P1.5：提交文本进输入历史——内存（Ctrl+P/N 即时可用）+ 磁盘异步追加（重启恢复）。 */

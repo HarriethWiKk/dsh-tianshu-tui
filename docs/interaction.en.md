@@ -68,6 +68,7 @@ Above the input track, running work folds into one activity band (`◐ N subagen
 | `/fork [directive]` · `/branch` | Fork the current session (history copied to a new child) |
 | `/rewind` | Two-stage rollback (session truncation + optional file rewind) |
 | `/export [path]` | Export the transcript as Markdown |
+| `/scroll` | Pager: browse the transcript in full (↑↓/PgUp/PgDn scroll, live search, `n`/`N` jump, `g`/`G` top/bottom) |
 | `/clear` | Clear the scrollback view |
 | `/compact` | Compact session context (requires the compact service) |
 
@@ -136,4 +137,4 @@ Above the input track, running work folds into one activity band (`◐ N subagen
 
 ## Overlay System
 
-Full-screen overlays (command palette, keymap, history search, rewind, memory browser, picker) share one lifecycle: opening enters the alt screen, Esc/Ctrl+C closes, and deferred scrollback is flushed on close. Streaming output never covers an open overlay.
+Full-screen overlays (command palette, keymap, history search, rewind, memory browser, pager, picker) share one lifecycle: opening enters the alt screen, Esc/Ctrl+C closes, and deferred scrollback is flushed on close. Streaming output never covers an open overlay.

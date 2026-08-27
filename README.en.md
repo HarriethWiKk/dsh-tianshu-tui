@@ -215,6 +215,7 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 | `/fork [directive]` · `/branch` | Fork the current session, optionally with a starting directive |
 | `/rewind` | Two-phase rollback (message list → granularity) |
 | `/export [path]` | Export the transcript to Markdown |
+| `/scroll` | Pager: browse the transcript in full (scroll / live search / `n`·`N` jump / `g`·`G` top-bottom) |
 | `/clear` | Clear the scrollback view |
 | `/compact` | Compact the session context |
 | `/steer <text>` | Mid-turn steering (correct course without interrupting) |

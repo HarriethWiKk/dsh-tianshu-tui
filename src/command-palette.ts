@@ -28,7 +28,7 @@ export interface PaletteEntry {
  */
 export const PALETTE_COMMAND_GROUPS: Readonly<Record<string, string>> = {
   // 会话
-  session: '会话', fork: '会话', branch: '会话', clear: '会话', steer: '会话',
+  session: '会话', fork: '会话', branch: '会话', clear: '会话', scroll: '会话', steer: '会话',
   exit: '会话', restart: '会话', btw: '会话', memory: '会话', remember: '会话', export: '会话',
   compact: '会话',
   // 配置

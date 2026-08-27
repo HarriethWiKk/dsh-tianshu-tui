@@ -70,6 +70,7 @@ function commandByName(name: string) {
     rewindSession: vi.fn(() => true),
     askBtw: vi.fn(async () => true),
     openMemoryBrowser: vi.fn(async () => true),
+    openScrollPager: vi.fn(),
     switchSession: vi.fn(async () => undefined),
     exportTranscript: vi.fn(async (path?: string) => path ?? '/tmp/dsh-export-s1.md'),
     requestExit: vi.fn(),
@@ -276,6 +277,16 @@ describe('内置命令 — /clear', () => {
     await cmd.run(args)
     expect(deps.clearScrollback).toHaveBeenCalledTimes(1)
     expect(echo).toHaveBeenCalledWith(expect.stringContaining('已清空'))
+  })
+})
+
+describe('内置命令 — /scroll', () => {
+  it('打开分页查看器（deps 透传一次，不回显）', async () => {
+    const { cmd, deps } = commandByName('scroll')
+    const { args, echo } = makeArgs()
+    await cmd.run(args)
+    expect(deps.openScrollPager).toHaveBeenCalledTimes(1)
+    expect(echo).not.toHaveBeenCalled()
   })
 })
 
@@ -1679,6 +1690,7 @@ describe('内置命令 — /effort', () => {
       rewindSession: vi.fn(() => true),
       askBtw: vi.fn(async () => true),
       openMemoryBrowser: vi.fn(async () => true),
+      openScrollPager: vi.fn(),
       switchSession: vi.fn(async () => undefined),
       exportTranscript: vi.fn(async (path?: string) => path ?? '/tmp/dsh-export-s1.md'),
       requestExit: vi.fn(),

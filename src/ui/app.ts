@@ -195,6 +195,7 @@ import type { FormatGlanceBarInput } from '../format/glance-bar.js'
 import { formatPermissionDiff } from '../format/permission-diff.js'
 import { formatApprovalCard } from '../format/approval-card.js'
 import { HistorySearchOverlay } from '../format/history-search-overlay.js'
+import { ScrollPagerOverlay } from '../format/scroll-pager-overlay.js'
 import { RewindOverlay, collectUserRewindCheckpoints, type RewindMode, type RewindResult } from '../format/rewind-overlay.js'
 import { openInEditorDetailed, getEditorCommand } from '../external-editor.js'
 import { FluencyTracker } from '../fluency-hook.js'
@@ -626,6 +627,7 @@ export class TuiApp {
   private modelRef: ModelSelectionRef | null = null
   /** C2 项 2：历史搜索 overlay（Ctrl+F；attach 时注册，消息快照激活时提供）。 */
   private searchOverlay: HistorySearchOverlay | null = null
+  private scrollPager: ScrollPagerOverlay | null = null
   /** /todos 紧凑待办面板显隐（/todos 切换；数据源为 todos 投影的保留快照）。 */
   private todosPanelVisible = false
   /** /todos all 看全表（false = 默认最多 5 条）。 */
@@ -861,6 +863,7 @@ export class TuiApp {
       rewindSession: () => this.rewindSession(),
       askBtw: question => this.askBtw(question),
       openMemoryBrowser: () => this.openMemoryBrowser(),
+      openScrollPager: () => { this.toggleScrollPager() },
       switchSession: id => this.switchSession(SessionId(id)),
       exportTranscript: path => this.exportTranscript(path),
       requestExit: () => { this.onExit?.() },
@@ -1343,6 +1346,9 @@ export class TuiApp {
     // C2 项 2：历史搜索 overlay（Ctrl+F）——消息快照在激活时由装配方提供。
     this.searchOverlay = new HistorySearchOverlay()
     this.overlay.register('search', this.searchOverlay)
+    // /scroll 分页查看器——scrollback 全文快照在激活时由装配方提供。
+    this.scrollPager = new ScrollPagerOverlay()
+    this.overlay.register('scroll', this.scrollPager)
     // C3 项 3：rewind overlay（/rewind）——消息快照 + 执行回调在激活时提供。
     this.rewindOverlay = new RewindOverlay(undefined, {
       onSettled: () => { this.overlay?.rerender() },
@@ -2044,6 +2050,19 @@ export class TuiApp {
         search.setMessages(this.transcript?.view.messages ?? [])
         overlay.activate('search')
       }
+    }
+  }
+
+  /** /scroll 分页查看器开关：打开时快照 CommitEngine 全文，已打开则关闭。 */
+  private toggleScrollPager(): void {
+    const overlay = this.overlay
+    const pager = this.scrollPager
+    /* v8 ignore next 2 -- overlay/scrollPager 在 attach 时恒创建，null 仅类型收窄 */
+    if (overlay === null || pager === null) return
+    if (overlay.activeId() === 'scroll') overlay.deactivate()
+    else {
+      pager.setContent(this.commit.getContent())
+      overlay.activate('scroll')
     }
   }
 
@@ -2998,6 +3017,12 @@ export class TuiApp {
         this.searchOverlay.type(key.char)
         this.overlay.rerender()
       }
+      return
+    }
+    if (this.overlay?.activeId() === 'scroll' && this.scrollPager !== null) {
+      const act = this.scrollPager.handleKey(key.name, key.char)
+      if (act === 'close') this.overlay.deactivate()
+      else this.overlay.rerender()
       return
     }
     // C3 项 3：rewind overlay——Ctrl+C 与 list/done 阶段的 Esc 立即关闭（对齐
