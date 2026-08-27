@@ -10,9 +10,12 @@ DeepSeek Harness（DSH）LSP 插件：**模型工具面 + 共享服务**。
 
 ## 安装
 
+**随 [@huiliyi37/dsh-tianshu-tui](https://github.com/huiliyi37/dsh-tianshu-tui) 内置**（rc.22 起）：装 TUI 一个包即得模型工具面 + 展示桥，bundle patch 自动 insert，无需单独安装。
+
+旧社区安装方式（与 TUI 内置版二选一，同时装配会重复注册同名工具，请先移除旧版）：
+
 ```sh
 npx -y @deepseek-ai/dsh plugin --profile tui add github:omdsh-dev/dsh-lsp
-npx -y @deepseek-ai/dsh --profile tui
 ```
 
 或手工在 profile 的 `cordis.patch.yml` 追加：
@@ -20,7 +23,7 @@ npx -y @deepseek-ai/dsh --profile tui
 ```yaml
 - insert:
     - id: lsp
-      name: '@deepseek-ai/dsh-lsp'
+      name: '@huiliyi37/dsh-lsp'
 ```
 
 ## 工具

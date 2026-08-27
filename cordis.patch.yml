@@ -12,6 +12,15 @@
       config:
         default: standard
 
+    # LSP 模型工具面（任务6，2026-08-27）：随本包内置——三个只读模型工具
+    # （goto-definition / find-references / diagnostics）+ provide('lsp') 服务
+    # （TUI 展示桥直接消费，single server set 不双份 spawn）。依赖由本包
+    # dependencies 带入 profile 树，装 TUI 一个包即得，无需单独 add 社区版。
+    # 旧版（github:omdsh-dev/dsh-lsp，cordis name @deepseek-ai/dsh-lsp）与本行
+    # 二选一：同时装配会重复注册同名模型工具，升级用户请先 plugin remove 旧版。
+    - id: lsp
+      name: '@huiliyi37/dsh-lsp'
+
 # ── agent plane leaves the host (standard preset remounts these) ───────────
 
 - id: tool-bash

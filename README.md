@@ -118,7 +118,7 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 > `@huiliyi37/oh-my-tianshu`（命令 `oh-my-tianshu`），与仓库名一致；旧包已
 > deprecate，请迁移安装。
 
-需要图片再询问能力时，再装配同仓伴生包 `vision-ask/`；需要 LSP 模型工具面（模型可调 `lsp_goto_definition` / `lsp_find_references` / `lsp_diagnostics`）时装配社区插件 [`omdsh-dev/dsh-lsp`](https://github.com/omdsh-dev/dsh-lsp)（`npx -y @deepseek-ai/dsh plugin --profile tui add github:omdsh-dev/dsh-lsp`）——装配后 TUI 展示桥自动消费其 `lsp` 服务（与模型工具面共享同一 LSP server 集，不双份 spawn）。TUI 桥的诊断源探测顺序：社区插件服务（getDiagnostics 形状）→ 官方 `ctx.lsp` seam（deepseek-harness 的 dsh-lsp，经 query(getDiagnostics) 适配）→ 内置桥降级。
+需要图片再询问能力时，再装配同仓伴生包 `vision-ask/`。LSP 模型工具面（`lsp_goto_definition` / `lsp_find_references` / `lsp_diagnostics`）已随本包内置（`@huiliyi37/dsh-lsp` 伴生插件，bundle patch 自动 insert）——装 TUI 一个包即得展示桥 + 模型工具面，二者共享同一 LSP server 集（不双份 spawn）。TUI 桥的诊断源探测顺序：内置伴生插件 `lsp` 服务（getDiagnostics 形状）→ 官方 `ctx.lsp` seam（deepseek-harness 的 dsh-lsp，经 query(getDiagnostics) 适配）→ 内置桥降级。⚠ 此前单独装过旧社区版（`github:omdsh-dev/dsh-lsp`）的用户请先 `plugin remove` 旧版再升级——新旧同时装配会重复注册同名模型工具。
 
 ## 更新说明
 
@@ -283,7 +283,7 @@ npm test
 ## 已知限制与待办
 
 - **图片再询问需伴生插件** — `ask_image` 工具与会话图片注册表位于 `@deepseek-ai/dsh-vision-ask`（同仓独立包）；TUI bundle 本体不携带它们。未装配插件时，已发送图片无法再次询问，同角度重复描述会再次调用视觉模型；视觉桥仍覆盖一次性提交时描述路径。
-- **LSP 为展示层本地桥** — 诊断只上屏（工具卡徽标 + `/lsp` 面板），不提供给模型工具面（如天枢 edit-diff 的 diagnostics-narrowing）；模型侧接入属 harness 侧未来工作。server 初始化慢于超时（默认 2s）时静默无诊断，下次触碰文件重拉；大仓库 tsserver 常驻内存（懒启动缓解，无空闲回收）；切会话不重启 server（rootUri 沿用首会话 cwd）。
+- **LSP 桥的运行时限制** — 模型工具面（goto/find/diagnostics）已随包内置（`@huiliyi37/dsh-lsp`）；如天枢 edit-diff 的 diagnostics-narrowing 这类深度集成仍属未来工作。server 初始化慢于超时（默认 2s）时静默无诊断，下次触碰文件重拉；大仓库 tsserver 常驻内存（懒启动缓解，无空闲回收）；切会话不重启 server（rootUri 沿用首会话 cwd）。
 - **app.ts 单体（约 3.2k 行）** — 挂起状态机已控制器化（question/approval），渲染组合与键仲裁仍在 app.ts；C4 拆分方案（纯函数面板段）持续推进。
 - **投影层部分接线** — 四个纯折叠模型中 turn-summary（turn/end 摘要行）与 summary-state（`/status` 会话汇总段，宿主投影总线缺失时仍有数据）已接线；activity-status/activity-store 有意保留未接线（statusline 是自包含投影，替换无收益；activity-store 暂无消费方）。当前状态记录于 [docs/projection-layer.md](docs/projection-layer.md)。
 
