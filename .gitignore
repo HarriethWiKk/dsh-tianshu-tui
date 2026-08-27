@@ -25,3 +25,10 @@ vendor/
 # zcode 工具本地状态（每台机器各自生成，不入库）
 .zcode/
 docs-internal/
+
+# agent 会话产物与本地备份（一次性规划文件，完结即弃）
+.dsh/
+.npmrc.bak
+task_plan.md
+progress.md
+findings.md
