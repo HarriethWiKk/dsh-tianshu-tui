@@ -42,10 +42,14 @@ export interface FormatPromptFooterInput {
     planPending?: boolean;
     /** always-approve 生效（mode 段渲染 [auto]）。 */
     alwaysApprove?: boolean;
-    /** 审批挂起：快捷键换成 y/n/a/esc，避免仍提示「Enter 发送」。 */
+    /** 审批挂起：快捷键换成审批决策键位（y/p/t/a/n/f/esc），避免仍提示「Enter 发送」。 */
     approvalPending?: boolean;
     /** 检查类面板打开：提示 esc 关闭。 */
     inspectOpen?: boolean;
+    /** 审批挂起提示段覆盖（action registry 投影，见 actions/projections）；缺省用内置文案。 */
+    approvalHints?: readonly string[];
+    /** 检查面板提示段覆盖（同上）；缺省用内置文案。 */
+    inspectHints?: readonly string[];
     /** 右侧状态段（token/模型/API 等）；右对齐合并进同一行，放不下从后丢段。 */
     rightSegments?: readonly string[];
     /**

@@ -60,3 +60,31 @@ export declare function useAsciiGlyphs(env?: NodeJS.ProcessEnv): boolean;
 export declare function useAsciiBorders(env?: NodeJS.ProcessEnv): boolean;
 /** 测试钩子：重置探测缓存。 */
 export declare function resetTermCapsCache(): void;
+/**
+ * 终端是否支持 kitty 键盘增强协议（progressive enhancement：应用推送 flag 后
+ * 终端才以 CSI u 上报修饰键——Ctrl+Enter 的 CSI 13;5u 只有推送 flag 1 后可达）。
+ * 启发式白名单：kitty（TERM 前缀 / KITTY_WINDOW_ID / TERM_PROGRAM）、ghostty、
+ * foot、contour 原生支持应用推送；WezTerm 默认忽略推送（需用户开启
+ * enable_kitty_keyboard，env 不可知）故不入列——其已开启用户走
+ * RIVET_KITTY_KEYBOARD=1 显式覆盖。tmux/screen（TMUX/STY）透传取决于版本与
+ * extended-keys 配置，保守排除。env `RIVET_KITTY_KEYBOARD=0/1` 显式覆盖。
+ * 判定只决定「推送与否 + keymap 行显隐」：不支持的终端忽略推送序列、永不回
+ * CSI u，ctrl_return 天然静默（无错误输入路由）。
+ * @param env - 环境变量（测试注入用，缺省 process.env）。
+ * @returns 是否支持 kitty 键盘增强推送。
+ */
+export declare function supportsKittyKeyboard(env?: NodeJS.ProcessEnv): boolean;
+/**
+ * kitty 键盘增强推送序列（flag 1 = 消歧义位：Ctrl/Alt+Enter 等以 CSI u 上报，
+ * 普通可打印键与无修饰 Enter/Tab/Backspace 保持传统字节）。不支持的终端返回
+ * ''（序列本就会被忽略，但零写出更干净）；与 dispose 的 pop 同源判定。
+ * @param env - 环境变量（测试注入用，缺省 process.env）。
+ * @returns 推送序列或不支持时的空串。
+ */
+export declare function kittyKeyboardPushSeq(env?: NodeJS.ProcessEnv): string;
+/**
+ * kitty 键盘增强弹出序列（退出时恢复终端键盘编码；与 push 成对）。
+ * @param env - 环境变量（测试注入用，缺省 process.env）。
+ * @returns 弹出序列或不支持时的空串。
+ */
+export declare function kittyKeyboardPopSeq(env?: NodeJS.ProcessEnv): string;

@@ -251,6 +251,7 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 | `Ctrl+O` | Expand/collapse the latest reasoning block |
 | `Ctrl+E` | Open the input line in `$EDITOR` (configurable via `editorKey`) |
 | `Ctrl+T` | Mid-turn steering |
+| `Ctrl+Enter` | Cut in line: interrupt the in-flight turn and send the draft immediately (requires kitty keyboard protocol support; `RIVET_KITTY_KEYBOARD=1` force-enables it) |
 | `Ctrl+C` | Interrupt the in-flight turn (double-press on idle empty input exits) |
 | `Ctrl+V` | Paste clipboard image (falls back to clipboard text) |
 | `Alt+W` | Copy selection to the system clipboard (OSC52) |

@@ -28,6 +28,7 @@ src/
 │   ├── approval-controller.ts  审批(always-approve 本地态)
 │   ├── btw-controller.ts       侧问
 │   └── session-manager.ts      会话管理
+├── actions/                键位动作注册表(handleKey 动作化;keymap/footer 提示与审批梯度同源投影)
 ├── format/                 纯渲染函数(无 I/O,全部可单测)
 │   ├── markdown.ts / diff.ts / tool-card.ts / tool-group.ts / tool-family.ts
 │   ├── glance-bar.ts / top-bar.ts / prompt-footer.ts / welcome.ts
@@ -75,9 +76,14 @@ Transcript 视图(消息 / 工具 / 推理 / usage 折叠)
 挂起交互都是**显式状态机**(不散落在渲染回调里):
 
 - **QuestionController**:提问 → 选项 → 结算;重叠保护;plan-review 反馈模式。
-- **ApprovalController**:审批卡 y/N/a;always-approve 本地短路;非当前会话委托。
+- **ApprovalController**:审批卡决策梯度 y/p/t/a/n/f/esc(p 命令前缀白名单、f 拒绝附反馈);
+  always-approve 本地短路;非当前会话委托。
 - **BtwController**:侧问生命周期(Esc 折叠答案入滚动区)。
 - **SessionManager**:新建/分叉/切换/恢复。
+
+键位仲裁也已动作化:`src/actions/` 的 ActionRegistry 持有全部内置键位动作(含 approval
+域梯度),`Ctrl+.` 键位表与 footer 提示从动作表同源投影(`actions/projections.ts`),
+不再各画一份。
 
 ## Overlay 体系
 

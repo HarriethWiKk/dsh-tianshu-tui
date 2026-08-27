@@ -252,6 +252,7 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 | `Ctrl+O` | 展开/收起最近推理块 |
 | `Ctrl+E` | 用 `$EDITOR` 打开输入行（可经 `editorKey` 配置） |
 | `Ctrl+T` | 中轮转向 |
+| `Ctrl+Enter` | 插队：打断当前回合并立即发送草稿（需终端支持 kitty 键盘增强协议，`RIVET_KITTY_KEYBOARD=1` 可强制开启） |
 | `Ctrl+C` | 打断在途回合（空闲时空输入双击退出） |
 | `Ctrl+V` | 粘贴剪贴板图片（无图时回退剪贴板文本） |
 | `Alt+W` | 把选区复制到系统剪贴板（OSC52） |

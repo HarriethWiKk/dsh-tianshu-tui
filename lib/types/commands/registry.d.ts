@@ -43,6 +43,8 @@ export interface SlashCommandArgs {
     /** 请求重绘 live 区（命令执行后统一调用）。 */
     rerender: () => void;
 }
+/** 内置命令分组（命令面板展示组名；未标注的命令归「其他」）。 */
+export type SlashCommandCategory = '会话' | '配置' | '认证' | '面板' | '系统';
 /** 一条 slash 命令。 */
 export interface SlashCommand {
     /** 命令名（不含 / 前缀；小写，互不为前缀歧义时才能唯一解析）。 */
@@ -51,6 +53,8 @@ export interface SlashCommand {
     description: string;
     /** 可选参数 ghost 提示（如 `<name>`）。 */
     argsHint?: string;
+    /** 命令面板分组（数据源单一事实：注册时携带；缺省归「其他」）。 */
+    category?: SlashCommandCategory;
     /** 执行命令。可 async；抛错由分发层捕获并回显失败信息。 */
     run(args: SlashCommandArgs): void | Promise<void>;
 }

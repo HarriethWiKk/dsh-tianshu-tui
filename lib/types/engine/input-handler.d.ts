@@ -38,7 +38,7 @@ export interface KeyPress {
     inline?: boolean;
 }
 /** 可识别的按键语义名称；未映射的可打印字符与无法识别的序列为 'unknown'。 */
-export type KeyName = 'return' | 'escape' | 'tab' | 'backspace' | 'delete' | 'up' | 'down' | 'left' | 'right' | 'home' | 'end' | 'pageup' | 'pagedown' | 'insert' | 'f1' | 'f2' | 'f3' | 'f4' | 'f5' | 'f6' | 'f7' | 'f8' | 'f9' | 'f10' | 'f11' | 'f12' | 'space' | 'ctrl_c' | 'ctrl_d' | 'ctrl_h' | 'ctrl_j' | 'ctrl_z' | 'ctrl_l' | 'ctrl_u' | 'ctrl_a' | 'ctrl_e' | 'ctrl_k' | 'ctrl_w' | 'ctrl_n' | 'ctrl_o' | 'ctrl_p' | 'ctrl_r' | 'ctrl_s' | 'ctrl_t' | 'ctrl_v' | 'ctrl_b' | 'ctrl_f' | 'ctrl_x' | 'ctrl_]' | 'ctrl_minus' | 'ctrl_.' | 'ctrl_y' | 'ctrl_q' | 'shift_tab' | 'unknown';
+export type KeyName = 'return' | 'escape' | 'tab' | 'backspace' | 'delete' | 'up' | 'down' | 'left' | 'right' | 'home' | 'end' | 'pageup' | 'pagedown' | 'insert' | 'f1' | 'f2' | 'f3' | 'f4' | 'f5' | 'f6' | 'f7' | 'f8' | 'f9' | 'f10' | 'f11' | 'f12' | 'space' | 'ctrl_c' | 'ctrl_d' | 'ctrl_h' | 'ctrl_j' | 'ctrl_z' | 'ctrl_l' | 'ctrl_u' | 'ctrl_a' | 'ctrl_e' | 'ctrl_k' | 'ctrl_w' | 'ctrl_n' | 'ctrl_o' | 'ctrl_p' | 'ctrl_r' | 'ctrl_s' | 'ctrl_t' | 'ctrl_v' | 'ctrl_b' | 'ctrl_f' | 'ctrl_x' | 'ctrl_]' | 'ctrl_minus' | 'ctrl_.' | 'ctrl_y' | 'ctrl_q' | 'ctrl_return' | 'shift_tab' | 'unknown';
 /** 按键事件处理器。 */
 export type KeyHandler = (key: KeyPress) => void;
 /** InputHandler 构造参数。 */

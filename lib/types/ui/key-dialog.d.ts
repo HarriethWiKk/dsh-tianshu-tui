@@ -19,7 +19,7 @@
  *
  * @module dsh-tui/key-dialog
  */
-import type { OverlayRenderer } from '../engine/overlay-engine.js';
+import type { OverlayKeyResult, OverlayRenderer } from '../engine/overlay-engine.js';
 import type { RivetTheme } from '../theme.js';
 /** Key 探测结果三分类：ok（2xx）/ invalid（401·403）/ unknown（网络错误、超时、其他状态码）。 */
 export type KeyProbeResult = 'ok' | 'invalid' | 'unknown';
@@ -112,10 +112,13 @@ export declare class KeyDialogController implements OverlayRenderer {
      * 输入态：字符/退格编辑、Enter 提交（空值不提交）、Esc/Ctrl+C 取消；
      * confirm-unknown 态：Enter 强存、Esc/Ctrl+C 取消；终态说明态：Enter/Esc 关闭；
      * 瞬时态（probing/saving）：Esc/Ctrl+C 关闭（迟到结果按 openFlag 守卫丢弃），其余忽略。
+     * 返回 'close' 时同时置 wantsClose（装配方 deactivate；统一返回词表后
+     * 装配方直接消费返回值，wantsClose 保留给既有调用面/测试）。
      * @param name - 按键名（return/escape/backspace/ctrl_c 等）。
      * @param char - 可打印字符（控制键为 ''）。
+     * @returns close = 请求关闭；handled = 已消费。
      */
-    handleKey(name: string, char: string): void;
+    handleKey(name: string, char: string): OverlayKeyResult;
     /**
      * bracketed paste / Ctrl+V 文本落地：只进输入态；Key 是单行令牌，
      * 剥掉全部空白字符（粘贴来源可能带换行/空格）。

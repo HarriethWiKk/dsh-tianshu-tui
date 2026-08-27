@@ -10,6 +10,7 @@
  *
  * @module @deepseek-ai/dsh-tianshu-tui/picker
  */
+import type { OverlayKeyResult } from './engine/overlay-engine.js';
 import type { RivetTheme } from './theme.js';
 /** 选择器条目：展示标签 + 提交值 + 当前值标记。 */
 export interface PickerItem {
@@ -143,6 +144,17 @@ export declare class PickerController {
     commit(): void;
     /** 是否注入了 S 设为默认钩子（键路由据此决定是否消费 s/S）。 */
     canSaveDefault(): boolean;
+    /**
+     * 键位路由（scroll-pager 范式收敛；装配方只做 activate/deactivate/rerender）：
+     * Esc/Ctrl+C/q → close（触发 onCancel 还原预览）；↑↓/jk 移动、PageUp/PageDown
+     * 翻页 → handled；Enter commit → close；s/S 仅在注入 onSaveDefault 时
+     * saveDefault → close（否则吞掉不动作——与原装配方分支门控一致）；
+     * 其余键吞掉（overlay 独占焦点）。
+     * @param name - 按键名。
+     * @param char - 可打印字符（控制键为 ''）。
+     * @returns close = 请求关闭；handled = 已消费。
+     */
+    handleKey(name: string, char: string): OverlayKeyResult;
     /**
      * 设为启动默认：以选中条目调用 onSaveDefault 并关闭；无钩子或无选中时
      * 不动作（选择器保持打开）。确认路径不触发 onCancel。

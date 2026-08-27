@@ -11,6 +11,8 @@ TUI 是**纯展示层**:
 - **不注册任何 prompt、工具或上下文面**——模型可见的内容必须已经记录在会话日志中
   ("Model-visible ⟺ logged")。
 - **用户输入成为普通日志消息**——TUI 不拥有 agent 循环、不路由、不生成内容。
+  turn 运行中的提交先落 TUI 本地队列(立即回显不直发),turn/end 按序 drain 投递为
+  followup,中断不投递;插队(Ctrl+Enter)= cancel(keepInbox) + 落定后直发。
 - **所有渲染状态派生自会话事件流**——不另起数据源、不写 sidecar(会话标题等少量
   只读纯函数 fallback 除外,见 SOURCE-MAP.md)。
 
@@ -66,6 +68,10 @@ TUI 只订阅、只读、从不发布以下事件(会话事件按 owner 过滤):
 | `workflow/start` `phase` `log` `agent-start` `agent-end` `end` | workflow 运行面板 |
 | `subagent/start` `subagent/end` | 委派树与运行行 |
 | `approval/request` | 审批卡(waterfall 委托) |
+
+审批结算只有 `allowed-once` / `rejected` / `cancelled` 三态回传——协议 decided 无文本
+通道:`f` 拒绝附反馈的文本经 steer 旁路送达 agent(宿主既有消息面,非审批协议扩展);
+`p`/`t` 的命令前缀/工具白名单是 TUI 本地短路态(单会话作用域,切会话复位),不落协议。
 
 ## 能力边界(刻意不做,防重复踩坑)
 

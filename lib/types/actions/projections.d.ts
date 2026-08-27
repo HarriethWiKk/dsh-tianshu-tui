@@ -1,0 +1,59 @@
+/**
+ * actions/projections — 展示面投影：keymap 条目 / footer 提示段从动作表生成。
+ *
+ * 键位提示的三份事实源收敛为动作表后的消费端：
+ * - projectKeymapEntries：global 域 + keymapOrder 非缺省 + 非 keymapHidden 的
+ *   动作投影为 keymap 行，与输入层静态补充行（Enter 提交、Ctrl+U 等 InputLine
+ *   内部键位——不经 action registry 路由）按 order 归并。
+ * - projectApprovalHints / projectInspectHints：footer 上下文提示段
+ *   （approval 域动作按注册序取 footerHint）。
+ *
+ * @module @deepseek-ai/dsh-tianshu-tui/actions/projections
+ */
+import type { ActionContext, KeyAction, KeyBinding } from './types.js';
+/**
+ * 单绑定展示名：ctrl_n → Ctrl+N、ctrl_. → Ctrl+.、up → ↑；char 绑定取字符本身；
+ * meta 约束加 Alt+ 前缀。
+ * @param binding - 键位绑定。
+ * @returns keymap 键位列文本。
+ */
+export declare function keyBindingLabel(binding: KeyBinding): string;
+/** 动作键位列缺省展示：多绑定以 / 连接（↑/↓）。 */
+export declare function keyBindingsLabel(keys: readonly KeyBinding[]): string;
+/** keymap 投影行（与 format/keymap-panel 的 KeymapEntry 同构）。 */
+export interface ProjectedKeymapEntry {
+    /** 键位列（如 'Ctrl+P'）。 */
+    keys: string;
+    /** 动作说明列。 */
+    action: string;
+}
+/**
+ * keymap 面板条目投影：动作表（global 域、keymapOrder 非缺省、非 keymapHidden）
+ * 与输入层静态补充行按 order 归并排序。requiresKittyKeyboard 的动作按 caps
+ * 过滤——终端不支持 kitty 键盘增强时该行隐身（键位本不可达，展示即死键）。
+ * @param actions - 动作表（registry.list()）。
+ * @param extra - 输入层静态补充行（带 order 对齐原表序）。
+ * @param caps - 终端能力面（缺省视为不支持 kitty 键盘增强 → 门控行隐身）。
+ * @returns 归并排序后的 keymap 条目。
+ */
+export declare function projectKeymapEntries(actions: readonly KeyAction[], extra?: readonly (ProjectedKeymapEntry & {
+    order: number;
+})[], caps?: {
+    kittyKeyboard?: boolean;
+}): ProjectedKeymapEntry[];
+/**
+ * footer 审批挂起提示段：approval 域动作按注册序投影 footerHint（无 footerHint
+ * 的动作不进 footer）。传入 ctx 时按各动作 when 守卫过滤——p 键「此命令不再问」
+ * 仅在前缀可提（bash 类工具）的挂起上出现；审批卡键位行也消费本投影（同源）。
+ * @param actions - 动作表（registry.list()）。
+ * @param ctx - 动作执行上下文（缺省不过滤 when，投影静态全集）。
+ * @returns 提示段文本数组。
+ */
+export declare function projectApprovalHints(actions: readonly KeyAction[], ctx?: ActionContext): string[];
+/**
+ * footer 检查面板提示段：inspect.close 动作的 footerHint + 静态「/ 命令」尾段
+ * （/ 斜杠命令不是键位动作，提示文本不入动作表）。
+ * @param actions - 动作表（registry.list()）。
+ * @returns 提示段文本数组。
+ */
+export declare function projectInspectHints(actions: readonly KeyAction[]): string[];

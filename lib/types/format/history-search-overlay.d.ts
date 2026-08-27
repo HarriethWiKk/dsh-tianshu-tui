@@ -7,7 +7,7 @@
  * - smart-case：查询含大写 → 精确匹配；否则大小写不敏感
  * - 输入实时搜索（type 即重算），n/N 循环跳转，Esc 退出
  */
-import type { OverlayRenderer } from '../engine/overlay-engine.js';
+import type { OverlayKeyResult, OverlayRenderer } from '../engine/overlay-engine.js';
 import type { RivetTheme } from '../theme.js';
 /** 搜索数据源的最小形状（adapter/transcript 的 TranscriptMessage.text 满足它）。 */
 export interface SearchableMessage {
@@ -50,6 +50,14 @@ export declare class HistorySearchOverlay implements OverlayRenderer {
      */
     currentIndex(): number;
     private research;
+    /**
+     * 键位路由（scroll-pager 范式收敛）：Esc/Ctrl+C → close；Backspace 退格；
+     * n/N、p/P 循环跳匹配；其余可打印字符进 query（输入实时重算）。
+     * @param name - 按键名。
+     * @param char - 可打印字符（控制键为 ''）。
+     * @returns close = 请求关闭；handled = 已消费（含无 char 的控制键——吞掉）。
+     */
+    handleKey(name: string, char: string): OverlayKeyResult;
     render(width: number, height: number): string[];
     onActivate(): void;
     onDeactivate(): void;

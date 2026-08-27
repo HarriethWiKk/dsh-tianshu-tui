@@ -25,7 +25,8 @@ engine/（原语）    render/（纯函数面板投影）
 | controller | 状态 | 接口 | 备注 |
 |---|---|---|---|
 | `QuestionController` | 挂起提问状态机（pendingQuestion + feedbackMode） | `ask()`（挂起存 resolve/reject 句柄）、`settle()`、`cancel()`、`peek()`、`isPending`、`feedbackMode` | 构造注入 `onEscapeImmediate`（保持挂起态 ESC 语义） |
-| `ApprovalController` | 待审批请求（pendingApproval + alwaysApprove） | `handle()`（alwaysApprove 短路 + 非当前会话委托 next）、`settle()`、`peek()`、`isPending`、`setAlwaysApprove()` | 构造注入 `getCurrentSessionId` |
+| `ApprovalController` | 待审批请求（pendingApproval + alwaysApprove + allowedTools/allowedPrefixes 会话白名单 + feedbackMode） | `handle()`（alwaysApprove/白名单短路 + 非当前会话委托 next）、`settle()`、`peek()`、`isPending`、`setAlwaysApprove()`、`allowTool()`/`approveWithTool()`（t 键）、`approveWithPrefix()`（p 键）、`clearSessionGrants()`（切会话复位白名单）、`setFeedbackMode()`（f 键反馈态） | 构造注入 `getCurrentSessionId`（+ `getCommandPrefix`/`timeoutMs`）；决策梯度 y/p/t/a/n/f/esc |
+| `SubmitQueueController` | 运行中提交的本地队列（QueuedSubmit[]） | `push()`、`takeFirst()`（↑ 取回队首）、`drain()`（turn/end 按序投递）、`clear()`（切会话丢弃）、`peekAll()`/`size()` | 同模块另出 `cancelAndSendInput()`（Ctrl+Enter 插队：abort keepInbox → whenIdle 落定后直发）与 `formatQueueLine()` 队列行渲染 |
 
 ## 与 engine/ 既有 controller 的关系
 
@@ -51,6 +52,8 @@ engine/（原语）    render/（纯函数面板投影）
 ## 验证
 
 - `question-controller.spec.ts` / `approval-controller.spec.ts`：挂起/结算/
-  反馈 custom/取消/alwaysApprove 短路/非当前会话委托 next()。
+  反馈 custom/取消/alwaysApprove 短路/白名单（t/p 键）/非当前会话委托 next()。
+- `submit-queue.spec.ts`：入队/取回队首/drain/clear 与 cancelAndSendInput
+  （abort keepInbox + whenIdle 后提交）。
 - app.spec 黑盒（不改 import/构造）覆盖 controller 装配后的端到端行为，
   含订阅/释放平衡断言（`app.dispose()` 后无存活 ctx.on 订阅）。

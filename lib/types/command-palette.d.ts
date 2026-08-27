@@ -2,13 +2,17 @@
  * command-palette — Ctrl+P 命令面板 / Tab 命令菜单（纯状态机 + 渲染）。
  *
  * 数据源 = SlashCommandRegistry（getCommands 现取，插件扩展后可见）；
+ * 分组 = SlashCommand.category（命令注册时携带；未标注归「其他」）；
  * 过滤 = 名称/描述子串 + 名称子序列，前缀优先；状态机 open/type/backspace/move/close。
+ * 键位路由收敛在本类 handleKey（scroll-pager 范式：'close'|'handled'），
+ * 装配方（TuiApp）只做 activate/deactivate/rerender 与 commit 结果分流。
  * 两种确认模式：
  * - backfill（Ctrl+P，缺省）：Enter 回填 `/name ` 到输入框，用户续写参数。
  * - execute（Tab 空输入框打开，#31 参考 Claude Code）：Enter 直接执行 `/name`
  *   无参语义（/model /theme /session 无参即打开对应选择器），省去输入命令一步。
  */
 import type { SlashCommand } from './commands/registry.js';
+import type { OverlayKeyResult } from './engine/overlay-engine.js';
 import type { RivetTheme } from './theme.js';
 /** 面板条目：命令名（不含 `/` 前缀）+ 描述 + 可选参数提示 + 分组名。 */
 export interface PaletteEntry {
@@ -18,11 +22,6 @@ export interface PaletteEntry {
     /** 分组名（浏览可发现性）；缺省归「其他」。 */
     group?: string;
 }
-/**
- * 内置命令分组表（name → 组名）。外部插件命令不在表内 → 归「其他」。
- * 新增内置命令时在此补一条，命令面板即自动分组。
- */
-export declare const PALETTE_COMMAND_GROUPS: Readonly<Record<string, string>>;
 /** 分组渲染顺序（稳定排序；表外组名追加到尾部）。 */
 export declare const PALETTE_GROUP_ORDER: readonly string[];
 /** 未分组条目（外部插件命令等）的兜底组名。 */
@@ -54,7 +53,7 @@ export type PaletteEvent = {
  */
 export declare function emptyPaletteState(): PaletteState;
 /**
- * SlashCommand → 面板条目（自动填分组；表外命令归「其他」）。
+ * SlashCommand → 面板条目（分组取命令注册时携带的 category；未标注归「其他」）。
  * @param commands - 注册表命令列表。
  * @returns 面板条目（argsHint 缺省时不带该字段；group 恒有值）。
  */
@@ -114,6 +113,8 @@ export declare class CommandPalette {
     private readonly getTheme;
     /** 确认模式：true = execute（Enter 直接执行 `/name`）；false = backfill（回填 `/name `）。 */
     private executeMode;
+    /** Enter commit 结果暂存（handleKey 路径；装配方 takeCommit 取走后清空）。 */
+    private pendingCommit;
     constructor(opts: CommandPaletteOptions);
     /**
      * 面板是否打开。
@@ -158,6 +159,26 @@ export declare class CommandPalette {
      * @returns 条目与文本/模式；选中越界（如无匹配）返回 null。
      */
     commit(): {
+        entry: PaletteEntry;
+        text: string;
+        execute: boolean;
+    } | null;
+    /**
+     * 键位路由（scroll-pager 范式收敛；装配方只做 deactivate/rerender 与
+     * takeCommit 分流）：Esc/Ctrl+C → close（不提交、不回填输入行——真机 A6
+     * 修复语义）；Enter → commit 暂存 + close；↑/↓ 移动选中；其余可打印字符
+     * 进查询。Backspace 维持吞掉不删（装配方历史路由语义——query 只增不减）。
+     * @param name - 按键名。
+     * @param char - 可打印字符（控制键为 ''）。
+     * @returns close = 请求关闭；handled = 已消费。
+     */
+    handleKey(name: string, char: string): OverlayKeyResult;
+    /**
+     * 取走最近一次 Enter 的 commit 结果（无选中时为 null）；取后清空。
+     * 装配方据此分流：execute 直接执行 `/name`；backfill 回填 `/name ` 输入框。
+     * @returns commit 结果；无（Esc 关闭/无匹配）为 null。
+     */
+    takeCommit(): {
         entry: PaletteEntry;
         text: string;
         execute: boolean;

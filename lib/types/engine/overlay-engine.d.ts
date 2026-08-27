@@ -19,6 +19,12 @@
 import type { WriteStream } from 'node:tty';
 /** overlay 标识。内置名之外允许任意字符串（扩展 overlay）。 */
 export type OverlayId = string;
+/**
+ * overlay 键路由统一返回词表（scroll-pager 范式收敛）：close = 请求关闭
+ * （装配方 deactivate）；handled = 已消费（装配方 rerender）。Esc/Ctrl+C
+ * 的关闭判定收敛在各 overlay 的 handleKey 内，装配方不再逐 overlay 手写。
+ */
+export type OverlayKeyResult = 'close' | 'handled';
 /** overlay 渲染器：全屏内容生产 + 激活/失活生命周期钩子。 */
 export interface OverlayRenderer {
     /** 渲染 overlay 内容。返回 ANSI 格式化后的行数组。 */

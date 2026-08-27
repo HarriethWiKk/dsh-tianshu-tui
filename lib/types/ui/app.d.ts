@@ -136,9 +136,20 @@ export declare class TuiApp {
     private memoryOverlay;
     /** #31：交互式选择器 overlay（/model /theme /session 无参打开；上下键选择）。 */
     private picker;
-    /** 双击 Esc 触发 rewind：第一次 Esc 的时间戳（0 = 无待定；窗口内第二次 Esc
-     *  打开 rewind overlay，对齐 Claude Code 的 Esc+Esc 时间回溯）。 */
-    private escRewindPendingSince;
+    /** 统一 action registry：键路由/快捷键面板/footer 提示的单一事实来源。 */
+    private readonly actions;
+    /** 动作执行上下文门面（createActionContext 装配；闭包注入私有方法）。 */
+    private readonly actionCtx;
+    /** 阻塞态键上下文轮询表（现状顺序保持：question > btw > approval）。 */
+    private readonly blockingKeys;
+    /** slash 命令菜单键上下文（轮询位置在主段动作之后、inspect 之前——现状顺序）。 */
+    private readonly menuKeys;
+    /** inspect 上下文键（轮询位置在 slash 菜单之后——现状顺序保持）。 */
+    private readonly inspectKeys;
+    /** overlay 键路由器（key-dialog/picker/search/scroll/rewind/memory/palette 委派）。 */
+    private readonly overlayRouter;
+    /** footer 检查面板提示段（registry 构造期投影；审批段改由 renderLive 逐帧投影——p 段动态）。 */
+    private readonly footerInspectHints;
     /** Phase 9d：流利度追踪（tool 事件 → 渲染策略；stale 提示消费于 renderLive）。 */
     private readonly fluency;
     /** Phase 5.3：底部 glance（状态/错误行派生 + 节流；renderLive 消费 current()）。 */
@@ -624,9 +635,7 @@ export declare class TuiApp {
      * @returns 用户决定（allowed-once/rejected/cancelled）或 next() 结果。
      */
     private handleApprovalRequest;
-    /** Phase 8：结算挂起的审批请求（用户按键/取消）——薄转发。 */
-    private settleApproval;
-    /** 取消当前运行（Esc/Ctrl+C）：cancel agent、丢弃未发出的流式/推理缓冲并重置流渲染。 */
+    /** 取消当前运行（Esc/Ctrl+C）：cancel agent（keepInbox——宿主 inbox 未消费的 steer/排队残留保留）、丢弃未发出的流式/推理缓冲并重置流渲染。 */
     /** 最近一次 Ctrl+C 字节（0x03）处理时间戳；0 = 未处理过（SIGINT 防抖用）。 */
     private lastCtrlCAt;
     /**
@@ -643,9 +652,8 @@ export declare class TuiApp {
     private isCommandPrefix;
     handleAbort(): void;
     /**
-     * Phase 6.4：打开外部编辑器编辑当前输入行。编辑器是外部进程，必须暂时
-     * 退出 raw-mode（编辑器需要正常终端交互）；spawnSync 阻塞期间 ticker 暂停。
-     * 任何路径（含编辑器失败）都恢复 raw-mode。编辑结果回填输入行。
+     * Phase 6.4：打开外部编辑器编辑当前输入行。编辑器是外部进程，必须暂时退出
+     * raw-mode（spawnSync 阻塞期间 ticker 暂停），任何路径（含失败）都恢复。编辑结果回填输入行。
      */
     private openExternalEditor;
     /**
@@ -698,8 +706,23 @@ export declare class TuiApp {
     private pasteClipboardIntoKeyDialog;
     /** /update：对照 npm latest 的只查不装检查（用户看到提示后手动更新；失败不抛）。 */
     private runUpdateCheck;
-    /** 键路由：Enter 提交 / Ctrl-C 取消或退出 / 上下键历史 / 其余交给 InputLine。 */
+    /**
+     * 键路由（统一 action registry）：布防清扫 → 早段全局动作（overlay 之前——
+     * shift_tab/ctrl_n 等在面板打开时先生效，现状语义保持）→ overlay 委派
+     * （scroll-pager 范式）→ 阻塞上下文轮询（question > btw > approval）→
+     * 主段动作（esc 打断/关 inspect/双击 rewind、ctrl_c、ctrl_o、editorKey、
+     * ctrl_t、ctrl_v）→ slash 菜单 → inspect 上下文键 → 尾段动作（空 Tab/
+     * Alt+Backspace/↑↓）→ InputLine 兜底。
+     */
     private handleKey;
+    /** A5：最后一张进行中工具卡（空输入 Enter 展开目标）；无则 undefined。 */
+    private latestPendingToolCall;
+    /**
+     * 动作执行上下文门面（actions/types.ts 的 ActionContext）：动作表的 when/run
+     * 只经此触达本类私有方法——registry 不 import 本类。读取方法即原 handleKey
+     * 各分支的判定条件原样搬出；confirmMs 原语转发 registry 布防状态。
+     */
+    private createActionContext;
     /**
      * Phase 5.3：glance 一行条的可得数据。model（request header 优先、
      * agentDefaultModel 兜底）、effort（同构）、缓存命中率与上下文占比

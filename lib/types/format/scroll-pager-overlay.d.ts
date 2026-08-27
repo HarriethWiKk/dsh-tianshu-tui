@@ -6,10 +6,10 @@
  * Esc 退出。渲染按逻辑行窗口化（超宽行截断到终端宽度），ANSI 原样保留。
  * 键位路由收敛在本类 handleKey，装配方（TuiApp）只做 activate/deactivate。
  */
-import type { OverlayRenderer } from '../engine/overlay-engine.js';
+import type { OverlayKeyResult, OverlayRenderer } from '../engine/overlay-engine.js';
 import type { RivetTheme } from '../theme.js';
-/** handleKey 结果：close = 请求关闭 overlay；handled = 已消费。 */
-export type PagerKeyResult = 'close' | 'handled';
+/** handleKey 结果：close = 请求关闭 overlay；handled = 已消费（统一词表 OverlayKeyResult）。 */
+export type PagerKeyResult = OverlayKeyResult;
 export declare class ScrollPagerOverlay implements OverlayRenderer {
     private messages;
     /** 扁平化后的逻辑行（ANSI 原样）与每行所属消息索引。 */

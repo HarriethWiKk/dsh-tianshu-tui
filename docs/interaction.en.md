@@ -25,6 +25,7 @@ When there is more than one session, a **session tab bar** appears above the inp
 |---|---|
 | `Ctrl+E` | Open the input line in `$EDITOR` (configurable via `editorKey`) |
 | `Ctrl+T` | Steer mid-turn (correct direction without interrupting) |
+| `Ctrl+Enter` | Cut in line: interrupt the in-flight turn and send the draft immediately (cancel-and-send; requires kitty keyboard protocol support, `RIVET_KITTY_KEYBOARD=1` force-enables it) |
 | `Ctrl+V` | Paste a clipboard image (falls back to clipboard text when none) |
 | `Alt+W` | Copy the selection to the system clipboard (OSC52) |
 | `Tab` | `@`-path completion; accept the slash-menu selection |
@@ -50,15 +51,20 @@ Above the input track, running work folds into one activity band (`◐ N subagen
 
 | Key | Action |
 |---|---|
-| `y` / `N` / `Ctrl+C` | Approval card: allow / reject / cancel |
+| `y` | Approval card: allow once |
+| `p` | Approval card: don't ask again for this command prefix (bash-like tools only; same-prefix commands auto-allowed for this session) |
+| `t` | Approval card: remember this tool (this tool auto-allowed for this session) |
 | `a` | Approval card: allow for this session (always-approve + settle the current request) |
+| `n` | Approval card: reject |
+| `f` → `Enter` | Approval card: reject with feedback (the text is steered to the agent; Esc returns to the options) |
+| `Esc` / `Ctrl+C` | Approval card: cancel |
 | `f` → `Enter` | Plan-review feedback mode (Keep planning + custom feedback) |
 | Digits | Structured-question panel options |
 | In pickers: `↑`/`↓` (j/k) select, `Enter` apply (this session), `S` save default, `Esc`/`q` close | `/model` `/theme` `/effort` pickers (session/`/key` pickers have no S) |
 | Session list: grouped today / yesterday / this week / earlier, then printed | `/session list` |
 | Session picker: `↑`/`↓` (skips group headers) | No-arg `/session` picker (calendar groups + title / relative age, not paginated) |
 
-## Command Reference (29 commands)
+## Command Reference (40 commands)
 
 ### Sessions
 
@@ -81,6 +87,15 @@ Above the input track, running work folds into one activity band (`◐ N subagen
 | `/preset [name] [default]` | View/switch agent preset (lists capability + toolset per mode; footer/top bar show the current short name; args=this session's full agent plane; trailing `default`=new-session startup default; blank sessions only; aliases `ptc`→code, `creative`→cordis) |
 | `/yolo [on\|off]` | Always-approve mode |
 | `/density [default]` | Toggle compact tool-card rendering (toggle=this session; `/density default`=startup default) |
+| `/glance [segment]` | Toggle footer metrics segments (e.g. `/glance cost`; no args shows current state) |
+| `/info` | Cycle input-area info density: `full` two lines (status + metrics, default) / `compact` status line only / `off`; persisted |
+| `/vim [on\|off\|default]` | Toggle vi/vim editing keybindings (`default` persists as startup default) |
+
+### Authentication
+
+| Command | Effect |
+|---|---|
+| `/key` · `/login` | Configure a provider API key (pick provider → masked input + online validation; takes effect on save; `/login` is an alias) |
 
 ### Panels
 
@@ -117,6 +132,7 @@ Above the input track, running work folds into one activity band (`◐ N subagen
 Custom themes (`~/.dsh-tui/themes/*.json`) get contrast warnings on load (WCAG < 3.0 against the declared background, non-blocking); `NO_COLOR` suppresses all theme color output.
 | `/steer <text>` | Steer mid-turn |
 | `/restart` | Restart the current dsh process (same command re-launched; applies plugin updates) |
+| `/update` | Check for plugin updates (against npm latest; check-only, prints the update command when a newer version exists) |
 | `/exit` | Exit the TUI |
 
 ## Input Surfaces
@@ -126,7 +142,7 @@ Custom themes (`~/.dsh-tui/themes/*.json`) get contrast warnings on load (WCAG <
 - **Image paste**: `Ctrl+V` or the terminal menu; oversized images are adaptively compressed before sending (1568px long-edge cap, progressive JPEG downscaling).
 - **Multiline input & bracketed paste**: pasting multiline/long text lands whole in the input line instead of submitting line by line.
 - **Vim keybindings**: optional (`vimEnabled`); `Alt+W`/yank copies the selection via OSC52. Insert-mode two-key sequence → Esc (`vimInsertRemaps`, e.g. `{"jj":"esc"}` in prefs; 1s window guards misfires).
-- **Message queue while running (CC queue parity)**: submits during a running turn enter a local queue above the input rail (echoed, not sent); flushed in order at turn end; aborted turns do not flush; empty-input `↑` takes back the first; switching sessions drops it with an echo. Immediate steering stays on `/steer`/`Ctrl+T`.
+- **Message queue while running (CC queue parity)**: submits during a running turn enter a local queue above the input rail (echoed, not sent); flushed in order at turn end; aborted turns do not flush; empty-input `↑` takes back the first; switching sessions drops it with an echo. Immediate steering stays on `/steer`/`Ctrl+T`; `Ctrl+Enter` cuts in line (interrupt first, then send; needs kitty keyboard enhancement).
 
 ## Interactive Panels
 

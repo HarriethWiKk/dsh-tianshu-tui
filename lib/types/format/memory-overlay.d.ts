@@ -11,12 +11,12 @@
  *   含 'x' 的过滤词，可用大写 'X' 代替——但 'X' 目前同 x 语义。后续可选：改为
  *   dd 双键确认删除，释放单 x 给过滤。）
  * - Ctrl+N/Ctrl+P：下/上一页（分页，每页 20 条）
- * - Esc/Ctrl+C：关闭（装配方 deactivate）
+ * - Esc/Ctrl+C：关闭（handleKey 返回 'close'，装配方 deactivate）
  *
  * 数据源由装配方注入（TuiApp.openMemoryBrowser 经 memory 服务 list/delete），
  * overlay 本身不碰 I/O——纯状态机 + 渲染（对齐 RewindOverlay 模式）。
  */
-import type { OverlayRenderer } from '../engine/overlay-engine.js';
+import type { OverlayKeyResult, OverlayRenderer } from '../engine/overlay-engine.js';
 import type { RivetTheme } from '../theme.js';
 /** 记忆浏览器条目（memory 服务 list() 返回形状的最小消费面）。 */
 export interface MemoryBrowserItem {
@@ -57,12 +57,13 @@ export declare class MemoryBrowserOverlay implements OverlayRenderer {
     /** 过滤后的条目（query 为空 = 全量）。 */
     private get filtered();
     /**
-     * 处理按键；返回 true 表示已消费（Esc/Ctrl+C 由装配方关闭 overlay）。
+     * 键位路由（scroll-pager 范式收敛——Esc/Ctrl+C 关闭判定收进类内）。
      * @param name - 按键名（up/down/backspace/ctrl_n/ctrl_p/escape/ctrl_c 等）。
      * @param char - 可打印字符（j/k 移动，x/X 删除，其余进过滤 query）。
-     * @returns 已消费时 true。
+     * @returns close = 请求关闭（Esc/Ctrl+C）；handled = 已消费（含空格等未
+     *   映射键——overlay 独占焦点，吞掉不穿透输入行）。
      */
-    handleKey(name: string, char: string): boolean;
+    handleKey(name: string, char: string): OverlayKeyResult;
     /** 删除当前选中项（异步：onDelete + refetch 刷新；失败静默保持列表）。 */
     private deleteSelected;
     /** 下一页（异步拉取，加载中静默）。offset 语义 = 已加载条数（fetchPage
