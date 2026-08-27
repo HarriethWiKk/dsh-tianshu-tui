@@ -28,7 +28,7 @@ When there is more than one session, a **session tab bar** appears above the inp
 | `Ctrl+V` | Paste a clipboard image (falls back to clipboard text when none) |
 | `Alt+W` | Copy the selection to the system clipboard (OSC52) |
 | `Tab` | `@`-path completion; accept the slash-menu selection |
-| `↑`/`↓` | Input history (menu selection when the slash menu is open) |
+| `↑`/`↓` | Input history (menu selection when the slash menu is open; with queued messages, empty-input `↑` takes back the first) |
 | `PageUp`/`PageDown` | Page through the slash menu |
 | `Esc` | Close menus/overlays/inspect panels; cancel a pending question |
 
@@ -125,6 +125,7 @@ Above the input track, running work folds into one activity band (`◐ N subagen
 - **Image paste**: `Ctrl+V` or the terminal menu; oversized images are adaptively compressed before sending (1568px long-edge cap, progressive JPEG downscaling).
 - **Multiline input & bracketed paste**: pasting multiline/long text lands whole in the input line instead of submitting line by line.
 - **Vim keybindings**: optional (`vimEnabled`); `Alt+W`/yank copies the selection via OSC52.
+- **Message queue while running (CC queue parity)**: submits during a running turn enter a local queue above the input rail (echoed, not sent); flushed in order at turn end; aborted turns do not flush; empty-input `↑` takes back the first; switching sessions drops it with an echo. Immediate steering stays on `/steer`/`Ctrl+T`.
 
 ## Interactive Panels
 

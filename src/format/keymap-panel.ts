@@ -39,7 +39,7 @@ export const KEYMAP_ENTRIES: KeymapEntry[] = [
   { keys: 'Ctrl+C', action: '打断当前回合（空闲双击退出）' },
   { keys: 'Shift+Tab', action: '模式循环 normal→plan→always-approve' },
   { keys: 'Tab', action: '@-路径补全 / 接受 slash 选中项' },
-  { keys: '↑/↓', action: '输入历史（菜单打开时为选择）' },
+  { keys: '↑/↓', action: '输入历史（菜单打开时为选择；运行中排队时 ↑ 取回队首）' },
   { keys: 'PageUp/PageDown', action: 'slash 菜单翻页' },
   { keys: 'Alt+W', action: '复制选区到系统剪贴板（OSC52）' },
   { keys: 'Esc', action: '取消/关闭检查面板（空闲双击 rewind）' },

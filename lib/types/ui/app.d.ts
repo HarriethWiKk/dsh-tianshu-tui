@@ -121,6 +121,8 @@ export declare class TuiApp {
     private apiKeyReady;
     /** composer 附件缩略图（半块预览；提取为 controllers/attachment-preview）。 */
     private attachmentPreview;
+    /** 运行中提交的本地排队（turn/end 投递、↑ 取回；见 controllers/submit-queue）。 */
+    private readonly submitQueue;
     /** /key、/login：API Key 设置对话框（掩码输入 + 联网验证 + 落盘）。 */
     private keyDialog;
     /** /key 供应商密钥配置装配层（key-wizard/key-dialog 之上；deps 注入 openKeyDialog）。 */
@@ -586,6 +588,8 @@ export declare class TuiApp {
      * @param images - 输入框携带的图片附件 data URL 列表（可省略）
      */
     handleSubmit(text: string, images?: string[]): void;
+    /** turn/end → 本地队列按序投递（气泡 → followup）；aborted 不 flush——打断后可能想 ↑ 取回。 */
+    private flushSubmitQueue;
     /**
      * 执行一条 slash 命令：注册表解析 → handler 运行 → 回显/错误提示。
      * 命令回显写 scrollback（用户可见），但不写回 session log（dsh 纪律：

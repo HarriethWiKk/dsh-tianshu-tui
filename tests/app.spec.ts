@@ -8241,3 +8241,69 @@ describe('空闲 ticker 跳过组装', () => {
     }
   })
 })
+
+describe('TuiApp 运行中排队（对标 CC queue；↑ 取回）', () => {
+  async function bootQueueApp() {
+    const ctx = makeCtx()
+    const agent = makeAgent('queue-1')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    // trackAgent 从 ctx.agents.get 播种 status/inbox——置 running 制造「运行中」现场
+    ctx.agents.get.mockReturnValue({ ...agent, status: 'running', inbox: { nextTurn: [], nextStep: [] } })
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin, theme: 'paper' })
+    await app.attach()
+    const id = app.sessionId
+    if (id === null) throw new Error('no active session')
+    return { app, agent, stdout, stdin, id, emit: sessionEventBus(ctx) }
+  }
+
+  it('running 提交进本地队列不直发；completed turn/end 按序投递', async () => {
+    const { app, agent, stdout, id, emit } = await bootQueueApp()
+    emit(id, { seq: 1, time: 1, type: 'turn/start', data: { turn: 1 } })
+    app.handleSubmit('queued one')
+    app.handleSubmit('queued two')
+    await new Promise(resolve => setImmediate(resolve))
+    // 排队期不投递；输入轨上方出现排队行
+    expect(agent.followup).not.toHaveBeenCalled()
+    expect(stdout.write.mock.calls.map(c => `${c[0]}`).join('')).toContain('条排队')
+
+    emit(id, { seq: 2, time: 2, type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } })
+    await new Promise(resolve => setImmediate(resolve))
+    expect(agent.followup).toHaveBeenCalledTimes(2)
+    expect(firstCallText(agent.followup)).toBe('queued one')
+    await app.dispose()
+  })
+
+  it('aborted turn/end 不投递（打断后不自动开新轮）', async () => {
+    const { app, agent, id, emit } = await bootQueueApp()
+    emit(id, { seq: 1, time: 1, type: 'turn/start', data: { turn: 1 } })
+    app.handleSubmit('queued three')
+    emit(id, { seq: 2, time: 2, type: 'turn/end', data: { turn: 1, reason: { kind: 'aborted', reason: { kind: 'user' } } } })
+    await new Promise(resolve => setImmediate(resolve))
+    expect(agent.followup).not.toHaveBeenCalled()
+    await app.dispose()
+  })
+
+  it('空输入 ↑ 取回队首回输入行；取回后 turn/end 不投递被取回的消息', async () => {
+    const { app, agent, stdout, stdin, id, emit } = await bootQueueApp()
+    emit(id, { seq: 1, time: 1, type: 'turn/start', data: { turn: 1 } })
+    app.handleSubmit('take me back')
+    expect(stdout.write.mock.calls.map(c => `${c[0]}`).join('')).toContain('条排队')
+    stdin.emit('data', '\x1B[A') // ↑ 取回队首
+    await new Promise(resolve => setImmediate(resolve))
+    stdout.write.mockClear()
+    // 取回后队列空（排队行不再出现），文本回到输入轨
+    stdin.emit('data', ' ')
+    await new Promise(resolve => setImmediate(resolve))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('take me back')
+    expect(written).not.toContain('条排队')
+
+    emit(id, { seq: 2, time: 2, type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } })
+    await new Promise(resolve => setImmediate(resolve))
+    expect(agent.followup).not.toHaveBeenCalled()
+    await app.dispose()
+  })
+})

@@ -106,6 +106,7 @@ import { WorkflowSurfaceController } from '../controllers/workflow-surface.js'
 import { DelegationSurfaceController, type SubagentsFacet } from '../controllers/delegation-surface.js'
 import { CommitSurface } from '../controllers/commit-surface.js'
 import { AttachmentPreviewController } from '../controllers/attachment-preview.js'
+import { formatQueueLine, SubmitQueueController } from '../controllers/submit-queue.js'
 import { KeyDialogController } from './key-dialog.js'
 import { KeyFlow } from './key-flow.js'
 import {
@@ -484,6 +485,8 @@ export class TuiApp {
     getColumns: () => this.stdout.columns,
     getBackground: () => (this.theme as { userMsgBg?: string }).userMsgBg, onChanged: () => { this.flushLiveRender() },
   })
+  /** 运行中提交的本地排队（turn/end 投递、↑ 取回；见 controllers/submit-queue）。 */
+  private readonly submitQueue = new SubmitQueueController()
   /** /key、/login：API Key 设置对话框（掩码输入 + 联网验证 + 落盘）。 */
   private keyDialog: KeyDialogController | null = null
   /** /key 供应商密钥配置装配层（key-wizard/key-dialog 之上；deps 注入 openKeyDialog）。 */
@@ -2434,6 +2437,11 @@ export class TuiApp {
     this.taskSurfaceDisposer?.()
     this.taskSnapshots = []
     this.taskNotice = null
+    // 切会话清空运行中排队：待发消息属于原会话上下文，不跨会话投递（行数回显）。
+    if (this.submitQueue.size() > 0) {
+      this.commitToScrollback({ text: `⚠ 切换会话：丢弃 ${this.submitQueue.size()} 条未发送的排队消息`, trailingNewline: true })
+    }
+    this.submitQueue.clear()
     const tasks = this.ctx.reflect.get('tasks', false) as TasksFacet | undefined
     if (tasks !== undefined) {
       this.taskSnapshots = tasks.list()
@@ -2534,6 +2542,12 @@ export class TuiApp {
     // /name 经 looksLikeFilePath 走文本流，host 的 pre-step 手势注入技能体。
     this.skillSurface.recordGesture(trimmed)
     this.pushHistory(trimmed)
+    // 运行中排队（对标 CC）：宿主 followup 无取回 API——本地排队才能 ↑ 取回；turn/end 按序投递。
+    if (this.liveAgent?.state.status === 'running') {
+      this.submitQueue.push(expanded, images)
+      this.flushLiveRender()
+      return
+    }
     // 用户气泡：正文 + 📎 附件行 + 识图能力提示；有图且终端支持图形协议时
     // 异步 prepare 后在同一写窗口追加终端图片（时序说明见 commit-surface）。
     this.commitSurface.userPrompt(expanded, images)
@@ -2546,6 +2560,19 @@ export class TuiApp {
       this.flushLiveRender()
     })
     this.flushLiveRender()
+  }
+
+  /** turn/end → 本地队列按序投递（气泡 → followup）；aborted 不 flush——打断后可能想 ↑ 取回。 */
+  private flushSubmitQueue(reason: 'completed' | 'aborted'): void {
+    if (reason === 'aborted') return
+    const items = this.submitQueue.drain()
+    for (const item of items) {
+      this.commitSurface.userPrompt(item.text, item.images)
+      void this.controls?.followup(item.text, item.images).catch((err: unknown) => {
+        this.commitToScrollback({ text: `⚠ 排队消息发送失败: ${err instanceof Error ? err.message : String(err)}`, trailingNewline: true })
+      })
+    }
+    if (items.length > 0) this.flushLiveRender()
   }
 
   /**
@@ -3321,6 +3348,13 @@ export class TuiApp {
       return
     }
     if (key.name === 'up' || key.name === 'down') {
+      // 排队取回（对标 CC）：空输入 ↑ 取回队首回输入行。
+      if (key.name === 'up' && this.inputLine.value === '' && this.submitQueue.size() > 0) {
+        const first = this.submitQueue.takeFirst()
+        if (first !== undefined) this.inputLine.setValue(first.text, first.text.length)
+        this.flushLiveRender()
+        return
+      }
       // 交给 InputLine 的历史导航（InputLineEvent 'history' 不消费即已处理）
       this.inputLine.handleKey(key.name, key.char, key.ctrl, key.meta, key.shift, key.inline === true)
       this.flushLiveRender()
@@ -3538,6 +3572,8 @@ export class TuiApp {
       case 'turn/end': {
         // Phase 9d：turn 边界复位流利度信号
         this.fluency.onTurnComplete()
+        // 运行中排队 → turn 边界按序投递（中止轮不 flush，见 flushSubmitQueue）。
+        this.flushSubmitQueue(event.data.reason.kind === 'aborted' ? 'aborted' : 'completed')
         // A3：回合边界刷新 git 未提交计数（footer ●N；不逐帧 spawn）。
         this.gitDirty = gitDirtyCount()
         // A5：回合结束复位工具卡展开态（工具已结算，展开无意义）。
@@ -4070,6 +4106,10 @@ export class TuiApp {
     // 增强——解码失败/无附件时预览为空数组不占位，计数行仍在）。
     for (const line of this.attachmentPreview.lines) {
       lines.push({ text: line })
+    }
+    // 运行中排队行（对标 CC：待发消息显示在输入上方；↑ 取回队首）。
+    if (this.submitQueue.size() > 0) {
+      lines.push({ text: formatQueueLine(cols, this.submitQueue.peekAll()) })
     }
     // 阶段 2：slash 菜单选中命令 → 输入行 ghost 预览（补全剩余/参数占位）。
     this.inputLine.setGhost(this.slashGhostText())
