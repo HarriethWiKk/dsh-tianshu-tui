@@ -123,9 +123,9 @@ The companion vision plugin lives in `vision-ask/` if you need image re-interrog
 
 ## Release notes
 
-Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.21`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.21)).
+Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.22`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.22)).
 
-**0.1.2-rc.21 (2026-08-27)**: three community fixes — inverse-video input caret (moving the cursor no longer shifts characters; CJK width preserved, #50), preset defaults to `standard` so updates no longer yield a tool-less agent (#48), and root-cause analysis + upstream report for `malformed SSE payload` (#49).
+**0.1.2-rc.22 (2026-08-27)**: LSP model tool surface ships bundled (`@huiliyi37/dsh-lsp` companion plugin auto-inserted — one TUI install covers display bridge + model tools; remove the legacy community plugin first). **0.1.2-rc.21 (2026-08-27)**: three community fixes — inverse-video input caret (#50), preset defaults to `standard` (#48), root-cause + upstream report for `malformed SSE payload` (#49).
 
 Full release history: [CHANGELOG.md](CHANGELOG.md) (zh) and [GitHub Releases](https://github.com/huiliyi37/dsh-tianshu-tui/releases). In the TUI, `/changelog` shows the current release (`/changelog all` for everything).
 

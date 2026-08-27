@@ -3,6 +3,14 @@
 版本更新记录。安装与当前版本见 [README](README.md)；完整历史在此。
 `/changelog` 在 TUI 内查看（默认当前版本，`/changelog all` 全部，`/changelog N` 最近 N 版）。
 
+## [0.1.2-rc.22] - 2026-08-27
+
+LSP 模型工具面随包内置：装 TUI 一个包即得展示桥 + 模型工具面，不再单独装配社区插件。
+
+- **LSP 模型工具面内置（伴生包 `@huiliyi37/dsh-lsp@0.1.0-rc.1`）** — `lsp_goto_definition` / `lsp_find_references` / `lsp_diagnostics` 三个只读模型工具经 bundle patch 自动挂载；`provide('lsp')` 服务由 TUI 展示桥直接消费（single server set 不双份 spawn，诊断源探测顺序不变）。⚠ 旧社区版（`github:omdsh-dev/dsh-lsp`）与内置版二选一：升级用户请先 `plugin remove` 旧版再更新，同时装配会重复注册同名模型工具
+- **根 lockfile 清理** — 移除 37 个历史孤儿宿主链条目（`npm ci --dry-run` 验证一致）
+
+
 ## [0.1.2-rc.21] - 2026-08-27
 
 社区反馈三连修：光标体验、更新后 preset 缺省、SSE 畸形载荷根因定位。

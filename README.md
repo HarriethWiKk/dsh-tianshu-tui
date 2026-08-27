@@ -122,9 +122,9 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 
 ## 更新说明
 
-当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.21`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.21)）。
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.22`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.22)）。
 
-**0.1.2-rc.21（2026-08-27）**：社区反馈三连修——输入框光标反色化（移动光标不再带动字符、中文宽度守恒，#50）、preset 缺省 standard（更新后不再进入无工具面 agent，#48）、`malformed SSE payload` 根因定位并上报官方公测仓（#49）。
+**0.1.2-rc.22（2026-08-27）**：LSP 模型工具面随包内置（`@huiliyi37/dsh-lsp` 伴生插件自动挂载，装 TUI 一个包即得展示桥 + 模型工具面；旧社区版请先移除）。**0.1.2-rc.21（2026-08-27）**：社区反馈三连修——输入框光标反色化（#50）、preset 缺省 standard（#48）、`malformed SSE payload` 根因定位并上报官方（#49）。
 
 完整版本历史见 [CHANGELOG.md](CHANGELOG.md)；TUI 内 `/changelog` 查看（`/changelog all` 全部）。
 
