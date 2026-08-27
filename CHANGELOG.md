@@ -10,6 +10,16 @@
 - **vi/vim 编辑键位完整支持（[#51](https://github.com/huiliyi37/dsh-tianshu-tui/issues/51)）** — 输入行 Esc 进 NORMAL（底部 `-- NORMAL --` 标签，insert 态隐藏），键位表对标 Claude Code interactive-mode：`h j k l Space`、`w e b W B E`、`0 $ ^`、`gg G`、`f F t T ; ,` 导航与查找重放；`d c y × motion` + 数字前缀（`2dd` / `3w` / `2fa`）；文本对象 `iw aw iW aW`；行级 `dd cc yy Y` 与 `p P` 行级粘贴；`x X D C s S r o O J u` / `Ctrl+R`；`.` 重放上一条变更（o/C/cw 等进入插入段的连打一并复现）。visual `v/V` 选区两端含光标下字符（vim 归属语义）。多行草稿 j/k 保持列移动，单行边缘翻历史；词类口径 `\w + CJK`——中文连续段成词不逐字跳
 - **`/vim [on|off|default]` 运行时开关 + 启动默认持久化** — 无参切换、带参定向；`default` 写入本地 prefs（重启仍生效）；宿主显式传入 `vimEnabled` 配置时优先于 prefs。NORMAL 态 `/` 打开历史搜索 overlay（同 `Ctrl+F`）
 
+## [0.1.2-rc.23] - 2026-08-27
+
+LSP 三件套对齐 tianshu-public 0.6.0 官方 seam 线（修正 rc.22 误挂的旧构建线）+ 宿主线上对齐。
+
+- **LSP 三件套** — `@huiliyi37/dsh-lsp`（ctx.lsp seam 注册表）+ `dsh-lsp-local`（stdio provider，默认 typescript-language-server npx 条目、懒启动）+ `dsh-tool-lsp`（单 `lsp` 工具四操作：goto-definition / find-references / goToImplementation / hover）；无 provider 时查询返回结构化 `LSP_UNAVAILABLE`，schema 稳定
+- **诊断源能力门控** — 新增 `selectDiagnosticSource`：query 形状服务仅在声明支持 getDiagnostics 时才采纳为 `/lsp` 面板数据源，否则回落内置 multi-manager（修复 seam 盲采导致面板永久空的回归）
+- **宿主线上对齐** — peer/dev 全量 `^0.1.0-rc.8 → ^0.1.1-rc.2`（官方 next/latest 已是 0.1.1-rc.2），补齐新线拆分包 devDeps 闭包（timeout / atomic-write / home-paths / settings 等 20+，实装后 2444 用例全绿——无 API 漂移）
+- ⚠ 升级自 rc.22 的用户无需手动操作（依赖行自动切到 0.6.0 线）；单独装过旧社区版 `github:omdsh-dev/dsh-lsp` 的请先 remove
+
+
 ## [0.1.2-rc.22] - 2026-08-27
 
 LSP 模型工具面随包内置：装 TUI 一个包即得展示桥 + 模型工具面，不再单独装配社区插件。

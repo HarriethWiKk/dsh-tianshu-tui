@@ -123,9 +123,13 @@ The companion vision plugin lives in `vision-ask/` if you need image re-interrog
 
 ## Release notes
 
-Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.22`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.22)).
+Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.23`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.23)).
 
-**0.1.2-rc.22 (2026-08-27)**: LSP model tool surface ships bundled (`@huiliyi37/dsh-lsp` companion plugin auto-inserted — one TUI install covers display bridge + model tools; remove the legacy community plugin first). **0.1.2-rc.21 (2026-08-27)**: three community fixes — inverse-video input caret (#50), preset defaults to `standard` (#48), root-cause + upstream report for `malformed SSE payload` (#49).
+**0.1.2-rc.23 (2026-08-27)**: LSP trio aligned to the tianshu-public 0.6.0 official seam line (single `lsp` tool with four operations + local provider defaulting to tsserver), capability-gated diagnostic source prevents `/lsp` panel regression; host peers aligned to `^0.1.1-rc.2`.
+
+**0.1.2-rc.22 (2026-08-27)**: LSP model tool surface shipped bundled first version (companion plugin auto-inserted; remove the legacy community plugin).
+
+**0.1.2-rc.21 (2026-08-27)**: three community fixes — inverse-video input caret (#50), preset defaults to `standard` (#48), root-cause + upstream report for `malformed SSE payload` (#49).
 
 Full release history: [CHANGELOG.md](CHANGELOG.md) (zh) and [GitHub Releases](https://github.com/huiliyi37/dsh-tianshu-tui/releases). In the TUI, `/changelog` shows the current release (`/changelog all` for everything).
 
