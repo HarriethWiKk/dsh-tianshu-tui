@@ -8026,7 +8026,7 @@ describe('LSP 诊断桥（黑盒：假 server 注入）', () => {
       ],
     }))
     ctx.reflect.get.mockImplementation((name: string) => {
-      if (name === 'lsp') return { query: serviceQuery }
+      if (name === 'lsp') return { query: serviceQuery, operations: ['goToDefinition', 'findReferences', 'hover', 'getDiagnostics'] }
       return undefined
     })
     const stdout = makeStdout()

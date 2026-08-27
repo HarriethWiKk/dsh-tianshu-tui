@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PassThrough } from 'node:stream'
 import type { ChildProcess } from 'node:child_process'
 import { join, resolve } from 'node:path'
-import { createLspBridge, officialLspSource, type LspBridge } from '../src/lsp/lsp-bridge.js'
+import { createLspBridge, officialLspSource, selectDiagnosticSource, type LspBridge } from '../src/lsp/lsp-bridge.js'
 import type { LspServerDef } from '../src/lsp/server-registry.js'
 import { decodeMessages, encodeMessage } from '../src/lsp/rpc.js'
 import type { LspDiagnostic } from '../src/lsp/manager.js'
@@ -290,5 +290,33 @@ describe('officialLspSource（官方 ctx.lsp 服务适配）', () => {
     })
     expect(bridge.diagnosticsFor('src/a.ts')?.[0]).toMatchObject({ severity: 2, message: 'warn', line: 3 })
     bridge.dispose()
+  })
+})
+
+describe('selectDiagnosticSource（诊断源选择，任务6对齐能力门控）', () => {
+  it('undefined 服务 → builtin', () => {
+    expect(selectDiagnosticSource(undefined, '/w')).toEqual({ kind: 'builtin' })
+  })
+
+  it('社区/伴生形状（getDiagnostics 函数）→ 直接采纳', () => {
+    const svc = { getDiagnostics: () => [], isAvailable: () => true, dispose: () => {} }
+    const sel = selectDiagnosticSource(svc, '/w')
+    expect(sel.kind).toBe('service')
+  })
+
+  it('官方 seam 形状 + operations 声明含 getDiagnostics → 经 officialLspSource 采纳', () => {
+    const svc = { query: async () => ({ kind: 'diagnostics', diagnostics: [] }), operations: ['goToDefinition', 'getDiagnostics'] }
+    const sel = selectDiagnosticSource(svc, '/w')
+    expect(sel.kind).toBe('service')
+  })
+
+  it('回归主目标：0.6.x seat 形状（query 有、operations 无声明）→ builtin（不顶掉内置诊断管理器）', () => {
+    const svc = { query: async () => { throw new Error('LSP_UNAVAILABLE') }, registerProvider: () => () => {} }
+    expect(selectDiagnosticSource(svc, '/w')).toEqual({ kind: 'builtin' })
+  })
+
+  it('operations 声明不含 getDiagnostics → builtin', () => {
+    const svc = { query: async () => ({}), operations: ['goToDefinition', 'findReferences'] }
+    expect(selectDiagnosticSource(svc, '/w')).toEqual({ kind: 'builtin' })
   })
 })

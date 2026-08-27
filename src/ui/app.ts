@@ -135,11 +135,9 @@ import {
 import type { LiveSnapshot } from '../render/live-snapshot.js'
 import {
   createLspBridge,
-  officialLspSource,
+  selectDiagnosticSource,
   type LspBridge,
-  type LspDiagnosticSource,
   type LspDiagnosticView,
-  type OfficialLspServiceFacet,
 } from '../lsp/lsp-bridge.js'
 import type { MultiLspOptions } from '../lsp/multi-manager.js'
 import { lspBadgeText } from '../format/lsp-diagnostics.js'
@@ -1710,28 +1708,16 @@ export class TuiApp {
    */
   private ensureLspBridge(): LspBridge {
     if (this.lspBridge !== null) return this.lspBridge
-    // 双数据源探测（语义同视觉桥 resolveVisionBridge）：
-    // 1. 社区插件（omdsh-dev/dsh-lsp）provide('lsp') 服务——形状
-    //    { getDiagnostics/isAvailable/dispose }，与模型工具面共享 server 集；
-    // 2. 官方 ctx.lsp seam（deepseek-harness 的 dsh-lsp）——形状
-    //    { registerProvider/query }，经 officialLspSource 适配 getDiagnostics
-    //    操作（官方 seam 未含该操作时适配恒空，未来官方采纳后自动生效）；
-    // 3. 均未装配 → 内置桥（降级路径，保持现状行为）。
-    const cwd = this.sessionCwd()
-    const lspService = this.ctx.reflect.get('lsp', false) as
-      | { getDiagnostics?: unknown; query?: unknown } | undefined
-    let source: LspDiagnosticSource | undefined
-    if (lspService !== undefined) {
-      if (typeof lspService.getDiagnostics === 'function') {
-        // 社区插件形状：直接消费（getDiagnostics/isAvailable/dispose 全兼容）
-        source = lspService as unknown as LspDiagnosticSource
-      } else if (typeof lspService.query === 'function') {
-        // 官方 seam 形状：query(getDiagnostics) 适配
-        source = officialLspSource(lspService as OfficialLspServiceFacet, cwd)
-      }
-    }
+    // 诊断源选择（能力门控见 selectDiagnosticSource，任务6对齐）：
+    // 1. 社区/伴生形状（getDiagnostics 函数直接可用）→ 直接采纳；
+    // 2. 官方 seam 形状（只有 query）→ 需服务声明 operations 含 getDiagnostics
+    //    才采纳——0.6.x seam 只有导航四操作，盲目采纳会让 seam 源顶掉内置
+    //    multi-manager 而 query 恒报不可用 → /lsp 面板永久空；
+    // 3. 均未命中 → 内置桥（降级路径，诊断照常）。
+    const selected = selectDiagnosticSource(this.ctx.reflect.get('lsp', false), this.sessionCwd())
+    const source = selected.kind === 'service' ? selected.source : undefined
     this.lspBridge = createLspBridge({
-      cwd,
+      cwd: this.sessionCwd(),
       ...(this.lspConfig.timeoutMs === undefined ? {} : { timeoutMs: this.lspConfig.timeoutMs }),
       ...(this.lspConfig.spawnFor === undefined ? {} : { spawnFor: this.lspConfig.spawnFor }),
       ...(this.lspConfig.which === undefined ? {} : { which: this.lspConfig.which }),

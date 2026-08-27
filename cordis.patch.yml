@@ -12,14 +12,32 @@
       config:
         default: standard
 
-    # LSP 模型工具面（任务6，2026-08-27）：随本包内置——三个只读模型工具
-    # （goto-definition / find-references / diagnostics）+ provide('lsp') 服务
-    # （TUI 展示桥直接消费，single server set 不双份 spawn）。依赖由本包
-    # dependencies 带入 profile 树，装 TUI 一个包即得，无需单独 add 社区版。
-    # 旧版（github:omdsh-dev/dsh-lsp，cordis name @deepseek-ai/dsh-lsp）与本行
-    # 二选一：同时装配会重复注册同名模型工具，升级用户请先 plugin remove 旧版。
+    # LSP 模型工具面（任务6对齐，2026-08-27）：tianshu-public 0.6.0 三件套——
+    # seam（ctx.lsp 注册表）+ stdio 本地 provider + 模型工具（单 lsp 工具四操作：
+    # goToDefinition / findReferences / goToImplementation / hover）。lsp-local
+    # 默认给 typescript-language-server 一个 npx 条目（懒启动；npx 随 node 在场，
+    # 加载期解析不炸，首次查询按需拉取）；其他语言由用户照此追加 servers 条目。
+    # 无 provider 时模型查询收到结构化 LSP_UNAVAILABLE（schema 稳定）。
     - id: lsp
       name: '@huiliyi37/dsh-lsp'
+
+    - id: lsp-local
+      name: '@huiliyi37/dsh-lsp-local'
+      config:
+        servers:
+          typescript:
+            command: npx
+            args: ['-y', 'typescript-language-server', '--stdio']
+            extensionToLanguage:
+              .ts: typescript
+              .tsx: typescript
+              .js: javascript
+              .jsx: javascript
+              .mjs: javascript
+              .cjs: javascript
+
+    - id: tool-lsp
+      name: '@huiliyi37/dsh-tool-lsp'
 
 # ── agent plane leaves the host (standard preset remounts these) ───────────
 

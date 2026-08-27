@@ -7,7 +7,7 @@
  * @module @huiliyi37/dsh-tianshu-tui/startup-defaults
  */
 /** 启动项种类（回显与 /xxx default 提示共用）。 */
-export type StartupKind = 'theme' | 'model' | 'effort' | 'density' | 'preset';
+export type StartupKind = 'theme' | 'model' | 'effort' | 'density' | 'preset' | 'vim';
 /** 剥末尾 default 标志：`/theme paper default` → rest=paper persist=true。 */
 export declare function splitDefaultFlag(text: string): {
     rest: string;

@@ -74,6 +74,26 @@ export interface OfficialLspServiceFacet {
  * @returns TUI 桥可直接消费的诊断源。
  */
 export declare function officialLspSource(service: OfficialLspServiceFacet, workspaceRoot: string): LspDiagnosticSource;
+/** 诊断源选择结果：service = 外部源已采纳；builtin = 回落内置 multi-manager。 */
+export type SelectedDiagnosticSource = {
+    kind: 'service';
+    source: LspDiagnosticSource;
+} | {
+    kind: 'builtin';
+};
+/**
+ * 诊断源选择（纯函数，任务6对齐，2026-08-27）：按装配形态择源——
+ * 1. 社区/伴生形状（直接暴露 getDiagnostics 函数）→ 直接采纳；
+ * 2. 官方 seam 形状（只有 query）→ **能力门控**：仅当服务声明
+ *    `operations` 清单且包含 `getDiagnostics` 时才采纳为诊断源。seam 0.6.x
+ *    只暴露导航四操作、无 getDiagnostics 也无 JSON-RPC 逃生口——盲目采纳会让
+ *    seam 源顶掉内置 multi-manager，而其 query 恒报结构化不可用 → `/lsp`
+ *    面板永久空（真回归）。未声明即回落内置桥；将来官方 seam 增补诊断操作并
+ *    在 `operations` 里声明时自动恢复采纳。
+ * @param lspService - reflect.get('lsp') 读到的服务（可为 undefined）。
+ * @param workspaceRoot - 官方 seam 的 workspaceRoot（会话 cwd）。
+ */
+export declare function selectDiagnosticSource(lspService: unknown, workspaceRoot: string): SelectedDiagnosticSource;
 export interface LspBridge {
     /** 通知桥「agent 触碰了该文件」：异步拉诊断并入缓存；不阻塞调用方。 */
     touchFile(path: string): void;

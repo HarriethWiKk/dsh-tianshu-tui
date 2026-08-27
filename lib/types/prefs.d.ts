@@ -38,6 +38,8 @@ export interface TuiPrefs {
     preset?: string;
     /** 后台完成时发系统通知（缺省开；false 关闭）。 */
     notifyOs?: boolean;
+    /** vim 编辑键位（/vim default 持久化；缺省 false）。 */
+    vimEnabled?: boolean;
 }
 /** 缺省偏好（= 现行为）。 */
 export declare const DEFAULT_PREFS: Readonly<TuiPrefs>;

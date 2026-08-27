@@ -179,7 +179,6 @@ export declare class TuiApp {
     private readonly editorKey;
     /** 外部编辑器命令注入（测试用）；缺省走环境变量/平台缺省。 */
     private readonly editorCommand;
-    private readonly vimEnabled;
     /** T1.1：5 域投影缓存（snapshot 全量 + onChanged 按 key 分流；服务缺失时为 null → 整体降级）。 */
     private projectionCache;
     /** T4：任务窗格——sessionProjections 任务单元投影快照（服务缺失时为 null）。 */
@@ -515,6 +514,11 @@ export declare class TuiApp {
     private openMemoryBrowser;
     /** #31：打开模型选择器（Enter 本会话 / S 写默认）。 */
     private openModelPicker;
+    /**
+     * C2 项 2：历史搜索 overlay 开关（Ctrl+F 与 vim NORMAL '/' 共用入口）。
+     * 打开时快照 transcript 消息；已打开则关闭。
+     */
+    private toggleHistorySearchOverlay;
     /** P1：偏好原子落盘（禁用态 no-op；prefs 已就地变更）。 */
     private persistPrefs;
     /** P1.5：提交文本进输入历史——内存（Ctrl+P/N 即时可用）+ 磁盘异步追加（重启恢复）。 */

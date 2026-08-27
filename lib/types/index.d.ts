@@ -24,7 +24,8 @@ export interface TuiRunnerConfig {
     initialSessionId?: SessionId;
     /** 外部编辑器触发键（Phase 6.4）；缺省 ctrl_e（ctrl+o 已恢复为推理展开）。 */
     editorKey?: KeyName;
-    /** 是否启用 Vim 键位（Phase 6.5）；缺省 false。 */
+    /** 是否启用 Vim 键位（Phase 6.5 / issue #51）；缺省 false。本地 prefs（/vim default）
+     *  可在宿主未显式传入时接管启动默认——优先级：宿主配置 > prefs > false。 */
     vimEnabled?: boolean;
     /** 主控模型的识图能力与视觉桥状态（图片附件气泡提示数据源）。 */
     vision?: {

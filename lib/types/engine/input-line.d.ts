@@ -52,6 +52,11 @@ export interface InputLineOptions {
     images?: string[];
     /** 图片附件变化回调 */
     onImagesChange?: (images: string[]) => void;
+    /**
+     * vim NORMAL 模式 '/' 的宿主钩子：打开历史搜索 overlay（issue #51 对齐 CC）。
+     * 未注入时 '/' 在 normal 态为 no-op。
+     */
+    onOpenHistorySearch?: () => void;
 }
 /**
  * 输入框可视行上限：长草稿不占满整屏。
@@ -98,6 +103,9 @@ export declare class InputLine {
     private onSubmitCallback?;
     private onTabCompleteCallback?;
     private onImagesChangeCallback?;
+    private onOpenHistorySearchCallback?;
+    /** vim 键位引擎（issue #51）：normal/visual 按键与 `.` 重放状态都收敛在这里。 */
+    private _vim;
     /** undo 栈（改前快照）。submit 后清空——上一条输入的文本不得被下一条撤销复活。 */
     private _undoStack;
     /** 栈内快照滞留的总字符数（配合 UNDO_TOTAL_CHARS_MAX 防护内存长尾）。 */
@@ -156,7 +164,8 @@ export declare class InputLine {
     /** 图片附件 data URL 列表（防御性拷贝）。 */
     get images(): string[];
     /**
-     * 启用/停用 vim 键位。停用或启用时都复位到 insert 模式，避免残留 normal 态吞字符。
+     * 启用/停用 vim 键位。停用或启用时都复位到 insert 模式，避免残留 normal 态吞字符；
+     * 引擎 pending 解析态一并清空（半截 count/操作符不得跨开关滞留）。
      * @param enabled - 是否启用 vim 键位
      */
     setVimEnabled(enabled: boolean): void;
@@ -303,10 +312,16 @@ export declare class InputLine {
     private deleteWordForward;
     private moveLeft;
     private moveRight;
+    /** insert 模式里的非顺序改动（删除/粘贴/补全/历史跳转）→ `.` 放弃保真记录。 */
+    private noteVimInsertEdit;
     /** 光标左侧最近的 grapheme 边界。 */
     private prevGrapheme;
     /** 光标右侧最近的 grapheme 边界。 */
     private nextGrapheme;
+    /** 任意位置起左移一步的 grapheme 边界（vim 引擎宿主面用）。 */
+    private prevGraphemeAt;
+    /** 任意位置起右移一步的 grapheme 边界。 */
+    private nextGraphemeAt;
     /** 当前 value 的 grapheme 边界（按 value 缓存，纯光标移动命中缓存）。
      *  折叠粘贴标记为原子单位：标记内部的边界被剔除，光标/删除整体越过。 */
     private graphemeBounds;
@@ -341,13 +356,7 @@ export declare class InputLine {
     private movePage;
     private historyPrev;
     private historyNext;
-    private handleVimNormal;
-    /** vim p/P：内部剪贴板插到光标后/前（charwise 直插，不走粘贴折叠）。 */
-    private pasteClipboard;
-    /** visual：motion 扩展选区（选区渲染/linewise 对齐由 selectionRange 驱动）。 */
-    private handleVimVisual;
+    private ensureVim;
     private prevWordStart;
     private nextWordEnd;
-    /** Vim 'w' — move to start of next word (not end) */
-    private moveWordRightVim;
 }
