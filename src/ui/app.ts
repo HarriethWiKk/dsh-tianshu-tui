@@ -58,14 +58,6 @@ import { StreamRenderer } from '../engine/stream-renderer.js'
 import { TuiPerfMonitor, isTuiPerfEnabled } from '../engine/perf-monitor.js'
 import { loadClipboardImageAttachment, loadImageAttachment, looksLikeImagePath, MAX_IMAGES } from '../engine/image-attach.js'
 import { readImageFromClipboard, readTextFromClipboard, FOCUS_DEBOUNCE_MS } from '../engine/clipboard-image.js'
-import {
-  hexToRgb,
-  NEUTRAL_PREVIEW_BACKGROUND,
-  PREVIEW_MAX_COLS,
-  PREVIEW_MAX_ROWS,
-  FALLBACK_MAX_ROWS,
-  renderHalfBlockPreview,
-} from '../engine/image-preview.js'
 import { echoSavedDefault, echoSessionOnly, effortSelection, splitDefaultFlag } from '../startup-defaults.js'
 import { joinCreateOrWarn, joinResume } from '../adapter/preset-join.js'
 import { scopedService } from '../adapter/agent-scope-service.js'
@@ -113,6 +105,7 @@ import {
 import { WorkflowSurfaceController } from '../controllers/workflow-surface.js'
 import { DelegationSurfaceController, type SubagentsFacet } from '../controllers/delegation-surface.js'
 import { CommitSurface } from '../controllers/commit-surface.js'
+import { AttachmentPreviewController } from '../controllers/attachment-preview.js'
 import { KeyDialogController } from './key-dialog.js'
 import { KeyFlow } from './key-flow.js'
 import {
@@ -484,10 +477,11 @@ export class TuiApp {
   private palette: CommandPalette | null = null
   /** API key 就绪标志（footer 右侧段；attach 时经 credentials.describe 刷新）。 */
   private apiKeyReady = Boolean(process.env.DEEPSEEK_API_KEY)
-  /** composer 附件缩略图（半块预览；null = 无附件或渲染失败——计数行仍在）。 */
-  private attachmentPreview: { dataUrl: string; lines: string[] } | null = null
-  /** 附件缩略图代际号：丢弃迟到的异步解码结果（快速增删/提交清空后不挂过期图）。 */
-  private attachmentPreviewEpoch = 0
+  /** composer 附件缩略图（半块预览；提取为 controllers/attachment-preview）。 */
+  private attachmentPreview = new AttachmentPreviewController({
+    getColumns: () => this.stdout.columns,
+    getBackground: () => (this.theme as { userMsgBg?: string }).userMsgBg, onChanged: () => { this.flushLiveRender() },
+  })
   /** /key、/login：API Key 设置对话框（掩码输入 + 联网验证 + 落盘）。 */
   private keyDialog: KeyDialogController | null = null
   /** /key 供应商密钥配置装配层（key-wizard/key-dialog 之上；deps 注入 openKeyDialog）。 */
@@ -757,7 +751,7 @@ export class TuiApp {
       isOverlayActive: () => this.overlay !== null && this.overlay.activeId() !== null,
       flushRender: () => { this.flushLiveRender() },
       getTheme: () => this.theme,
-      previewBackground: () => this.previewBackground(),
+      previewBackground: () => this.attachmentPreview.background(),
       vision: () => ({ supportsVision: this.supportsVision, bridgeEnabled: this.visionBridgeEnabled, bridgeSource: this.visionBridgeSource }),
     })
     this.input = new InputHandler({ stdin: options.stdin, mode: 'input' })
@@ -771,7 +765,7 @@ export class TuiApp {
       // vim NORMAL '/' → 历史搜索 overlay（对齐 CC 键位表注记）。
       onOpenHistorySearch: () => { this.toggleHistorySearchOverlay() },
       // 附件列表变化 → 重算 composer 缩略图（半块预览；装饰性增强，失败静默）。
-      onImagesChange: (images) => { void this.refreshAttachmentPreview(images) },
+      onImagesChange: (images) => { void this.attachmentPreview.refresh(images) },
       // slash 菜单状态随输入变化刷新（键入/粘贴/外部 setValue 统一入口；
       // 渲染由各调用路径 flushLiveRender 承担，此处不触发重绘）。输入变化前
       // 先重投影提示快照：注册表可被外部插件经 tui.commands 服务在构造后
@@ -783,8 +777,7 @@ export class TuiApp {
     // 渲染帧合并器（T9）：事件路径（流式块）走 schedule 16ms 合并，
     // critical 路径保持同步 renderLive（flushNow 语义）。
     this.renderBatcher = new WriteBatcher(() =>{  this.renderLive() })
-    this.blockWriter = new BlockStreamWriter(
-      { minChars: 60, maxChars: 200, idleMs: 180 },
+    this.blockWriter = new BlockStreamWriter({ minChars: 60, maxChars: 200, idleMs: 180 },
       (block) => {
         /* v8 ignore next -- BlockStreamWriter flush 的 block 恒非空，push 恒返回 true */
         if (!this.streamRenderer.push(block)) this.renderBatcher.schedule()
@@ -1581,39 +1574,6 @@ export class TuiApp {
     const attachment = await loadClipboardImageAttachment(buf, name.length > 0 ? name : 'clipboard.png')
     this.inputLine.addImage(attachment.dataUrl)
     this.flushLiveRender()
-  }
-
-  /**
-   * composer 附件缩略图维护：附件列表变化时重算最后一张的半块预览。
-   * sharp 异步解码毫秒级，完成后触发一次重绘；代际号丢弃迟到结果
-   * （快速增删/提交清空后不再挂出过期图片）。渲染失败置 null——计数行
-   * 仍在，预览是装饰性增强。
-   * @param images - 变化后的附件 data URL 列表
-   */
-  private async refreshAttachmentPreview(images: string[]): Promise<void> {
-    const last = images[images.length - 1]
-    if (last === undefined) {
-      this.attachmentPreview = null
-      return
-    }
-    if (this.attachmentPreview?.dataUrl === last) return
-    const epoch = ++this.attachmentPreviewEpoch
-    const cols = Math.max(8, Math.min(PREVIEW_MAX_COLS, this.stdout.columns - 6))
-    const preview = await renderHalfBlockPreview(last, {
-      maxCols: cols,
-      maxRows: PREVIEW_MAX_ROWS,
-      background: this.previewBackground(),
-    })
-    if (epoch !== this.attachmentPreviewEpoch) return
-    this.attachmentPreview = preview === null ? null : { dataUrl: last, lines: preview.lines }
-    this.flushLiveRender()
-  }
-
-  /** 预览合成底色：本仓主题无气泡底色键（userMsgBg），统一用中性暗色（明暗终端都可读）。 */
-  private previewBackground(): { r: number; g: number; b: number } {
-    const bg = (this.theme as { userMsgBg?: string }).userMsgBg
-    if (bg === undefined) return NEUTRAL_PREVIEW_BACKGROUND
-    return hexToRgb(bg) ?? NEUTRAL_PREVIEW_BACKGROUND
   }
 
   /**
@@ -4078,11 +4038,9 @@ export class TuiApp {
       lines.push({ text: color(summary, theme.muted) })
     }
     // 附件半块预览（composer 缩略图）：最后一张附件的降采样真彩行（装饰性
-    // 增强——解码失败/无附件时 attachmentPreview 为 null 不占位，计数行仍在）。
-    if (this.attachmentPreview !== null) {
-      for (const line of this.attachmentPreview.lines) {
-        lines.push({ text: line })
-      }
+    // 增强——解码失败/无附件时预览为空数组不占位，计数行仍在）。
+    for (const line of this.attachmentPreview.lines) {
+      lines.push({ text: line })
     }
     // 阶段 2：slash 菜单选中命令 → 输入行 ghost 预览（补全剩余/参数占位）。
     this.inputLine.setGhost(this.slashGhostText())

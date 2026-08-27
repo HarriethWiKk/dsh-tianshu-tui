@@ -41,6 +41,7 @@
 | src/controllers/approval-controller.ts | — | new |
 | src/controllers/btw-controller.ts | — | new |
 | src/controllers/question-controller.ts | — | new |
+| src/controllers/attachment-preview.ts | — | new（composer 附件缩略图域自 ui/app.ts C4 提取：半块预览 + 代际号丢弃迟到解码 + 底色解析） |
 | src/controllers/session-manager.ts | — | new |
 | src/controllers/inspect-surface.ts | — | new（检查类 live 面板互斥开闭与键分发，从 ui/app.ts 抽出保棘轮） |
 | src/controllers/skill-surface.ts | — | new（#39 技能展示面：快照缓存 + userInvocable 过滤 + slash 菜单投影 + 手势 MRU + skills/change 订阅，从 ui/app.ts 提取） |

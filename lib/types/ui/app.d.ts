@@ -119,10 +119,8 @@ export declare class TuiApp {
     private palette;
     /** API key 就绪标志（footer 右侧段；attach 时经 credentials.describe 刷新）。 */
     private apiKeyReady;
-    /** composer 附件缩略图（半块预览；null = 无附件或渲染失败——计数行仍在）。 */
+    /** composer 附件缩略图（半块预览；提取为 controllers/attachment-preview）。 */
     private attachmentPreview;
-    /** 附件缩略图代际号：丢弃迟到的异步解码结果（快速增删/提交清空后不挂过期图）。 */
-    private attachmentPreviewEpoch;
     /** /key、/login：API Key 设置对话框（掩码输入 + 联网验证 + 落盘）。 */
     private keyDialog;
     /** /key 供应商密钥配置装配层（key-wizard/key-dialog 之上；deps 注入 openKeyDialog）。 */
@@ -384,16 +382,6 @@ export declare class TuiApp {
      * @param name - 附件显示名。
      */
     private attachClipboardImage;
-    /**
-     * composer 附件缩略图维护：附件列表变化时重算最后一张的半块预览。
-     * sharp 异步解码毫秒级，完成后触发一次重绘；代际号丢弃迟到结果
-     * （快速增删/提交清空后不再挂出过期图片）。渲染失败置 null——计数行
-     * 仍在，预览是装饰性增强。
-     * @param images - 变化后的附件 data URL 列表
-     */
-    private refreshAttachmentPreview;
-    /** 预览合成底色：本仓主题无气泡底色键（userMsgBg），统一用中性暗色（明暗终端都可读）。 */
-    private previewBackground;
     /**
      * 设置当前主控模型的识图能力与桥接状态（图片附件气泡提示数据源）。
      * 由装配方按 agent 配置注入；TUI 是纯表现层，不自行查询模型能力。
