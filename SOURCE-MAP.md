@@ -137,6 +137,7 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 | src/mention-expand.ts | — | new |
 | src/mention-parser.ts | mention-parser.ts | modified |
 | src/os-notify.ts | — | new（后台完成系统通知：darwin/linux/win32 固定 argv；DSH_TUI_SKIP_NOTIFY/SSH/CI/VITEST 与 prefs.notifyOs 门闸） |
+| src/term-bell.ts | — | new（完成事件终端 BEL 通道：SSH 不抑制——BEL 穿透 pty 到本地终端响铃；共享 SKIP/VITEST/CI 与 prefs.notifyOs 门闸） |
 | src/pi/latex-block.ts | pi/latex-block.ts | modified |
 | src/pi/latex-to-unicode.ts | pi/latex-to-unicode.ts | modified |
 | src/prefs.ts | — | new（本地偏好持久化：~/.dsh-tui/prefs.json——theme/density/preset/常驻面板/glance/notifyOs；容错解析 + 原子写 + VITEST 密封门） |

@@ -201,6 +201,7 @@ import { openInEditorDetailed, getEditorCommand } from '../external-editor.js'
 import { FluencyTracker } from '../fluency-hook.js'
 import { expandMentions } from '../mention-expand.js'
 import { applyNotifyOsPref, configTuiFromPrefs, notifyOs, parseConfigNotifyArg, subagentNotifySuppressed } from '../os-notify.js'
+import { writeBell } from '../term-bell.js'
 import { loadConfigProjection } from './config-flow.js'
 import { buildSessionPickerItems, formatSessionAge } from '../restore-session.js'
 // 副作用声明合并：让 ctx.on('approval/request') 的 handler 参数由 cordis 事件
@@ -568,6 +569,7 @@ export class TuiApp {
       // workflow 活跃时子代理逐条完成会连发通知刷屏：静默单条，由 workflow/end 统一汇总。
       if (!subagentNotifySuppressed(this.workflowSurface.runningCount)) {
         notifyOs({ title: 'dsh · 子代理完成', body: done.label }, this.prefs)
+        writeBell(this.stdout, process.env, this.prefs)
       }
       this.renderBatcher.schedule()
     },
@@ -579,6 +581,7 @@ export class TuiApp {
     onCompleted: (view, name) => {
       this.commitToScrollback({ text: formatWorkflowSummary(view, this.theme), trailingNewline: true })
       notifyOs({ title: 'dsh · 工作流完成', body: name }, this.prefs)
+      writeBell(this.stdout, process.env, this.prefs)
       this.flushLiveRender()
     },
     schedule: () => { this.renderBatcher.schedule() },
@@ -2438,6 +2441,7 @@ export class TuiApp {
         this.taskNotice = `✓ 任务完成: ${snapshot.label}`
         this.taskSnapshots = tasks.list()
         notifyOs({ title: 'dsh · 任务完成', body: snapshot.label }, this.prefs)
+        writeBell(this.stdout, process.env, this.prefs)
         this.flushLiveRender()
       })
       this.taskSurfaceDisposer = tasks.attachSurface('tui')

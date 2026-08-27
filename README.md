@@ -195,7 +195,7 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 - **结构化提问** — 数字键选择、`Esc` 取消、重叠保护；plan-review 反馈模式（`f` 进入、`Enter` 提交 Keep planning + 自定义反馈）。
 - **审批卡片** — `y`/`N`/`Ctrl+C` 结算挂起审批；工具可 diff 时内联差异预览；diff 不可见时盲批提示；非当前会话请求委托给下一个监听者。
 - **模式循环** — `Shift+Tab` 循环 normal → plan → always-approve；plan 状态驱动 footer 徽标，always-approve 为会话级本地态（切换/退出时复位）。
-- **实时面板** — `/status`（goal/todos/plan 投影快照；subagent 域见 `/subagents`）、`/config`（终端通知/紧凑渲染 + 宿主 settings / permission / credentials）、`/skills` 浏览（↑↓ 详情）、`/tasks` 窗格、`/subagents` 委派树、`/workflow` 运行。检查类面板互斥，`Esc` 关闭。宿主服务未装配时对应段折叠；`/config` 的终端段不依赖宿主。其它面板在 backing 服务缺失时回显 `⚠` 警告（不静默空白）。
+- **实时面板** — `/status`（goal/todos/plan 投影快照；subagent 域见 `/subagents`）、`/config`（终端通知（完成时系统通知 + BEL 响铃，响铃在 SSH 会话下同样可达）/紧凑渲染 + 宿主 settings / permission / credentials）、`/skills` 浏览（↑↓ 详情）、`/tasks` 窗格、`/subagents` 委派树、`/workflow` 运行。检查类面板互斥，`Esc` 关闭。宿主服务未装配时对应段折叠；`/config` 的终端段不依赖宿主。其它面板在 backing 服务缺失时回显 `⚠` 警告（不静默空白）。
 - **命令面板（`Ctrl+P`）/ 键位表（`Ctrl+.`）/ 历史搜索（`Ctrl+F`）overlay**。
 
 ### 模型与视觉
