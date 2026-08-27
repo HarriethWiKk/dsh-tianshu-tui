@@ -9,7 +9,7 @@
  *   ctrl_t 转向、ctrl_v 粘贴。
  * - tail（slash 菜单与 inspect 上下文键之后）：空 Tab 命令菜单、Alt+Backspace
  *   删附件、↑↓ 排队取回/历史透传。
- * approval 域（y/n/a/t/esc）只经 approval 阻塞上下文轮询，不参与常规 match。
+ * approval 域（y/p/t/a/n/f/esc）只经 approval 阻塞上下文轮询，不参与常规 match。
  *
  * run 只经 ActionContext 触达 TuiApp（装配件在 ui/app.ts）；本模块不 import app。
  *
@@ -305,6 +305,8 @@ export function createBuiltinActions(options: BuiltinActionsOptions): KeyAction[
     },
 
     // ── approval 域：审批挂起时经 approval 阻塞上下文独占轮询（不进常规 match） ──
+    // 注册序即决策梯度序（y → p → t → a → n → f → esc），footer 提示段与审批卡
+    // 键位行同按此序投影（actions/projections 同源）。
     {
       id: 'approval.allow',
       keys: [{ char: 'y' }, { char: 'Y' }],
@@ -314,6 +316,42 @@ export function createBuiltinActions(options: BuiltinActionsOptions): KeyAction[
       hint: '允许一次',
       footerHint: 'y 允许',
       run: ctx => { ctx.settleApproval('allowed-once') },
+    },
+    {
+      // 决策分层阶段 2：命令前缀级会话白名单——仅 bash 类工具且能提取命令首
+      // token 时出现（when 守卫按挂起请求的缓存前缀判定）；比 t 整工具放行收敛。
+      id: 'approval.allow-prefix',
+      keys: [{ char: 'p' }, { char: 'P' }],
+      when: ctx => ctx.approvalPending() && ctx.approvalCommandPrefix() !== null,
+      context: 'approval',
+      category: '工具',
+      hint: '此命令前缀不再问',
+      footerHint: 'p 此命令不再问',
+      run: ctx => { ctx.approveCommandPrefix() },
+    },
+    {
+      // 任务4a 工具级会话白名单：该工具本会话内后续请求自动放行，其他工具仍
+      // 逐卡审批——比 a 全放行收敛，比每次 y 免重复决策。
+      id: 'approval.allow-tool',
+      keys: [{ char: 't' }, { char: 'T' }],
+      when: ctx => ctx.approvalPending(),
+      context: 'approval',
+      category: '工具',
+      hint: '本会话放行此工具',
+      footerHint: 't 记住此工具',
+      run: ctx => { ctx.approveToolSession() },
+    },
+    {
+      // 本会话放行：先开 always-approve，再结算当前请求（与 Shift+Tab 进 auto
+      // 不同——挂起中的这一张也立刻通过，而不是只影响后续请求）。
+      id: 'approval.always',
+      keys: [{ char: 'a' }, { char: 'A' }],
+      when: ctx => ctx.approvalPending(),
+      context: 'approval',
+      category: '工具',
+      hint: '本会话全部放行',
+      footerHint: 'a 全放行',
+      run: ctx => { ctx.approveAlways() },
     },
     {
       id: 'approval.reject',
@@ -326,27 +364,16 @@ export function createBuiltinActions(options: BuiltinActionsOptions): KeyAction[
       run: ctx => { ctx.settleApproval('rejected') },
     },
     {
-      // 本会话放行：先开 always-approve，再结算当前请求（与 Shift+Tab 进 auto
-      // 不同——挂起中的这一张也立刻通过，而不是只影响后续请求）。
-      id: 'approval.always',
-      keys: [{ char: 'a' }, { char: 'A' }],
+      // 决策分层阶段 2：拒绝并说明——进反馈输入态（文本走输入行，Enter 提交时
+      // settle rejected + steer 反馈文本；Esc 返回选项态不结算）。
+      id: 'approval.reject-feedback',
+      keys: [{ char: 'f' }, { char: 'F' }],
       when: ctx => ctx.approvalPending(),
       context: 'approval',
       category: '工具',
-      hint: '本会话全部放行',
-      footerHint: 'a 放行',
-      run: ctx => { ctx.approveAlways() },
-    },
-    {
-      // 任务4a 工具级会话白名单：该工具本会话内后续请求自动放行，其他工具仍
-      // 逐卡审批——比 a 全放行收敛，比每次 y 免重复决策。
-      id: 'approval.allow-tool',
-      keys: [{ char: 't' }, { char: 'T' }],
-      when: ctx => ctx.approvalPending(),
-      context: 'approval',
-      category: '工具',
-      hint: '本会话放行此工具',
-      run: ctx => { ctx.approveToolSession() },
+      hint: '拒绝并说明',
+      footerHint: 'f 拒绝并说明',
+      run: ctx => { ctx.startApprovalFeedback() },
     },
     {
       id: 'approval.cancel',

@@ -99,7 +99,7 @@ export interface FormatPromptFooterInput {
   planPending?: boolean
   /** always-approve 生效（mode 段渲染 [auto]）。 */
   alwaysApprove?: boolean
-  /** 审批挂起：快捷键换成 y/n/a/esc，避免仍提示「Enter 发送」。 */
+  /** 审批挂起：快捷键换成审批决策键位（y/p/t/a/n/f/esc），避免仍提示「Enter 发送」。 */
   approvalPending?: boolean
   /** 检查类面板打开：提示 esc 关闭。 */
   inspectOpen?: boolean
@@ -117,7 +117,8 @@ export interface FormatPromptFooterInput {
 }
 
 /** 审批挂起提示段缺省文案（与 actions/builtin-actions 的 approval 域 footerHint 同源对齐）。 */
-const DEFAULT_APPROVAL_HINTS: readonly string[] = ['y 允许', 'n 拒绝', 'a 放行', 'esc 取消']
+const DEFAULT_APPROVAL_HINTS: readonly string[] =
+  ['y 允许', 'p 此命令不再问', 't 记住此工具', 'a 全放行', 'n 拒绝', 'f 拒绝并说明', 'esc 取消']
 
 /** 检查面板提示段缺省文案（inspect.close 动作 footerHint + 静态「/ 命令」尾段）。 */
 const DEFAULT_INSPECT_HINTS: readonly string[] = ['esc 关闭', '/ 命令']

@@ -130,7 +130,7 @@ Custom themes (`~/.dsh-tui/themes/*.json`) get contrast warnings on load (WCAG <
 
 ## Interactive Panels
 
-- **Approval card**: pending approvals with inline diff preview (y/N/a/esc); red/green rendering when the tool is diffable, blind-approval hint otherwise; non-current-session requests are delegated to the next listener.
+- **Approval card**: pending approvals with inline diff preview (y/p/t/a/n/f/esc); red/green rendering when the tool is diffable, a `$ command` preview with danger-pattern warnings for bash, blind-approval hint otherwise. Decision ladder: `y` allow once · `p` don't ask again for this command prefix (bash only) · `t` remember this tool · `a` allow everything this session · `n` reject · `f` reject with feedback (text is steered to the agent; Esc returns) · `esc` cancel; non-current-session requests are delegated to the next listener.
 - **Question panel**: digit selection, Esc to cancel, overlap protection; plan-review feedback mode.
 - **Pickers (issue #31)**: no-arg `/model` `/theme` `/effort` `/session` open a picker with the current value marked ● and the startup default ★. `/model` `/theme` `/effort`: Enter applies this session only; S applies and writes the startup default. Session and `/key` pickers have no S. **The theme picker previews live**: ↑/↓ switches the theme immediately, Enter settles without writing prefs, S writes the startup default, Esc restores the theme from before opening.
 - **Command palette (Ctrl+P)**: fuzzy + subsequence command search, Enter fills `/cmd `.

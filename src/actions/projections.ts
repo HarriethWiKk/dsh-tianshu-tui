@@ -11,7 +11,7 @@
  * @module @deepseek-ai/dsh-tianshu-tui/actions/projections
  */
 
-import type { KeyAction, KeyBinding } from './types.js'
+import type { ActionContext, KeyAction, KeyBinding } from './types.js'
 
 /** 键位列展示名（keymap 用）：语义名 → 惯用写法。 */
 const KEY_LABELS: Partial<Record<string, string>> = {
@@ -90,14 +90,17 @@ export function projectKeymapEntries(
 
 /**
  * footer 审批挂起提示段：approval 域动作按注册序投影 footerHint（无 footerHint
- * 的动作不进 footer——如 approval.allow-tool，键位提示由审批卡自身承担）。
+ * 的动作不进 footer）。传入 ctx 时按各动作 when 守卫过滤——p 键「此命令不再问」
+ * 仅在前缀可提（bash 类工具）的挂起上出现；审批卡键位行也消费本投影（同源）。
  * @param actions - 动作表（registry.list()）。
+ * @param ctx - 动作执行上下文（缺省不过滤 when，投影静态全集）。
  * @returns 提示段文本数组。
  */
-export function projectApprovalHints(actions: readonly KeyAction[]): string[] {
+export function projectApprovalHints(actions: readonly KeyAction[], ctx?: ActionContext): string[] {
   const hints: string[] = []
   for (const action of actions) {
     if (action.context !== 'approval' || action.footerHint === undefined) continue
+    if (ctx !== undefined && action.when !== undefined && !action.when(ctx)) continue
     hints.push(action.footerHint)
   }
   return hints

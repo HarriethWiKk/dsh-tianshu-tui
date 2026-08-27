@@ -191,7 +191,7 @@ import { SkillSurfaceController } from '../controllers/skill-surface.js'
 import { OverlayController } from '../engine/overlay-controller.js'
 import { MetricsGlanceController } from '../engine/metrics-glance-controller.js'
 import type { FormatGlanceBarInput } from '../format/glance-bar.js'
-import { formatPermissionDiff } from '../format/permission-diff.js'
+import { commandPrefixForRequest, findApprovalToolCall, formatPermissionDiff } from '../format/permission-diff.js'
 import { formatApprovalCard } from '../format/approval-card.js'
 import { HistorySearchOverlay } from '../format/history-search-overlay.js'
 import { ScrollPagerOverlay } from '../format/scroll-pager-overlay.js'
@@ -524,8 +524,7 @@ export class TuiApp {
   private readonly inspectKeys: BlockingKeyContext
   /** overlay 键路由器（key-dialog/picker/search/scroll/rewind/memory/palette 委派）。 */
   private readonly overlayRouter: OverlayKeyRouter
-  /** footer 上下文提示段（registry 投影；构造期一次性投影，动作表静态）。 */
-  private readonly footerApprovalHints: readonly string[]
+  /** footer 检查面板提示段（registry 构造期投影；审批段改由 renderLive 逐帧投影——p 段动态）。 */
   private readonly footerInspectHints: readonly string[]
   /** Phase 9d：流利度追踪（tool 事件 → 渲染策略；stale 提示消费于 renderLive）。 */
   private readonly fluency = new FluencyTracker()
@@ -1200,6 +1199,7 @@ export class TuiApp {
     this.approval = new ApprovalController({
       getCurrentSessionId: () => this.activeSessionId,
       onChanged: () => { this.flushLiveRender() },
+      getCommandPrefix: (req) => commandPrefixForRequest(req, this.transcript?.view),
     })
     // P1：/btw 侧问状态机。activeSessionId 动态读取（attach 前为 null，
     // /btw 命令层拦截回显）；onAnswer 折叠答案进 scrollback（Esc 关闭 done
@@ -1217,9 +1217,8 @@ export class TuiApp {
     })
     // P3：多会话快照层（不持有会话生命周期；tab 栏渲染时 list() 派生）。
     this.sessionManager = new SessionManager(this.ctx)
-    // 统一 action registry 装配（键路由数据源）：动作只经 ActionContext 门面
-    // 触达本类私有方法，registry 本身不 import 本类。构造期一次性投影 footer
-    // 上下文提示段（动作表静态——editorKey 已在上方定值）。
+    // 统一 action registry 装配（键路由数据源）：动作只经 ActionContext 门面触达本类
+    // 私有方法。inspect 提示段构造期投影（静态）；审批提示段逐帧投影（p 段动态进出）。
     this.actionCtx = this.createActionContext()
     this.actions = new ActionRegistry(createBuiltinActions({ editorKey: this.editorKey }))
     this.blockingKeys = [
@@ -1231,7 +1230,9 @@ export class TuiApp {
         flushLive: () => { this.flushLiveRender() },
       }),
       createBtwKeyContext({ btw: this.btw, flushLive: () => { this.flushLiveRender() } }),
-      createApprovalKeyContext({ approval: this.approval, registry: this.actions, ctx: this.actionCtx }),
+      createApprovalKeyContext({ approval: this.approval, registry: this.actions, ctx: this.actionCtx,
+        inputLine: this.inputLine, flushLive: () => { this.flushLiveRender() },
+        submitFeedback: (text) => { this.approval.settle('rejected'); this.handleSteer(text) } }),
     ]
     this.inspectKeys = createInspectKeyContext({ inspect: this.inspect, inputLine: this.inputLine })
     this.menuKeys = createSlashMenuKeyContext({
@@ -1252,7 +1253,6 @@ export class TuiApp {
       submit: text => { this.handleSubmit(text) },
       backfill: text => { this.inputLine.setValue(text) },
     })
-    this.footerApprovalHints = projectApprovalHints(this.actions.list())
     this.footerInspectHints = projectInspectHints(this.actions.list())
   }
 
@@ -2489,8 +2489,8 @@ export class TuiApp {
     this.lastReasoningBlock = null
     this.reasoningExpanded = false
     this.pendingCallTitles.clear()
-    // 工具级会话白名单同为会话内状态（`t` 键语义「本会话」）——切换即复位。
-    this.approval.clearAllowedTools()
+    // 会话级授权（t 键工具白名单 + p 键命令前缀白名单）同为会话内状态——切换即复位。
+    this.approval.clearSessionGrants()
     // 历史加载：重放会话事件日志（live store 为权威来源，persisted-only 走
     // loadHistory——见 adapter/sessions；此处 live store 已含全部事件）。
     // 工具卡走同一 presenter 桥（presenter 为 args 纯函数、桥软降级，replay 安全）。
@@ -2756,11 +2756,6 @@ export class TuiApp {
     next: () => Promise<ApprovalOutcome>,
   ): Promise<ApprovalOutcome> {
     return this.approval.handle(req, next)
-  }
-
-  /** Phase 8：结算挂起的审批请求（用户按键/取消）——薄转发。 */
-  private settleApproval(outcome: ApprovalOutcome): void {
-    this.approval.settle(outcome)
   }
 
   /** 取消当前运行（Esc/Ctrl+C）：cancel agent、丢弃未发出的流式/推理缓冲并重置流渲染。 */
@@ -3138,18 +3133,17 @@ export class TuiApp {
       clearInput: () => { this.inputLine.setValue('') },
       markCtrlC: (now) => { this.lastCtrlCAt = now },
       flushLive: () => { this.flushLiveRender() },
-      settleApproval: (outcome) => { this.settleApproval(outcome) },
+      settleApproval: (outcome) => { this.approval.settle(outcome) },
       approveAlways: () => {
         this.approval.setAlwaysApprove(true)
         this.statusLine?.setAlwaysApprove(true)
-        this.settleApproval('allowed-once')
+        this.approval.settle('allowed-once')
       },
-      approveToolSession: () => {
-        const pendingReq = this.approval.peek()?.req
-        if (pendingReq !== undefined) {
-          this.approval.allowTool(pendingReq.toolName)
-          this.settleApproval('allowed-once')
-        }
+      approveToolSession: () => { this.approval.approveWithTool() },
+      approvalCommandPrefix: () => this.approval.pendingCommandPrefix,
+      approveCommandPrefix: () => { this.approval.approveWithPrefix() },
+      startApprovalFeedback: () => {
+        this.approval.setFeedbackMode(true); this.inputLine.setValue(''); this.flushLiveRender()
       },
     }
   }
@@ -3829,12 +3823,11 @@ export class TuiApp {
         lines.push({ text: color('📝 反馈输入中（Enter 提交 / Esc / Ctrl+C 返回选项）', theme.muted) })
       }
     }
+    // 审批键位提示段：registry 逐帧投影（p 段随前缀可得性进出）；footer 与审批卡键位行同消费（同源）。
+    const approvalHintSegs = projectApprovalHints(this.actions.list(), this.actionCtx)
     const approvalPeek = this.approval.peek()
     if (approvalPeek !== null) {
-      const callId = approvalPeek.req.callId
-      const toolCall = callId === undefined
-        ? undefined
-        : this.transcript?.view.tools.findLast(t => t.callId === callId)
+      const toolCall = findApprovalToolCall(approvalPeek.req, this.transcript?.view)
       const diff = toolCall === undefined
         ? null
         : formatPermissionDiff({ toolName: toolCall.name, arguments: toolCall.arguments }, this.theme)
@@ -3844,6 +3837,8 @@ export class TuiApp {
         ...(approvalPeek.req.reason === undefined ? {} : { reason: approvalPeek.req.reason }),
         diffLines: diff,
         compact: compactLive,
+        keyHintSegments: approvalHintSegs,
+        feedback: approvalPeek.feedbackMode,
       }, theme)) {
         lines.push({ text: line })
       }
@@ -3940,7 +3935,7 @@ export class TuiApp {
       approvalPending: this.approval.isPending,
       inspectOpen: this.inspect.any(),
       // 上下文提示段由 action registry 投影（actions/projections；同源动作表）。
-      approvalHints: this.footerApprovalHints,
+      approvalHints: approvalHintSegs,
       inspectHints: this.footerInspectHints,
       level: this.prefs.footerInfo ?? 'full',
       ...(rightSegments !== undefined ? { rightSegments } : {}),

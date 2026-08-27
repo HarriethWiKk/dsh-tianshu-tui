@@ -57,6 +57,8 @@ function makeCtx(state: {
   queued?: boolean
   paletteOpen?: boolean
   approvalPending?: boolean
+  /** 挂起审批的命令前缀（approvalCommandPrefix 读取；p 键守卫用）。 */
+  approvalPrefix?: string | null
   hasExit?: boolean
 } = {}) {
   const registry = new ActionRegistry(createBuiltinActions({ editorKey: 'ctrl_e' }))
@@ -86,6 +88,8 @@ function makeCtx(state: {
     settleApproval: vi.fn(),
     approveAlways: vi.fn(),
     approveToolSession: vi.fn(),
+    approveCommandPrefix: vi.fn(),
+    startApprovalFeedback: vi.fn(),
   }
   const ctx: ActionContext = {
     hasExit: state.hasExit ?? true,
@@ -100,6 +104,7 @@ function makeCtx(state: {
     hasQueuedSubmits: () => state.queued ?? false,
     paletteOpen: () => state.paletteOpen ?? false,
     approvalPending: () => state.approvalPending ?? false,
+    approvalCommandPrefix: () => state.approvalPrefix ?? null,
     confirmArm: (id, now) => { registry.confirmArm(id, now) },
     confirmWithin: (id, now) => registry.confirmWithin(id, now),
     confirmDisarm: (id) => { registry.confirmDisarm(id) },
@@ -379,9 +384,20 @@ describe('keymap 投影 — 与原静态表逐行一致', () => {
 })
 
 describe('footer 提示段投影', () => {
-  it('approval 域按注册序投影 footerHint（allow-tool 不进 footer）', () => {
+  it('approval 域按注册序（决策梯度序）投影 footerHint', () => {
     const actions = createBuiltinActions({ editorKey: 'ctrl_e' })
-    expect(projectApprovalHints(actions)).toEqual(['y 允许', 'n 拒绝', 'a 放行', 'esc 取消'])
+    expect(projectApprovalHints(actions)).toEqual(
+      ['y 允许', 'p 此命令不再问', 't 记住此工具', 'a 全放行', 'n 拒绝', 'f 拒绝并说明', 'esc 取消'])
+  })
+
+  it('approval 投影带 ctx 时按 when 过滤：前缀可提才出现 p 段', () => {
+    const actions = createBuiltinActions({ editorKey: 'ctrl_e' })
+    const noPrefix = makeCtx({ approvalPending: true })
+    expect(projectApprovalHints(actions, noPrefix.ctx)).toEqual(
+      ['y 允许', 't 记住此工具', 'a 全放行', 'n 拒绝', 'f 拒绝并说明', 'esc 取消'])
+    const withPrefix = makeCtx({ approvalPending: true, approvalPrefix: 'npm' })
+    expect(projectApprovalHints(actions, withPrefix.ctx)).toEqual(
+      ['y 允许', 'p 此命令不再问', 't 记住此工具', 'a 全放行', 'n 拒绝', 'f 拒绝并说明', 'esc 取消'])
   })
 
   it('inspect 提示段：inspect.close 的 footerHint + 静态 / 命令', () => {
@@ -423,14 +439,70 @@ describe('阻塞键上下文（BlockingKeyContext 轮询契约）', () => {
     expect(flushLive).toHaveBeenCalledTimes(1)
   })
 
+  /** approval 阻塞上下文夹具：选项态（feedbackMode false）+ 空输入行 stub。 */
+  function makeApprovalCtx(registry: ActionRegistry, ctx: ActionContext) {
+    return createApprovalKeyContext({
+      approval: { isPending: true, feedbackMode: false, setFeedbackMode: vi.fn() },
+      registry,
+      ctx,
+      inputLine: { value: '', setValue: vi.fn(), handleKey: vi.fn() },
+      submitFeedback: vi.fn(),
+      flushLive: vi.fn(),
+    })
+  }
+
   it('approval：y 经 registry 命中 approval.allow；未匹配键吞掉不结算', () => {
     const { registry, ctx, calls } = makeCtx({ approvalPending: true })
-    const context = createApprovalKeyContext({ approval: { isPending: true }, registry, ctx })
+    const context = makeApprovalCtx(registry, ctx)
     expect(context.isActive()).toBe(true)
     expect(context.handleKey(key('unknown', 'z'))).toBe(true)
     expect(calls.settleApproval).not.toHaveBeenCalled()
     expect(context.handleKey(key('unknown', 'y'))).toBe(true)
     expect(calls.settleApproval).toHaveBeenCalledWith('allowed-once')
+  })
+
+  it('approval：p 键按前缀可得性分流——可提时命中 allow-prefix，不可提时吞掉', () => {
+    const withPrefix = makeCtx({ approvalPending: true, approvalPrefix: 'npm' })
+    const ctx1 = makeApprovalCtx(withPrefix.registry, withPrefix.ctx)
+    expect(ctx1.handleKey(key('unknown', 'p'))).toBe(true)
+    expect(withPrefix.calls.approveCommandPrefix).toHaveBeenCalledTimes(1)
+    expect(withPrefix.calls.settleApproval).not.toHaveBeenCalled()
+
+    const noPrefix = makeCtx({ approvalPending: true })
+    const ctx2 = makeApprovalCtx(noPrefix.registry, noPrefix.ctx)
+    expect(ctx2.handleKey(key('unknown', 'p'))).toBe(true) // 吞掉（不干扰输入行）
+    expect(noPrefix.calls.approveCommandPrefix).not.toHaveBeenCalled()
+  })
+
+  it('approval：f 键进反馈输入态（startApprovalFeedback；不结算）', () => {
+    const { registry, ctx, calls } = makeCtx({ approvalPending: true })
+    const context = makeApprovalCtx(registry, ctx)
+    expect(context.handleKey(key('unknown', 'f'))).toBe(true)
+    expect(calls.startApprovalFeedback).toHaveBeenCalledTimes(1)
+    expect(calls.settleApproval).not.toHaveBeenCalled()
+  })
+
+  it('approval 反馈态：Enter 提交文本、Esc 返回选项态、其余键进输入行', () => {
+    const { registry, ctx } = makeCtx({ approvalPending: true })
+    const approval = { isPending: true, feedbackMode: true, setFeedbackMode: vi.fn() }
+    const inputLine = { value: '不要用 rm', setValue: vi.fn(), handleKey: vi.fn() }
+    const submitFeedback = vi.fn()
+    const flushLive = vi.fn()
+    const context = createApprovalKeyContext({ approval, registry, ctx, inputLine, submitFeedback, flushLive })
+
+    // 文本键进输入行（y/n 等选项键在反馈态不触发结算）
+    expect(context.handleKey(key('unknown', 'y'))).toBe(true)
+    expect(inputLine.handleKey).toHaveBeenCalledTimes(1)
+    expect(submitFeedback).not.toHaveBeenCalled()
+
+    // Enter：清空输入行并提交反馈（结算 rejected + steer 由 app 装配闭包组装）
+    expect(context.handleKey(key('return'))).toBe(true)
+    expect(inputLine.setValue).toHaveBeenCalledWith('')
+    expect(submitFeedback).toHaveBeenCalledWith('不要用 rm')
+
+    // Esc：退回选项态（不结算）
+    expect(context.handleKey(key('escape'))).toBe(true)
+    expect(approval.setFeedbackMode).toHaveBeenCalledWith(false)
   })
 
   it('inspect：skills 面板 j/k 移动经 dispatch；未命中放行', async () => {

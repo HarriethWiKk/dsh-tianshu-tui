@@ -5,9 +5,12 @@
  * - handle()：alwaysApprove 且当前会话 → 短路 allowed-once（不挂起不消费）；
  *   非当前会话或已在挂起 → 委托 next()（waterfall 语义）；当前会话无挂起 →
  *   挂起存 resolve，返回用户决定 promise。
- * - settle()：resolve outcome + 清挂起；无挂起 no-op。
- * - peek()：返回 { req, since } 快照（renderLive 消费）；无挂起 null。
+ * - settle()：resolve outcome + 清挂起 + 复位 feedbackMode；无挂起 no-op。
+ * - peek()：返回 { req, since, feedbackMode } 快照（renderLive 消费）；无挂起 null。
  * - setAlwaysApprove / alwaysApprove getter：C3 项 4 三态循环读写。
+ * - 决策分层（阶段 2）：allowedPrefixes 前缀短路（getCommandPrefix 注入、
+ *   handle 时缓存）、approveWithPrefix/approveWithTool 复合、clearSessionGrants
+ *   双清空、feedbackMode 反馈输入态（复刻 question-controller）。
  */
 
 import { describe, expect, it, vi } from 'vitest'
@@ -66,18 +69,131 @@ describe('ApprovalController', () => {
     await expect(outcome).resolves.toBe('rejected')
   })
 
-  it('任务4a：clearAllowedTools 复位——白名单语义限于单个会话', async () => {
+  it('任务4a：clearSessionGrants 复位——白名单语义限于单个会话', async () => {
     const sid = 'approval-4a-reset' as SessionId
     const { ctl } = boot(sid)
 
     ctl.allowTool('bash')
-    ctl.clearAllowedTools()
+    ctl.clearSessionGrants()
     expect(ctl.isToolAllowed('bash')).toBe(false)
 
     const outcome = ctl.handle(approvalReq(sid, 'bash'), () => Promise.resolve('unavailable'))
     expect(ctl.isPending).toBe(true)
     ctl.settle('allowed-once')
     await expect(outcome).resolves.toBe('allowed-once')
+  })
+
+  it('决策分层：allowCommandPrefix 后同前缀短路 allowed-once（不挂起），其他前缀仍逐卡审批', async () => {
+    const sid = 'approval-p1' as SessionId
+    // getCommandPrefix 注入：按 toolName 模拟提取（bash → npm，edit → null）。
+    const getCommandPrefix = vi.fn((req: PendingApprovalRequest) => req.toolName === 'bash' ? 'npm' : null)
+    const { ctl } = boot(sid, { getCommandPrefix })
+
+    ctl.allowCommandPrefix('npm')
+    expect(ctl.isPrefixAllowed('npm')).toBe(true)
+
+    const whitelisted = ctl.handle(approvalReq(sid, 'bash'), () => Promise.resolve('unavailable'))
+    await expect(whitelisted).resolves.toBe('allowed-once')
+    expect(ctl.isPending).toBe(false) // 短路：不挂起、不出卡
+    expect(getCommandPrefix).toHaveBeenCalled()
+  })
+
+  it('决策分层：前缀未加白/提取 null → 照常挂起；挂起时前缀缓存进 pendingCommandPrefix', async () => {
+    const sid = 'approval-p2' as SessionId
+    const getCommandPrefix = vi.fn((req: PendingApprovalRequest) => req.toolName === 'bash' ? 'git' : null)
+    const { ctl } = boot(sid, { getCommandPrefix })
+
+    const outcome = ctl.handle(approvalReq(sid, 'bash'), () => Promise.resolve('unavailable'))
+    expect(ctl.isPending).toBe(true)
+    expect(ctl.pendingCommandPrefix).toBe('git') // 挂起时一次性提取缓存
+    ctl.settle('allowed-once')
+    await expect(outcome).resolves.toBe('allowed-once')
+    expect(ctl.pendingCommandPrefix).toBeNull() // 结算后无挂起 → null
+
+    // 提取失败（非 bash 类 → null）：永不命中前缀白名单
+    const edit = ctl.handle(approvalReq(sid, 'edit'), () => Promise.resolve('unavailable'))
+    expect(ctl.isPending).toBe(true)
+    expect(ctl.pendingCommandPrefix).toBeNull()
+    ctl.settle('rejected')
+    await expect(edit).resolves.toBe('rejected')
+  })
+
+  it('决策分层：前缀白名单仅当前会话——非当前会话委托 next() 不短路', async () => {
+    const sid = 'approval-p3' as SessionId
+    const { ctl } = boot(sid, { getCommandPrefix: () => 'npm' })
+    ctl.allowCommandPrefix('npm')
+
+    const next = vi.fn<() => Promise<ApprovalOutcome>>(async () => 'unavailable')
+    const result = await ctl.handle(approvalReq('remote-session' as SessionId), next)
+
+    expect(result).toBe('unavailable')
+    expect(next).toHaveBeenCalledTimes(1)
+    expect(ctl.isPending).toBe(false)
+  })
+
+  it('决策分层：approveWithPrefix 复合——前缀入白并结算当前请求；无前缀 false 不结算', async () => {
+    const sid = 'approval-p4' as SessionId
+    const { ctl } = boot(sid, { getCommandPrefix: () => 'npm' })
+
+    const outcome = ctl.handle(approvalReq(sid), () => Promise.resolve('unavailable'))
+    expect(ctl.approveWithPrefix()).toBe(true)
+    await expect(outcome).resolves.toBe('allowed-once')
+    expect(ctl.isPrefixAllowed('npm')).toBe(true)
+
+    // 无挂起 → false（不结算、不抛）
+    expect(ctl.approveWithPrefix()).toBe(false)
+
+    // 有挂起但提取 null → false 不结算（请求仍挂起，可正常 y/n）
+    const { ctl: ctl2 } = boot(sid, { getCommandPrefix: () => null })
+    const pending2 = ctl2.handle(approvalReq(sid), () => Promise.resolve('unavailable'))
+    expect(ctl2.approveWithPrefix()).toBe(false)
+    expect(ctl2.isPending).toBe(true)
+    ctl2.settle('rejected')
+    await expect(pending2).resolves.toBe('rejected')
+  })
+
+  it('approveWithTool 复合——工具入白并结算当前请求；无挂起 false', async () => {
+    const sid = 'approval-t1' as SessionId
+    const { ctl } = boot(sid)
+
+    expect(ctl.approveWithTool()).toBe(false) // 无挂起
+
+    const outcome = ctl.handle(approvalReq(sid, 'bash'), () => Promise.resolve('unavailable'))
+    expect(ctl.approveWithTool()).toBe(true)
+    await expect(outcome).resolves.toBe('allowed-once')
+    expect(ctl.isToolAllowed('bash')).toBe(true)
+  })
+
+  it('决策分层：clearSessionGrants 同时清空前缀白名单', async () => {
+    const sid = 'approval-p5' as SessionId
+    const { ctl } = boot(sid, { getCommandPrefix: () => 'npm' })
+
+    ctl.allowCommandPrefix('npm')
+    ctl.clearSessionGrants()
+    expect(ctl.isPrefixAllowed('npm')).toBe(false)
+
+    const outcome = ctl.handle(approvalReq(sid), () => Promise.resolve('unavailable'))
+    expect(ctl.isPending).toBe(true)
+    ctl.settle('allowed-once')
+    await expect(outcome).resolves.toBe('allowed-once')
+  })
+
+  it('决策分层：feedbackMode 进出与 settle 复位；peek 快照携带 feedbackMode', async () => {
+    const sid = 'approval-f1' as SessionId
+    const { ctl } = boot(sid)
+
+    expect(ctl.feedbackMode).toBe(false)
+    const outcome = ctl.handle(approvalReq(sid), () => Promise.resolve('unavailable'))
+    expect(ctl.peek()?.feedbackMode).toBe(false)
+
+    ctl.setFeedbackMode(true) // f 键进入反馈输入态
+    expect(ctl.feedbackMode).toBe(true)
+    expect(ctl.peek()?.feedbackMode).toBe(true)
+    expect(ctl.isPending).toBe(true) // 反馈态不结算
+
+    ctl.settle('rejected') // Enter 提交（steer 旁路由 app 侧组装）
+    await expect(outcome).resolves.toBe('rejected')
+    expect(ctl.feedbackMode).toBe(false) // 结算复位
   })
 
   it('settle：resolve outcome + 清挂起 + onChanged；无挂起 no-op', () => {

@@ -111,24 +111,47 @@ export function createBtwKeyContext(deps: BtwKeyContextDeps): BlockingKeyContext
 
 /** createApprovalKeyContext 的依赖注入。 */
 export interface ApprovalKeyContextDeps {
-  /** 审批挂起状态机。 */
-  approval: Pick<ApprovalController, 'isPending'>
+  /** 审批挂起状态机（反馈态读写复刻 question 上下文）。 */
+  approval: Pick<ApprovalController, 'isPending' | 'feedbackMode' | 'setFeedbackMode'>
   /** 动作注册表（approval 域动作的 match 入口）。 */
   registry: ActionRegistry
   /** 动作执行上下文（approval 域动作的 run 参数）。 */
   ctx: ActionContext
+  /** 拒绝反馈输入态的文本编辑面（反馈走输入行，与 question 反馈同型）。 */
+  inputLine: Pick<InputLine, 'value' | 'setValue' | 'handleKey'>
+  /** 反馈态 Enter：结算 rejected 并旁路 steer 反馈文本（空文本等同 n）。 */
+  submitFeedback(text: string): void
+  /** 请求重绘 live 区。 */
+  flushLive(): void
 }
 
 /**
- * Phase 8 审批上下文：y/N/a/t 决定、Ctrl+C/Esc 取消——具体键位收敛在
- * registry 的 approval 域动作（与 footer 提示段同源）；未匹配的键一律吞掉
- * （不干扰输入行——现状语义）。
+ * Phase 8 审批上下文：y/p/t/a/n/f 决定、Ctrl+C/Esc 取消——具体键位收敛在
+ * registry 的 approval 域动作（与 footer/卡片键位行同源投影）；未匹配的键一律
+ * 吞掉（不干扰输入行——现状语义）。
+ * 决策分层阶段 2：反馈输入态（f 键进入）独占键盘——Enter 提交反馈结算、
+ * Esc/Ctrl+C 返回选项态、其余键进输入行（复刻 question 上下文反馈范式）。
  */
 export function createApprovalKeyContext(deps: ApprovalKeyContextDeps): BlockingKeyContext {
   return {
     id: 'approval',
     isActive: () => deps.approval.isPending,
     handleKey: (key) => {
+      if (deps.approval.feedbackMode) {
+        if (key.name === 'return') {
+          const feedback = deps.inputLine.value
+          deps.inputLine.setValue('')
+          // 结算与 steer 旁路由 app 装配闭包组装（settle 触发 onChanged 重绘）。
+          deps.submitFeedback(feedback)
+        } else if (key.name === 'escape' || key.name === 'ctrl_c') {
+          deps.approval.setFeedbackMode(false)
+          deps.flushLive()
+        } else {
+          deps.inputLine.handleKey(key.name, key.char, key.ctrl, key.meta, key.shift, key.inline === true)
+          deps.flushLive()
+        }
+        return true
+      }
       const action = deps.registry.match(key, deps.ctx, { context: 'approval' })
       if (action !== null) action.run(deps.ctx, key)
       return true

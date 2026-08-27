@@ -50,11 +50,12 @@ describe('formatPromptFooter', () => {
     expect(line).not.toContain('[plan] ·')
   })
 
-  it('approvalPending：快捷键换成 y/n/a/esc', () => {
-    const [line = ''] = plain(formatPromptFooter(base({ approvalPending: true }), fakeTheme()))
+  it('approvalPending：快捷键换成审批决策键位（y/p/t/a/n/f/esc）', () => {
+    const [line = ''] = plain(formatPromptFooter(base({ approvalPending: true, width: 120 }), fakeTheme()))
     expect(line).toContain('y 允许')
     expect(line).toContain('n 拒绝')
-    expect(line).toContain('a 放行')
+    expect(line).toContain('a 全放行')
+    expect(line).toContain('f 拒绝并说明')
     expect(line).not.toContain('Enter 发送')
   })
 

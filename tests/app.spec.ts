@@ -1744,8 +1744,8 @@ describe('TuiApp Phase 8 审批 answerer', () => {
     const handle = makeHandle(agent)
     ctx.agents.create.mockResolvedValue(handle)
     ctx.sessions.get.mockReturnValue(agent.session)
-    // attach 前注入 bash tool/call（callId 命中 transcript.tools；bash 无替换语义
-    // → formatPermissionDiff 返回 null，走 if (diff !== null) 的 null 侧）
+    // attach 前注入 read_file tool/call（callId 命中 transcript.tools；read_file
+    // 既无替换语义也非 bash 类 → formatPermissionDiff 返回 null，走 if (diff !== null) 的 null 侧）
     const events = agent.session.events as unknown as unknown[]
     events.push({
       type: 'tool/call',
@@ -1754,9 +1754,9 @@ describe('TuiApp Phase 8 审批 answerer', () => {
       data: {
         turn: 1,
         step: 1,
-        callId: 'call-bash-1',
-        name: 'bash',
-        arguments: JSON.stringify({ command: 'echo hi' }),
+        callId: 'call-read-1',
+        name: 'read_file',
+        arguments: JSON.stringify({ path: '/tmp/x' }),
       },
     })
     const stdin = makeStdin()
@@ -1771,14 +1771,14 @@ describe('TuiApp Phase 8 审批 answerer', () => {
 
     const owner = { id: app.sessionId ?? SessionId('approval-diff-null') }
     void handler(
-      { agent: { session: { id: owner.id } }, toolName: 'bash', callId: 'call-bash-1' },
+      { agent: { session: { id: owner.id } }, toolName: 'read_file', callId: 'call-read-1' },
       () => Promise.resolve('unavailable'),
     )
     await new Promise(resolve => setImmediate(resolve))
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    // toolCall 命中 + arguments 存在，但 bash 不可 diff → 无 diff 块，仅 y/N 提示
+    // toolCall 命中 + arguments 存在，但 read_file 不可 diff → 无 diff 块，仅 y/N 提示
     expect(written).not.toContain('-const')
-    expect(written).toContain('允许执行 bash')
+    expect(written).toContain('允许执行 read_file')
     await app.dispose()
   })
 
@@ -1788,8 +1788,8 @@ describe('TuiApp Phase 8 审批 answerer', () => {
     const handle = makeHandle(agent)
     ctx.agents.create.mockResolvedValue(handle)
     ctx.sessions.get.mockReturnValue(agent.session)
-    // attach 前注入 bash tool/call（场景 3：callId 命中但 bash 不可 diff
-    // → formatPermissionDiff 返回 null）
+    // attach 前注入 bash tool/call（场景 3：callId 命中但无 command 字段
+    // → extractShellCommand null → formatPermissionDiff 返回 null）
     const events = agent.session.events as unknown as unknown[]
     events.push({
       type: 'tool/call',
@@ -1800,7 +1800,7 @@ describe('TuiApp Phase 8 审批 answerer', () => {
         step: 1,
         callId: 'call-bash-blind',
         name: 'bash',
-        arguments: JSON.stringify({ command: 'echo hi' }),
+        arguments: JSON.stringify({}),
       },
     })
     const stdin = makeStdin()

@@ -176,6 +176,12 @@ export interface ActionContext {
   approveAlways(): void
   /** t 键：该工具进会话白名单（后续自动放行）并结算当前请求。 */
   approveToolSession(): void
+  /** 挂起审批的命令前缀（p 键 when 守卫与投影用；非 bash 类/无挂起 null）。 */
+  approvalCommandPrefix(): string | null
+  /** p 键：命令前缀进会话白名单（bash 类同前缀请求后续自动放行）并结算当前请求。 */
+  approveCommandPrefix(): void
+  /** f 键：进入拒绝反馈输入态（清空输入行，Enter 提交 / Esc 返回选项态）。 */
+  startApprovalFeedback(): void
 }
 
 /**
