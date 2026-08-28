@@ -21,7 +21,7 @@ export interface ModelPickerLlm {
 export interface ModelPickerHost {
     overlay: OverlayActivate | null;
     picker: PickerController | null;
-    echoWarn(text: string): void;
+    echoWarn(text: string, hint?: string): void;
     commit(text: string): void;
     current?: {
         provider: string;

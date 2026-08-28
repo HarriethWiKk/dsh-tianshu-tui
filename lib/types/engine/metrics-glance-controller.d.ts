@@ -46,13 +46,15 @@ export interface MetricsGlanceControllerOptions {
 }
 /**
  * 状态行派生：工作流投影优先，否则 agent 状态回退（复刻 TuiApp 旧装配）。
- * 空闲态返回 null（不渲染不占位）：空闲提示已由 footer 承载，状态行只在
- * 「有事发生」（运行中/已停止/投影文本）时出现。
+ * running 回退为轮换动词（verbForElapsed 按 elapsed 时间片取词；elapsed 缺省
+ * 0 = 池首「思考中」）。空闲态返回 null（不渲染不占位）：空闲提示已由 footer
+ * 承载，状态行只在「有事发生」（运行中/已停止/投影文本）时出现。
  * @param statusText - WorkflowStatusLine.current；null = 无投影。
  * @param live - live agent 状态；undefined = 未挂载。
+ * @param elapsedMs - 当前回合已耗时（毫秒；动词轮换时间片数据源）。
  * @returns 状态行纯文本；空闲 null。
  */
-export declare function deriveGlanceStatus(statusText: string | null, live: LiveAgentState | undefined): string | null;
+export declare function deriveGlanceStatus(statusText: string | null, live: LiveAgentState | undefined, elapsedMs?: number): string | null;
 /**
  * 错误行派生：glyph（ascii 降级）+ 首行截断至 cols-2（复刻 TuiApp 旧装配）。
  * @param live - live agent 状态；无 lastError 或未挂载时返回 null。
@@ -72,9 +74,10 @@ export declare function deriveGlanceErrorFull(live: LiveAgentState | undefined):
  * @param statusText - WorkflowStatusLine.current；null = 无投影
  * @param live - live agent 状态；undefined = 未挂载
  * @param columns - 终端列数（错误首行截断度量）
+ * @param elapsedMs - 当前回合已耗时（毫秒；running 回退的动词轮换数据源）
  * @returns 状态行 + 错误行数据
  */
-export declare function deriveGlance(statusText: string | null, live: LiveAgentState | undefined, columns: number): GlanceLine;
+export declare function deriveGlance(statusText: string | null, live: LiveAgentState | undefined, columns: number, elapsedMs?: number): GlanceLine;
 /**
  * 底部 glance 数据收集 + 刷新节流控制器。
  * renderLive 每帧调用 refresh() 后读 current()：窗口内读缓存（零重收集），
@@ -84,6 +87,8 @@ export declare class MetricsGlanceController {
     private cache;
     private computed;
     private lastComputeAt;
+    /** idle→running 跃迁观测时间（running 回退动词轮换的 elapsed 数据源；非 running 复位）。 */
+    private runningSince;
     private timer;
     private readonly throttleMs;
     private readonly options;

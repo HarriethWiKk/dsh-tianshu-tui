@@ -3,6 +3,18 @@
 版本更新记录。安装与当前版本见 [README](README.md)；完整历史在此。
 `/changelog` 在 TUI 内查看（默认当前版本，`/changelog all` 全部，`/changelog N` 最近 N 版）。
 
+## [Unreleased]
+
+P1 交互打磨六连：Esc 分层收尾、拟人 spinner 词库、footer 显式分级降级、错误恢复指引、定高视口强化、fish 式历史建议。
+
+- **Esc 语义分层收尾** — 打断在途后 1s grace 期内双击 Esc 不误开 rewind；首次按 Esc 布防时显示「再按 Esc 打开 rewind」提示行（与 Ctrl+C 布防提示同源）
+- **glance 状态行拟人动词池** — running 回退文案从静态「● 运行中」改为 14 词 4s 时间片轮换（沉思中/琢磨中/腌制中/施法中…，池首恒「思考中」，reducedMotion 冻结语义不变）；清理无调用方的 formatSpinnerStatus
+- **footer 行 1 显式分级降级** — 窄终端下审批 hints 先走长→短中间档再按 esc→f→n→a→p→t 位次丢段（y 恒留）；右段 rightSegments 升级 `{text, priority}` 显式丢序（git ●N 最次要先丢的隐式约定显式化）
+- **错误恢复指引** — 每个错误都附下一步操作：echoWarn 支持 `↳` 尾随行；agent 错误按模式识别附 `/key`（401/鉴权）、`/compact`（上下文超长）、`↑ 重发`（超时/网络）；消息发送失败/会话切换失败/服务不可用族全部接线；主题加载警告从 stderr 收进 TUI 附 `/theme` 指引
+- **定高视口强化** — todos/提问/审批卡并入 slashRows 高水位记账先例：chrome 开合不再让输入轨跳一格（帧级测试锚定）；vim 标签/附件/排队行评估后不纳入
+- **fish 式历史建议 ghost** — 输入前缀匹配最近历史条目，剩余部分 dim 上屏；`→`（光标末尾）接受整条，键入即弃；`/` 开头 slash ghost 优先；vim normal/选区/光标不在末尾抑制；prefs `ghostSuggest` 可关
+- **`/scroll` 上限可配** — prefs `scrollbackMaxLines`（缺省 1000 不变），调高增加内存与回放成本
+
 ## [0.1.2-rc.25] - 2026-08-28
 
 P0 交互三连：键位/命令/提示统一 action registry、审批卡六档决策梯度、运行中消息排队与 Ctrl+Enter 插队；另含 /scroll 分页查看器、完成响铃、vim remap、主题对比度校验。

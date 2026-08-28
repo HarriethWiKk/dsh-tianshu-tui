@@ -30,6 +30,7 @@ When there is more than one session, a **session tab bar** appears above the inp
 | `Alt+W` | Copy the selection to the system clipboard (OSC52) |
 | `Tab` | `@`-path completion; accept the slash-menu selection |
 | `↑`/`↓` | Input history (menu selection when the slash menu is open; with queued messages, empty-input `↑` takes back the first) |
+| `→` (at end of input) | Accept the history-suggestion ghost (fish-style: dim remainder of the most recent history entry matching the input prefix; `/` input defers to the slash ghost; disable via the `ghostSuggest` pref) |
 | `PageUp`/`PageDown` | Page through the slash menu |
 | `Esc` | Close menus/overlays/inspect panels; cancel a pending question |
 
@@ -40,7 +41,7 @@ When there is more than one session, a **session tab bar** appears above the inp
 | `Ctrl+C` | Interrupt the in-flight turn (immediate) |
 | `Esc` (in flight) | Interrupt the in-flight turn (Claude Code-style single Esc; lone ESC has an 80ms debounce; overlays/menus/inspect panels still close first when open) |
 | `Esc` (inspect panel) | Close `/config` `/skills` `/status` `/lsp` `/tasks` (even with a draft; does not arm rewind) |
-| `Esc`+`Esc` (idle) | Open the rewind panel (Claude Code's Esc+Esc time travel; 1s double-press window, same as `/rewind`) |
+| `Esc`+`Esc` (idle) | Open the rewind panel (Claude Code's Esc+Esc time travel; 1s double-press window, same as `/rewind`; the first press shows a "press Esc again for rewind" hint, and a 1s grace period after interrupting a turn prevents accidental arming) |
 | `Ctrl+O` | Expand/collapse the most recent reasoning block |
 | `Enter` (empty input) | Toggle expansion of the last in-flight tool card (shows argument JSON) |
 | `Shift+Tab` | Mode cycle: normal → plan → always-approve |

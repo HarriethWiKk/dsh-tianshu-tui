@@ -53,6 +53,8 @@ export interface TuiAppOptions {
      * 宿主/测试装配可显式关闭——TTY 替身与真实终端无法从 stdin 区分。
      */
     disableKeyAutoPrompt?: boolean;
+    /** 启动期收集的主题警告（loadCustomThemes 回调路由；attach 后 echoWarn + /theme 指引落 scrollback）。 */
+    themeWarnings?: readonly string[];
     /**
      * 主控模型的识图能力与视觉桥状态（图片附件的用户气泡提示数据源；
      * 由装配方按 agent 配置注入——TUI 是纯表现层，不自行查询模型能力）。
@@ -129,6 +131,7 @@ export declare class TuiApp {
     private keyFlow;
     /** /key 首启自动弹窗禁用（宿主/测试装配显式关闭；缺省 false=启用）。 */
     private readonly disableKeyAutoPrompt;
+    private readonly themeWarnings;
     private overlay;
     /** C3 项 3：rewind overlay（/rewind 双阶段回退面板）。 */
     private rewindOverlay;
@@ -582,7 +585,7 @@ export declare class TuiApp {
     private refreshConfigProjection;
     /** /config notify 与空输入 n：写 prefs 并刷新终端段。 */
     private applyNotifyPref;
-    /** 回显一条警告行到 scrollback（可选服务缺失的 fails-loud 提示共用出口）。 */
+    /** 回显警告行到 scrollback（fails-loud 提示共用出口）；hint 给 dim 色 `  ↳ ` 恢复指引尾随行。 */
     private echoWarn;
     /** 当前主题（动态读取，切主题后立即生效）。 */
     private get theme();
@@ -638,6 +641,8 @@ export declare class TuiApp {
     /** 取消当前运行（Esc/Ctrl+C）：cancel agent（keepInbox——宿主 inbox 未消费的 steer/排队残留保留）、丢弃未发出的流式/推理缓冲并重置流渲染。 */
     /** 最近一次 Ctrl+C 字节（0x03）处理时间戳；0 = 未处理过（SIGINT 防抖用）。 */
     private lastCtrlCAt;
+    /** 最近一次 handleAbort 时间戳；0 = 未打断过（双击 Esc rewind 的 grace 守卫数据源）。 */
+    private lastAbortAt;
     /**
      * Windows 双触发防护：最近 800ms 内 Ctrl+C 字节（0x03）已处理（打断/退出）时，
      * 紧随的 SIGINT 应被忽略——否则刚打断的 TUI 被 teardown 拆掉（输入框消失、
@@ -669,20 +674,14 @@ export declare class TuiApp {
      * 列表很小，成本可忽略。
      */
     private syncSlashHints;
-    /**
-     * 输入行 ghost 预览文本（阶段 2）：菜单选中命令时预览补全剩余
-     * （`/th` + 选中 /theme → `eme`）；完整命令名 + 尾空格 → 预览参数占位
-     * （`/theme ` → `<name>`）。菜单关闭/光标不在末尾/无补全关系 → null。
-     * @returns ghost 文本或 null。
-     */
+    /** slash ghost 预览：菜单选中命令补全剩余（/th→eme）；完整命令名+尾空格 → 参数占位。
+     *  菜单关闭/光标不在末尾/无补全关系 → null。 */
     private slashGhostText;
-    /**
-     * 接受 slash 菜单当前选中项（Tab / Enter）。
-     * Enter 且输入已是完整命令名（如 `/theme`）→ 关闭菜单并直接提交；
-     * 否则补全命令名到输入行（有 argsHint 的命令补到 `cmd ` 留参数位，
-     * 参数建议留待下一批），随后关闭菜单。
-     * @param opts - submit：Enter 语义（精确命令直接发送）。
-     */
+    /** fish 式历史建议 ghost：prefs 关 / `/` 开头 / 光标不在末尾 / 有选区 / vim normal → null。 */
+    private historyGhostText;
+    /** 接受 slash 菜单当前选中项（Tab / Enter）：Enter 且输入已是完整命令名 →
+     *  关菜单直接提交（opts.submit）；否则补全命令名（有 argsHint 补到 `cmd `
+     *  留参数位，参数建议留待下一批）后关菜单。 */
     private acceptSlashCompletion;
     /**
      * C3 项 4：Shift+Tab 三态循环（对齐 grok 的两轴模型，plan 与 permission 正交）：
@@ -708,20 +707,15 @@ export declare class TuiApp {
     private runUpdateCheck;
     /**
      * 键路由（统一 action registry）：布防清扫 → 早段全局动作（overlay 之前——
-     * shift_tab/ctrl_n 等在面板打开时先生效，现状语义保持）→ overlay 委派
-     * （scroll-pager 范式）→ 阻塞上下文轮询（question > btw > approval）→
-     * 主段动作（esc 打断/关 inspect/双击 rewind、ctrl_c、ctrl_o、editorKey、
-     * ctrl_t、ctrl_v）→ slash 菜单 → inspect 上下文键 → 尾段动作（空 Tab/
-     * Alt+Backspace/↑↓）→ InputLine 兜底。
+     * shift_tab/ctrl_n 等在面板打开时先生效）→ overlay 委派 → 阻塞上下文轮询
+     * （question > btw > approval）→ 主段动作（esc/ctrl_c/ctrl_o/editorKey/
+     * ctrl_t/ctrl_v）→ slash 菜单 → inspect 上下文键 → 尾段动作 → InputLine 兜底。
      */
     private handleKey;
     /** A5：最后一张进行中工具卡（空输入 Enter 展开目标）；无则 undefined。 */
     private latestPendingToolCall;
-    /**
-     * 动作执行上下文门面（actions/types.ts 的 ActionContext）：动作表的 when/run
-     * 只经此触达本类私有方法——registry 不 import 本类。读取方法即原 handleKey
-     * 各分支的判定条件原样搬出；confirmMs 原语转发 registry 布防状态。
-     */
+    /** 动作执行上下文门面（ActionContext）：when/run 只经此触达本类私有方法
+     *  （registry 不 import 本类）；confirmMs 原语转发 registry 布防状态。 */
     private createActionContext;
     /**
      * Phase 5.3：glance 一行条的可得数据。model（request header 优先、
@@ -732,10 +726,6 @@ export declare class TuiApp {
      * 无可渲染数据返回 null（不占位）。
      */
     private glanceMetrics;
-    /**
-     * 把渲染行批量提交到 scrollback（保持时间顺序）。
-     * @param rows - RenderedRow 数组。
-     */
     /**
      * 历史行渐进落底（任务5，2026-08-27）：大会话 attach 不再单 tick 全量写入。
      * 首片同步 commit（首帧即有内容），余片经 setImmediate 链逐片追加——每片

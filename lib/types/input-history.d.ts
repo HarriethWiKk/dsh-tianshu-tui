@@ -17,6 +17,12 @@ export declare function loadInputHistory(path: string): string[];
 /** 提交后的下一份历史（纯函数）：trim、空串 no-op、全列表去重、限长。 */
 export declare function nextHistoryAfterSubmit(history: readonly string[], entry: string): string[];
 /**
+ * fish 式历史建议（ghost）：最近一条以 value 为前缀的历史条目的剩余部分。
+ * 历史按最近在前排列，首个匹配即最近条目；等长（无剩余）与剩余部分含换行
+ * 的条目跳过（ghost 只渲染在光标行尾，多行建议无意义）。空 value → null。
+ */
+export declare function historyGhostSuffix(history: readonly string[], value: string): string | null;
+/**
  * 追加一条输入历史（异步，不阻塞调用方——提交路径延迟敏感）。
  * 每次都重读文件再合并：多会话/多进程下的最新文件状态优先，本进程新条目置顶。
  */

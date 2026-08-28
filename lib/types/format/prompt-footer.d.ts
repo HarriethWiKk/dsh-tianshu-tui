@@ -33,6 +33,17 @@ export interface FormatFooterInfoInput extends FormatPromptFooterInput {
  * @returns 0-2 行 ANSI；每行显示宽度 ≤ width。
  */
 export declare function formatFooterInfo(input: FormatFooterInfoInput, theme: RivetTheme): string[];
+/**
+ * 右侧状态段（行 1 右对齐区）：纯文本或带丢段优先级的段对象。
+ * priority 数值**大**的先丢；缺省取数组下标（靠后者先丢——与旧字符串
+ * 数组「从后丢」语义一致，字符串元素因此无需迁移）。次要的段（如 git ●N）
+ * 给大 priority，重要段给小 priority 或用字符串靠前排。
+ */
+export interface FooterRightSegment {
+    text: string;
+    /** 丢段优先级：数值大者先丢；缺省 = 数组下标。 */
+    priority?: number;
+}
 /** formatPromptFooter 的渲染输入。 */
 export interface FormatPromptFooterInput {
     width: number;
@@ -50,8 +61,8 @@ export interface FormatPromptFooterInput {
     approvalHints?: readonly string[];
     /** 检查面板提示段覆盖（同上）；缺省用内置文案。 */
     inspectHints?: readonly string[];
-    /** 右侧状态段（token/模型/API 等）；右对齐合并进同一行，放不下从后丢段。 */
-    rightSegments?: readonly string[];
+    /** 右侧状态段（token/模型/API 等）；右对齐合并进同一行，放不下按 priority 丢段。 */
+    rightSegments?: readonly (string | FooterRightSegment)[];
     /**
      * 轮播序号（空闲态提示用；缺省按当前时间分片——测试注入固定值保证确定）。
      * 上下文态（审批/检查面板）忽略此参数，始终显示操作提示。
@@ -61,6 +72,7 @@ export interface FormatPromptFooterInput {
 /**
  * 渲染底部 footer：mode 段 + 快捷键提示段，右侧状态段右对齐合并进同一行。
  * 空闲态提示按 tipIndex 轮播（10s 一片）；审批/检查面板等上下文态固定操作提示。
+ * 左段超宽走显式分级降级（审批态：中间档 → 位次丢段；空闲/检查态：从后丢）。
  * @param input - 宽度、模式徽标、右侧状态段与轮播序号。
  * @param theme - 当前主题（plan/auto 徽标走 warning/error；其余用雾蓝 chrome）。
  * @returns 单行 ANSI；任何宽度下 ≤ width。

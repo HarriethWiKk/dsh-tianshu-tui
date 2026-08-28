@@ -95,6 +95,9 @@ export interface ActionContext {
     inspectAny(): boolean;
     /** vim normal 态（Esc 空操作——双击 rewind 的布防/触发都跳过）。 */
     vimNormalEsc(): boolean;
+    /** 打断宽限期内（now - 最近 handleAbort 时间 < 双击 rewind 窗口）：期间 Esc
+     *  不布防/触发 rewind——打断在途后 isRunning 异步落定，落定即双击会误开 rewind。 */
+    inAbortGrace(now: number): boolean;
     /** 有可展开的推理块（流式缓冲或已落底块；无则 ctrl_o 落给 editorKey 分支）。 */
     hasReasoning(): boolean;
     /** 有进行中的工具卡（空 Enter 展开/收起目标）。 */
@@ -154,6 +157,10 @@ export interface ActionContext {
     removeLastImage(): void;
     /** 空输入 ↑：取回运行中提交队列队首回输入行。 */
     recallQueuedSubmit(): void;
+    /** fish 式历史建议当前可接受（ghost 可见：光标末尾 + 无选区 + 非 vim normal + prefs 开）。 */
+    ghostAcceptable(): boolean;
+    /** → 接受整条历史建议（把 ghost 剩余部分补进输入行）。 */
+    acceptGhost(): void;
     /** ↑↓ 透传 InputLine 历史导航。 */
     passHistoryKey(key: KeyPress): void;
     /** 清空输入行（Ctrl+C 空闲草稿语义；setValue 记 undo）。 */

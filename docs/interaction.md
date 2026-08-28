@@ -28,6 +28,7 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
 | `Alt+W` | 把选区复制到系统剪贴板(OSC52) |
 | `Tab` | `@`-路径补全;接受 slash 菜单选中项 |
 | `↑`/`↓` | 输入历史(slash 菜单打开时为选择;有排队消息时空输入 `↑` 取回队首) |
+| `→`(光标末尾) | 接受历史建议 ghost(fish 式:输入前缀匹配最近历史条目的剩余部分,dim 显示;`/` 开头走 slash ghost 优先;`ghostSuggest` prefs 可关) |
 | `PageUp`/`PageDown` | slash 菜单翻页;长草稿输入视窗翻页 |
 | `Esc` | 关闭菜单/overlay/检查面板;取消挂起提问 |
 
@@ -38,7 +39,7 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
 | `Ctrl+C` | 打断在途回合(即时) |
 | `Esc`(在途) | 打断在途回合(对齐 Claude Code 单次 Esc;lone ESC 80ms 防误触;overlay/菜单/检查面板打开时仍先关闭) |
 | `Esc`(检查面板) | 关闭 `/config` `/skills` `/status` `/lsp` `/tasks`(有草稿也关,不布防 rewind) |
-| `Esc`+`Esc`(空闲) | 打开 rewind 回退面板(Claude Code 的 Esc+Esc 时间回溯;1s 双击窗口,同 `/rewind`) |
+| `Esc`+`Esc`(空闲) | 打开 rewind 回退面板(Claude Code 的 Esc+Esc 时间回溯;1s 双击窗口,同 `/rewind`;第一下布防时提示「再按 Esc 打开 rewind」;打断在途后 1s grace 期内不布防防误触) |
 | `Ctrl+O` | 展开/收起最近推理块 |
 | `Enter`(空输入) | 切换最后一张进行中工具卡的展开(显示参数 JSON) |
 | `Shift+Tab` | 模式循环:normal → plan → always-approve |

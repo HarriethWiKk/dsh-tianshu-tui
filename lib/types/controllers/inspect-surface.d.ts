@@ -7,7 +7,7 @@
 import { type InspectKeyAction, type InspectPanel, type InspectPanelFlags } from '../ui/inspect-panels.js';
 export interface InspectSurfaceOptions {
     hasService: (name: string) => boolean;
-    echoWarn: (text: string) => void;
+    echoWarn: (text: string, hint?: string) => void;
     refreshConfig: () => Promise<void>;
     refreshSkills: () => void;
     ensureLsp: () => void;

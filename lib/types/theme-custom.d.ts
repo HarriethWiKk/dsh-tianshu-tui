@@ -12,7 +12,7 @@
  * }
  * ```
  * 文件名（去 .json）即主题名，引用方式 `custom:<name>`。
- * 单个文件解析失败只跳过该文件（stderr 警告），不影响其他主题与启动。
+ * 单个文件解析失败只跳过该文件（警告走 onWarning 回调/stderr 出口），不影响其他主题与启动。
  */
 import { type CustomThemeInput } from './theme.js';
 /**
@@ -30,10 +30,13 @@ export declare function parseCustomThemeJson(text: string): CustomThemeInput | n
 /**
  * 扫描并注册全部自定义主题。返回成功注册的裸名列表。
  * 目录不存在 → 空列表（不是错误）。
+ * 解析失败/低对比警告：onWarning 注入时路由给回调（TUI 装配收集后落 scrollback），
+ * 缺省写 process.stderr（pre-TUI / 独立调用保持可见）。
  * @param baseDir - 根目录（测试注入）；缺省 `~/.dsh-tui`。
+ * @param onWarning - 警告收集回调；缺省写 stderr（`[theme] ` 前缀，对齐历史文案）。
  * @returns 成功注册的主题裸名（不含 `custom:` 前缀）。
  */
-export declare function loadCustomThemes(baseDir?: string): string[];
+export declare function loadCustomThemes(baseDir?: string, onWarning?: (message: string) => void): string[];
 /**
  * 当前生效主题导出为自定义主题模板（/theme export；P1）。
  * 全量 dump truecolor ColorSet + overrides，base 取内置同名或按背景朝向回退；
