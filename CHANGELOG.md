@@ -3,7 +3,7 @@
 版本更新记录。安装与当前版本见 [README](README.md)；完整历史在此。
 `/changelog` 在 TUI 内查看（默认当前版本，`/changelog all` 全部，`/changelog N` 最近 N 版）。
 
-## [Unreleased]
+## [0.1.2-rc.26] - 2026-08-28
 
 P1 交互打磨六连：Esc 分层收尾、拟人 spinner 词库、footer 显式分级降级、错误恢复指引、定高视口强化、fish 式历史建议。
 

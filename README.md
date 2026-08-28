@@ -122,7 +122,9 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 
 ## 更新说明
 
-当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.25`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.25)）。
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.26`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.26)）。
+
+**0.1.2-rc.26（2026-08-28）**：P1 交互打磨六连——Esc 分层收尾（打断 grace 期 + 布防提示行）、glance 拟人动词池、footer 显式分级降级、错误恢复指引（每个错误附下一步操作）、定高视口强化（chrome 开合输入轨不跳）、fish 式历史建议 ghost（`→` 接受）；`/scroll` 上限可配。
 
 **0.1.2-rc.25（2026-08-28）**：P0 交互三连——键位/命令/提示统一 action registry（app.ts 棘轮 4359→4140）、审批卡六档决策梯度（新增 `p` 命令前缀白名单、`f` 拒绝附反馈，bash 审批带命令预览与危险标注）、运行中消息排队（`↑` 收回、`Ctrl+Enter` 插队、打断保队列）；另含 `/scroll` 分页查看器、完成响铃、vim remap、主题对比度校验。
 
