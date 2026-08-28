@@ -283,8 +283,8 @@ export declare class TuiApp {
     private ticker;
     /** 上一帧 idle key；overlay 退出时置空，强制下一帧组装。 */
     private lastIdleKey;
-    /** 已落底 scrollback 的最近完整错误文本（diff 去重——同错误逐帧重读不重复落底）。 */
-    private lastGlanceErrorFull;
+    /** 错误落底/回填控制器（C4 提取；回流 Tianshu lastSubmittedText 语义）。 */
+    private readonly errorAnnouncer;
     /** 历史渐进重放代际（commitRows 每次递增；快速切换会话时旧链自毁）。 */
     private replayEpoch;
     /** 历史重放进行中（streamFeed 新事件进 backlog 排队，见 commitRows）。 */

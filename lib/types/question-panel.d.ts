@@ -19,6 +19,7 @@
  *
  * @module @deepseek-ai/dsh-tianshu-tui/question-panel
  */
+import type { RivetTheme } from './theme.js';
 /** 单个可选项（结构兼容 user-questions 的 AskUserQuestionOption）。 */
 export interface QuestionOptionInput {
     /** 用户可见标签。 */
@@ -59,6 +60,12 @@ export interface QuestionRequestInput {
 export interface QuestionPanelOptions {
     /** 终端列数（行截断预算，含标题行）。 */
     width: number;
+    /**
+     * 可选主题（回流 Tianshu b15e90428 视觉分层的轻量适配）：提供时 plan-review
+     * 卡在选项与键位提示之间渲染 dim 决策区分隔线，approve 主操作升 ❯ + success
+     * 着色；缺省维持无色渲染（纯函数层向后兼容）。
+     */
+    theme?: Pick<RivetTheme, 'success' | 'dim'>;
 }
 /**
  * 投影提问请求为面板行（标题 + 每个 question 一块，按输入顺序）。

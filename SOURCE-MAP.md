@@ -156,7 +156,8 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 | src/port.ts | — | new |
 | src/preset-catalog.ts | — | new（官方 shipped 预设展示目录：standard/code/minimal/cordis 的短名、能力、工具集；ptc/creative 别名） |
 | src/preset-surface.ts | — | new（agent 预设展示面纯投影：preset 名 = header 创建值 + agent-preset/selected 切换值 fold（官方 resolveSessionPreset 等价）；wire 工具面 = 最近 request/header 的 tools 集合（foldRequestHeader）；只消费日志事实，不重放 preset 插件私有晋升逻辑） |
-| src/question-panel.ts | — | new |
+| src/controllers/error-announcer.ts | — | new（错误落底/指引/回填自 ui/app.ts C4 提取；回流 Tianshu 807686a02 lastSubmittedText——投递记录/成功 settle 清/输入空才回填；无 abort 独立回填故 abort 不清底料） |
+| src/question-panel.ts | — | modified（plan-review 决策卡视觉分层轻量适配：dim 决策区分隔线 + approve ❯/success 主操作高亮，theme 可选注入缺省无色——回流 Tianshu b15e90428） |
 | src/render/live-panels.ts | — | new（后台任务快照走 formatLiveCard：running ⠋+⎿ detail / completed › 终态后退 / 其余 ✗） |
 | src/render/live-snapshot.ts | — | new |
 | src/restore-session.ts | restore-session.ts | modified |

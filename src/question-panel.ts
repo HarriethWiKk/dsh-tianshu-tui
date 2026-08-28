@@ -22,6 +22,8 @@
 
 import { useAsciiGlyphs } from './term-caps.js'
 import { displayWidth } from './width.js'
+import { color } from './engine/ansi.js'
+import type { RivetTheme } from './theme.js'
 
 /** 单个可选项（结构兼容 user-questions 的 AskUserQuestionOption）。 */
 export interface QuestionOptionInput {
@@ -67,6 +69,12 @@ export interface QuestionRequestInput {
 export interface QuestionPanelOptions {
   /** 终端列数（行截断预算，含标题行）。 */
   width: number
+  /**
+   * 可选主题（回流 Tianshu b15e90428 视觉分层的轻量适配）：提供时 plan-review
+   * 卡在选项与键位提示之间渲染 dim 决策区分隔线，approve 主操作升 ❯ + success
+   * 着色；缺省维持无色渲染（纯函数层向后兼容）。
+   */
+  theme?: Pick<RivetTheme, 'success' | 'dim'>
 }
 
 /** 面板字形集：Unicode 档（默认）与 legacy conhost 的 ASCII 降级档。 */
@@ -81,6 +89,8 @@ interface QuestionGlyphs {
   readonly approve: string
   /** plan-review 否决项标记。 */
   readonly reject: string
+  /** plan-review 主操作（approve）推荐前缀（theme 提供时启用）。 */
+  readonly recommend: string
 }
 
 const UNICODE_GLYPHS = {
@@ -89,6 +99,7 @@ const UNICODE_GLYPHS = {
   plan: '🧭',
   approve: '✓',
   reject: '✗',
+  recommend: '❯',
 } as const satisfies QuestionGlyphs
 
 const ASCII_GLYPHS = {
@@ -97,6 +108,7 @@ const ASCII_GLYPHS = {
   plan: '>',
   approve: '+',
   reject: 'x',
+  recommend: '>',
 } as const satisfies QuestionGlyphs
 
 /** 当前终端应使用的字形档（❓/🧭 是彩色 emoji，GBK conhost 下豆腐）。 */
@@ -122,13 +134,13 @@ const RESET = '\x1B[0m'
 export function projectQuestionPanel(request: QuestionRequestInput, opts: QuestionPanelOptions): string[] {
   const rows = [questionGlyphs().title]
   for (const item of request.questions) {
-    rows.push(...projectQuestion(item, opts.width))
+    rows.push(...projectQuestion(item, opts.width, opts.theme))
   }
   return rows
 }
 
 /** 渲染单个 question 块（header + 问题行 + detail + 选项行；形态由 intent 决定）。 */
-function projectQuestion(item: QuestionItemInput, width: number): string[] {
+function projectQuestion(item: QuestionItemInput, width: number, theme?: QuestionPanelOptions['theme']): string[] {
   const rows: string[] = []
   const g = questionGlyphs()
   if (item.header !== undefined) {
@@ -140,7 +152,8 @@ function projectQuestion(item: QuestionItemInput, width: number): string[] {
     if (item.detail !== undefined) {
       rows.push(...projectDetail(item.detail, width))
     }
-    rows.push(...projectPlanOptions(item.options, intent.approve, width))
+    rows.push(...projectPlanOptions(item.options, intent.approve, width, theme))
+    rows.push(...projectPlanSeparator(width, theme))
     rows.push(...projectPlanKeyHints(item, width))
     return rows
   }
@@ -158,19 +171,35 @@ function projectDetail(detail: string, width: number): string[] {
   return detail.split(/\r?\n/).map(line => truncateByWidth(`  ${line}`, width))
 }
 
-/** plan-review 卡选项行：approve 命中 ✓ + BOLD 高亮，其余 ✗。 */
-function projectPlanOptions(options: QuestionOptionInput[] | undefined, approve: string, width: number): string[] {
+/** plan-review 卡选项行：approve 命中 ✓ + BOLD 高亮；theme 提供时升 ❯ 前缀 + success 着色。 */
+function projectPlanOptions(
+  options: QuestionOptionInput[] | undefined,
+  approve: string,
+  width: number,
+  theme?: QuestionPanelOptions['theme'],
+): string[] {
   if (options === undefined) return []
   const rows: string[] = []
   options.forEach((opt, i) => {
     const isApprove = opt.label === approve
     const g = questionGlyphs()
     const mark = isApprove ? g.approve : g.reject
-    const row = `  ${mark} ${i + 1}. ${opt.label}`
+    const rec = isApprove && theme !== undefined ? `${g.recommend} ` : ''
+    const row = `  ${rec}${mark} ${i + 1}. ${opt.label}`
     const cut = truncateByWidth(row, width)
-    rows.push(isApprove ? `${BOLD}${cut}${RESET}` : cut)
+    if (isApprove && theme !== undefined) {
+      rows.push(`${BOLD}${color(cut, theme.success)}${RESET}`)
+    } else {
+      rows.push(isApprove ? `${BOLD}${cut}${RESET}` : cut)
+    }
   })
   return rows
+}
+
+/** 决策区分隔线（正文/选项与键位提示的分界；theme 提供时启用——回流 b15e90428）。 */
+function projectPlanSeparator(width: number, theme?: QuestionPanelOptions['theme']): string[] {
+  if (theme === undefined) return []
+  return [color(`  ${'─'.repeat(Math.max(4, width - 4))}`, theme.dim)]
 }
 
 /** plan-review 卡 key hints：数字键选选项（编号 1-based），f 反馈，Esc/Ctrl+C 取消。 */

@@ -249,3 +249,36 @@ describe('legacy conhost ASCII 降级（RIVET_ASCII_UI=1）', () => {
     resetTermCapsCache()
   })
 })
+
+describe('plan-review 视觉分层（回流 Tianshu b15e90428 轻量适配）', () => {
+  const theme = { success: '#00c878', dim: '#787878' }
+  // color() 输出形如 ESC[...m 文本 ESC[0m？——engine/ansi 的 color 以 RESET 结尾；
+  // 这里只断言语义包含，不钉具体码值。
+
+  it('theme 提供时：决策区分隔线出现在选项与键位提示之间（dim ─ 行）', () => {
+    const rows = projectQuestionPanel({ questions: [planReview] }, { width: 80, theme })
+    const optIdx = rows.findIndex(r => r.includes('3. 拒绝'))
+    const sepIdx = rows.findIndex(r => r.includes('──') && !r.includes('评审'))
+    const hintIdx = rows.findIndex(r => r.includes('[f] 反馈修改'))
+    expect(sepIdx).toBeGreaterThan(optIdx)
+    expect(hintIdx).toBeGreaterThan(sepIdx)
+  })
+
+  it('theme 提供时：approve 行升 ❯ 前缀 + success 着色（BOLD 保留）', () => {
+    const rows = projectQuestionPanel({ questions: [planReview] }, { width: 80, theme })
+    const approveRow = rows.find(r => r.includes('1. 批准'))
+    expect(approveRow).toContain('❯')
+    expect(approveRow).toContain('38;2;0;200;120') // color(#00c878) 的 truecolor 前景码
+    expect(approveRow?.startsWith(BOLD)).toBe(true)
+    // 其余选项无 ❯
+    const rejectRow = rows.find(r => r.includes('3. 拒绝'))
+    expect(rejectRow).not.toContain('❯')
+    expect(rejectRow).not.toContain('38;2;0;200;120')
+  })
+
+  it('不传 theme：维持无色渲染（无分隔线、无 ❯；向后兼容）', () => {
+    const rows = projectQuestionPanel({ questions: [planReview] }, { width: 80 })
+    expect(rows.some(r => r.includes('❯'))).toBe(false)
+    expect(rows.filter(r => r.includes('──')).length).toBeLessThanOrEqual(1) // 仅 header（本 fixture 无 header → 0）
+  })
+})

@@ -107,6 +107,7 @@ import { WorkflowSurfaceController } from '../controllers/workflow-surface.js'
 import { DelegationSurfaceController, type SubagentsFacet } from '../controllers/delegation-surface.js'
 import { CommitSurface } from '../controllers/commit-surface.js'
 import { AttachmentPreviewController } from '../controllers/attachment-preview.js'
+import { ErrorAnnouncer } from '../controllers/error-announcer.js'
 import { cancelAndSendInput, formatQueueLine, SubmitQueueController } from '../controllers/submit-queue.js'
 import { KeyDialogController } from './key-dialog.js'
 import { KeyFlow } from './key-flow.js'
@@ -232,7 +233,7 @@ import { formatTopBar } from '../format/top-bar.js'
 import { livePresetShort } from '../preset-catalog.js'
 import { formatTurnStatus } from '../format/turn-status.js'
 import { formatFooterInfo, type FooterRightSegment } from '../format/prompt-footer.js'
-import { errorRecoveryHint, formatWarnWithHint } from '../format/error-recovery.js'
+import { formatWarnWithHint } from '../format/error-recovery.js'
 import { pushConfirmHints } from '../format/confirm-hints.js'
 import { ActionRegistry, REWIND_DOUBLE_ESC_MS } from '../actions/registry.js'
 import { createBuiltinActions } from '../actions/builtin-actions.js'
@@ -696,8 +697,12 @@ export class TuiApp {
   private ticker: ReturnType<typeof setInterval> | null = null
   /** 上一帧 idle key；overlay 退出时置空，强制下一帧组装。 */
   private lastIdleKey: string | null = null
-  /** 已落底 scrollback 的最近完整错误文本（diff 去重——同错误逐帧重读不重复落底）。 */
-  private lastGlanceErrorFull: string | null = null
+  /** 错误落底/回填控制器（C4 提取；回流 Tianshu lastSubmittedText 语义）。 */
+  private readonly errorAnnouncer = new ErrorAnnouncer({
+    getTheme: () => this.theme,
+    commit: (text) => { this.commitToScrollback({ text, trailingNewline: true }) },
+    refillInput: (text) => { this.inputLine.setValue(text, text.length); this.flushLiveRender() },
+  })
   /** 历史渐进重放代际（commitRows 每次递增；快速切换会话时旧链自毁）。 */
   private replayEpoch = 0
   /** 历史重放进行中（streamFeed 新事件进 backlog 排队，见 commitRows）。 */
@@ -2514,7 +2519,7 @@ export class TuiApp {
     if (this.submitQueue.size() > 0) {
       this.commitToScrollback({ text: `⚠ 切换会话：丢弃 ${this.submitQueue.size()} 条未发送的排队消息`, trailingNewline: true })
     }
-    this.submitQueue.clear()
+    this.submitQueue.clear(); this.errorAnnouncer.reset()
     const tasks = this.ctx.reflect.get('tasks', false) as TasksFacet | undefined
     if (tasks !== undefined) {
       this.taskSnapshots = tasks.list()
@@ -2624,7 +2629,7 @@ export class TuiApp {
     // 用户气泡：正文 + 📎 附件行 + 识图能力提示；有图且终端支持图形协议时
     // 异步 prepare 后在同一写窗口追加终端图片（时序说明见 commit-surface）。
     this.commitSurface.userPrompt(expanded, images)
-    this.inputLine.clearImages()
+    this.inputLine.clearImages(); this.errorAnnouncer.recordSubmitted(expanded)
     // 图片不可达时不发送（气泡已警告「图片未发送」）；可达时直发或经视觉桥转描述。
     // followup 异步（图片经 attachments 服务持久化后投递）；失败回显警告，不静默吞。
     void this.controls?.followup(expanded, imagesReachable ? images : undefined).catch((err: unknown) => {
@@ -2636,9 +2641,10 @@ export class TuiApp {
   /** turn/end → 本地队列按序投递（气泡 → followup）；aborted 不 flush——打断后可能想 ↑ 取回。 */
   private flushSubmitQueue(reason: 'completed' | 'aborted'): void {
     if (reason === 'aborted') return
+    this.errorAnnouncer.clearSubmitted()
     const items = this.submitQueue.drain()
     for (const item of items) {
-      this.commitSurface.userPrompt(item.text, item.images)
+      this.commitSurface.userPrompt(item.text, item.images); this.errorAnnouncer.recordSubmitted(item.text)
       void this.controls?.followup(item.text, item.images).catch((err: unknown) => {
         this.echoWarn(`⚠ 排队消息发送失败: ${err instanceof Error ? err.message : String(err)}`, '↑ 收回重发')
       })
@@ -3595,13 +3601,9 @@ export class TuiApp {
     // Phase 5.3：glance 控制器统一派生（首推同步 + 窗口内节流）。
     this.glance.refresh()
     const glance = this.glance.current()
-    // 错误详情完整落底（任务3，2026-08-27）：glance 行只显首行截断，完整多行详情在
-    // 「新错误文本」出现时落底 scrollback 一次（diff 去重）并附恢复指引尾注。先更新
-    // 去重指针再提交：flushNow 重入 renderLive 次轮读同文本即跳过，深度至多 2。
-    if (glance.errorFull !== null && glance.errorFull !== this.lastGlanceErrorFull) {
-      this.lastGlanceErrorFull = glance.errorFull
-      this.commitToScrollback({ text: formatWarnWithHint(glance.errorFull, errorRecoveryHint(glance.errorFull), this.theme), trailingNewline: true })
-    }
+    // 错误落底/回填（C4 提取 controllers/error-announcer）：新错误完整落底 + 指引尾注；
+    // 输入行空时回填最近一条已投递消息（错误时刻可行动，语义见该模块注释）。
+    this.errorAnnouncer.announce(glance.errorFull, this.inputLine.value === '')
     // C4 概念稿 A：turn_status 形态——glance 状态行升级为 spinner（运行中
     // braille 帧循环 / 等待输入 pulsing ◆）+ 阶段文本；null 不占位。
     const turnStatusLines = formatTurnStatus({
@@ -3812,7 +3814,7 @@ export class TuiApp {
     // 提问 / 审批紧挨输入轨。
     const questionPeek = this.question.peek()
     if (questionPeek !== null) {
-      for (const line of projectQuestionPanel(questionPeek.request, { width: cols })) {
+      for (const line of projectQuestionPanel(questionPeek.request, { width: cols, theme })) {
         lines.push({ text: line })
       }
       if (questionPeek.feedbackMode) {
