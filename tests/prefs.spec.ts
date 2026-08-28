@@ -54,6 +54,21 @@ describe('parsePrefs 容错', () => {
     expect(parsePrefs(JSON.stringify({ onboarded: 'yes' }))).toEqual({})
   })
 
+  it('ghostSuggest 布尔解析（非布尔丢弃）', () => {
+    expect(parsePrefs(JSON.stringify({ ghostSuggest: false }))).toEqual({ ghostSuggest: false })
+    expect(parsePrefs(JSON.stringify({ ghostSuggest: true }))).toEqual({ ghostSuggest: true })
+    expect(parsePrefs(JSON.stringify({ ghostSuggest: 'no' }))).toEqual({})
+  })
+
+  it('scrollbackMaxLines 正整数解析（零/负/小数/非数值丢弃）', () => {
+    expect(parsePrefs(JSON.stringify({ scrollbackMaxLines: 5000 }))).toEqual({ scrollbackMaxLines: 5000 })
+    expect(parsePrefs(JSON.stringify({ scrollbackMaxLines: 1 }))).toEqual({ scrollbackMaxLines: 1 })
+    expect(parsePrefs(JSON.stringify({ scrollbackMaxLines: 0 }))).toEqual({})
+    expect(parsePrefs(JSON.stringify({ scrollbackMaxLines: -3 }))).toEqual({})
+    expect(parsePrefs(JSON.stringify({ scrollbackMaxLines: 2.5 }))).toEqual({})
+    expect(parsePrefs(JSON.stringify({ scrollbackMaxLines: '5000' }))).toEqual({})
+  })
+
   it('非法 JSON / 非对象 / 空串主题 → 空偏好', () => {
     expect(parsePrefs('{broken')).toEqual({})
     expect(parsePrefs('"string"')).toEqual({})

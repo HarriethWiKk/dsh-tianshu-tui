@@ -7,7 +7,7 @@
  */
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { EventEmitter } from 'node:events'
-import { mkdtempSync, readFileSync, existsSync } from 'node:fs'
+import { mkdtempSync, readFileSync, existsSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { WriteStream } from 'node:tty'
@@ -15,9 +15,22 @@ import type { Context } from '@deepseek-ai/cordis'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { Agent, AgentHandle } from '@deepseek-ai/dsh-agent'
 import { TuiApp } from '../src/ui/app.js'
+import { CommitEngine } from '../src/engine/commit-engine.js'
 import { getActiveThemeName, setTheme, clearCustomThemes } from '../src/theme.js'
 import { exportCurrentTheme } from '../src/theme-custom.js'
 import { readPrefs, writePrefs } from '../src/prefs.js'
+
+// CommitEngine 构造参数透传断言用：包装 vi.fn 记录构造入参，实例仍是真身
+// （文件级 mock 对本 spec 其余用例透明——行为与原类一致）。
+vi.mock('../src/engine/commit-engine.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/engine/commit-engine.js')>()
+  return {
+    ...actual,
+    CommitEngine: vi.fn(function (this: unknown, opts: ConstructorParameters<typeof actual.CommitEngine>[0]) {
+      return new actual.CommitEngine(opts)
+    }),
+  }
+})
 
 // ── 替身工厂（镜像 app.spec.ts；仅本 spec 所需的最小面）──────────
 
@@ -142,6 +155,21 @@ describe('主题选择持久化', () => {
     // setTheme('custom:gone') 失败 → onThemeApplied 不写透；prefs 无 theme
     expect(readPrefs(prefsPath).theme).toBeUndefined()
     await b.app.dispose()
+  })
+})
+
+describe('scrollbackMaxLines 偏好透传', () => {
+  it('prefs.scrollbackMaxLines 传给 CommitEngine；缺省传 undefined（引擎内 1000 兜底）', async () => {
+    const prefsPath = tmpPath('prefs.json')
+    writeFileSync(prefsPath, '{"scrollbackMaxLines": 5000}')
+    const b = await boot(prefsPath, null)
+    expect(CommitEngine).toHaveBeenCalledWith(expect.objectContaining({ scrollbackMaxLines: 5000 }))
+    await b.app.dispose()
+
+    vi.mocked(CommitEngine).mockClear()
+    const b2 = await boot(null, null)
+    expect(CommitEngine).toHaveBeenCalledWith(expect.objectContaining({ scrollbackMaxLines: undefined }))
+    await b2.app.dispose()
   })
 })
 

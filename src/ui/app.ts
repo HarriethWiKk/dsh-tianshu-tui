@@ -771,7 +771,7 @@ export class TuiApp {
       ...(options.lsp?.spawnFor === undefined ? {} : { spawnFor: options.lsp.spawnFor }),
       ...(options.lsp?.which === undefined ? {} : { which: options.lsp.which }),
     }
-    this.commit = new CommitEngine({ stdout: options.stdout })
+    this.commit = new CommitEngine({ stdout: options.stdout, scrollbackMaxLines: this.prefs.scrollbackMaxLines })
     this.live = new LiveEngine({
       stdout: options.stdout,
       reservedRows: LIVE_RESERVED_ROWS,

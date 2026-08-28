@@ -50,6 +50,8 @@ export interface TuiPrefs {
   vimInsertRemaps?: Record<string, string>
   /** fish 式历史建议 ghost（缺省开；false 关闭；接受手势 →）。 */
   ghostSuggest?: boolean
+  /** scrollback 缓冲行数上限（缺省 1000；调高增加内存与 replay 成本）。 */
+  scrollbackMaxLines?: number
 }
 
 /** 缺省偏好（= 现行为）。 */
@@ -83,6 +85,11 @@ export function parsePrefs(text: string): TuiPrefs {
   }
   if (typeof obj.notifyOs === 'boolean') prefs.notifyOs = obj.notifyOs
   if (typeof obj.ghostSuggest === 'boolean') prefs.ghostSuggest = obj.ghostSuggest
+  if (typeof obj.scrollbackMaxLines === 'number'
+    && Number.isInteger(obj.scrollbackMaxLines)
+    && obj.scrollbackMaxLines >= 1) {
+    prefs.scrollbackMaxLines = obj.scrollbackMaxLines
+  }
   if (typeof obj.vimEnabled === 'boolean') prefs.vimEnabled = obj.vimEnabled
   if (typeof obj.vimInsertRemaps === 'object' && obj.vimInsertRemaps !== null && !Array.isArray(obj.vimInsertRemaps)) {
     const remaps: Record<string, string> = {}

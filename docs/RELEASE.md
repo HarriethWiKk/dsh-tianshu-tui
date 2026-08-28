@@ -58,10 +58,11 @@ npm publish --access public --tag latest
 
 - 把上一版的 Unreleased 条目从 `CHANGELOG.md` 顶部改成 `## [<version>] - <date>`（Keep a Changelog 风格；`/changelog` 命令读的就是这份文件，必须随版本更新）。
 - 中英文 README「更新说明」只写当前版本要点与升级方式，完整历史在 `CHANGELOG.md`（不再往 README 堆版本历史）。
-- 改完 README 后更新 `README.i18n.yaml` 配对哈希：
+- 改完 README 后更新 `README.i18n.yaml` 配对哈希（架构守护校验的是裸内容
+  sha1，不是 git blob 哈希）：
 
 ```sh
-git hash-object README.md README.en.md
+shasum -a 1 README.md README.en.md
 ```
 
 ### 4. 测试门
