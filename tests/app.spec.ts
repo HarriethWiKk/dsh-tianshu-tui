@@ -14,6 +14,7 @@ import { LiveEngine } from '../src/engine/live-engine.js'
 import type { SlashHintEntry } from '../src/engine/input-controller.js'
 import { decodeMessages, encodeMessage } from '../src/lsp/rpc.js'
 import { getActiveThemeName, setTheme } from '../src/theme.js'
+import { waitForStdout } from './helpers/wait-for.js'
 import { readImageFromClipboard, readTextFromClipboard } from '../src/engine/clipboard-image.js'
 
 // 剪贴板读图/读文本走真实 shell（osascript / wl-paste 等），单元测试不可控——
@@ -1253,20 +1254,22 @@ describe('TuiApp Phase 6.5 Vim 模式', () => {
     await app.attach()
 
     stdin.emit('data', '\x1b') // ESC → normal
-    await new Promise(resolve => setTimeout(resolve, 120))
+    // 轮询等待 normal 标签出现（ESC 经 input-handler 派发 + 渲染帧稳定），
+    // 替代固定 setTimeout——全量并行负载下固定等待会抖动（flaky 加固）。
+    await waitForStdout(stdout, '-- NORMAL --')
     stdout.write.mockClear()
 
     stdin.emit('data', 'v') // 字符视觉模式
-    await new Promise(resolve => setImmediate(resolve))
+    await waitForStdout(stdout, '-- VISUAL --')
     let written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     expect(written).toContain('-- VISUAL --')
     expect(written).not.toContain('-- VISUAL LINE --')
 
     stdout.write.mockClear()
     stdin.emit('data', '\x1b') // ESC 回 normal（visual 态 ESC → collapse + normal）
-    await new Promise(resolve => setTimeout(resolve, 120))
+    await waitForStdout(stdout, '-- NORMAL --')
     stdin.emit('data', 'V') // normal 态 V → 行视觉模式
-    await new Promise(resolve => setImmediate(resolve))
+    await waitForStdout(stdout, '-- VISUAL LINE --')
     written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     expect(written).toContain('-- VISUAL LINE --')
     await app.dispose()
@@ -3814,6 +3817,8 @@ describe('TuiApp 会话交互 UX 对齐（显示层 = 实际能力）', () => {
     const before = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     expect(before).not.toContain('插件已更新到')
     await app.attach()
+    // attach 后排队消息写入是异步渲染：轮询等待目标文本（flaky 加固）
+    await waitForStdout(stdout, '插件已更新到 0.1.0-rc.7')
     const after = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     expect(after).toContain('插件已更新到 0.1.0-rc.7。输入 /changelog 查看本次更新内容')
     await app.dispose()
@@ -3828,6 +3833,8 @@ describe('TuiApp 会话交互 UX 对齐（显示层 = 实际能力）', () => {
     const app = new TuiApp({ ctx, stdout, stdin: makeStdin() })
     await app.attach()
     app.notifyPluginUpdateFailed('pnpm add exited 1')
+    // 失败警告写入是异步渲染：轮询等待（flaky 加固）
+    await waitForStdout(stdout, '自更新失败')
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     expect(written).toContain('自更新失败')
     expect(written).toContain('pnpm add exited 1')

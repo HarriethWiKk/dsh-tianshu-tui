@@ -13,6 +13,7 @@
  */
 import { EventEmitter } from 'node:events'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { waitFor } from './helpers/wait-for.js'
 import type { WriteStream } from 'node:tty'
 import type { Context } from '@deepseek-ai/cordis'
 import { SessionId } from '@deepseek-ai/dsh-session'
@@ -146,7 +147,10 @@ describe('定高视口 chrome 开合吸收（审批卡）', () => {
     const { app, stdin, request } = await bootApprovalApp()
 
     const before = lastFrame(spy)
+    const beforeCalls = spy.mock.calls.length
     const outcome = request()
+    // 审批请求的渲染帧经异步链路落地：轮询等新帧再取（flaky 加固）
+    await waitFor(() => spy.mock.calls.length > beforeCalls)
     const opened = lastFrame(spy)
     // 高水位尚无余量：首次打开向下落定（动态段原样，卡占据新增行）。
     expect(railIndex(opened)).toBeGreaterThan(railIndex(before))

@@ -187,3 +187,40 @@ describe('多行 ↑↓ 导航 grapheme 列保持（CJK/emoji 不拆簇）', () 
     expect(il.cursor).toBe(il.value.length) // 末行行尾
   })
 })
+
+
+describe('acceptGhost 引擎侧 undo 语义（append 进 undo 栈）', () => {
+  // scout 侦察 E 项：append 经 setValue → recordUndo('replace')，接受 ghost
+  // 后 Ctrl+Z 必须回到接受前文本（accept 是离散动作，独立 undo 单元）。
+  it('append（accept ghost 路径）后 Ctrl+Z 回到接受前文本', () => {
+    const il = new InputLine({ value: 'hel' })
+    il.setValue('hel', 3)
+    il.append('lo')
+    expect(il.value).toBe('hello')
+    il.handleKey('ctrl_z', '', true, false, false)
+    expect(il.value).toBe('hel')
+  })
+
+  it('append 后 Ctrl+Z 再 Ctrl+Y 恢复接受后文本', () => {
+    const il = new InputLine({ value: 'hel' })
+    il.setValue('hel', 3)
+    il.append('lo')
+    il.handleKey('ctrl_z', '', true, false, false)
+    expect(il.value).toBe('hel')
+    il.handleKey('ctrl_y', '', true, false, false)
+    expect(il.value).toBe('hello')
+  })
+
+  it('accept ghost 独立成 undo 单元（不并入之前的连续 word 输入）', () => {
+    const il = new InputLine({ value: 'hel' })
+    il.setValue('hel', 3)
+    il.handleKey('h', 'h', false, false, false) // 连续 word 输入 → 'helh'
+    expect(il.value).toBe('helh')
+    il.append('lo') // accept ghost → 'helhlo'
+    expect(il.value).toBe('helhlo')
+    il.handleKey('ctrl_z', '', true, false, false)
+    expect(il.value).toBe('helh') // 只撤销 ghost，保留 h 输入
+    il.handleKey('ctrl_z', '', true, false, false)
+    expect(il.value).toBe('hel') // 再撤销 h 输入
+  })
+})

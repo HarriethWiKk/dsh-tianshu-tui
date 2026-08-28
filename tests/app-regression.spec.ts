@@ -13,6 +13,7 @@
 
 import { EventEmitter } from 'node:events'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { waitForStdout } from './helpers/wait-for.js'
 import type { Context } from '@deepseek-ai/cordis'
 import type { WriteStream } from 'node:tty'
 import { SessionId } from '@deepseek-ai/dsh-session'
@@ -152,7 +153,8 @@ describe('TuiApp 生命周期缺陷回归', () => {
       { agent: { session: { id: app.sessionId ?? agentA.session.id } }, toolName: 'bash' },
       () => Promise.resolve('unavailable'),
     )
-    // 挂起提示上屏
+    // 挂起提示上屏是异步渲染：轮询等待（flaky 加固）
+    await waitForStdout(stdout, '允许执行 bash')
     const written = stdout.write.mock.calls.map(c => String(c[0])).join('')
     expect(written).toContain('允许执行 bash')
 

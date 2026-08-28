@@ -6,6 +6,7 @@
  * app.spec.ts 的同名工厂（测试独立性优先，不跨 spec import）。
  */
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { waitFor } from './helpers/wait-for.js'
 import { EventEmitter } from 'node:events'
 import { mkdtempSync, readFileSync, existsSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -133,6 +134,8 @@ describe('主题选择持久化', () => {
     await b.app.dispose()
     setTheme('graphite')
     const b2 = await boot(prefsPath, null)
+    // attach 恢复主题是异步链：轮询等待恢复落定（flaky 加固）
+    await waitFor(() => getActiveThemeName() === 'paper')
     expect(getActiveThemeName()).toBe('paper')
     await b2.app.dispose()
   })

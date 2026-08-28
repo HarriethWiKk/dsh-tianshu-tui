@@ -104,4 +104,36 @@ describe('cancelAndSendInput（Ctrl+Enter 插队编排）', () => {
     cancelAndSendInput(withImage)
     expect(withImage.abort).toHaveBeenCalledTimes(1)
   })
+
+  it('whenIdle 永不 resolve：超时后草稿恢复回输入行（不静默丢消息）', () => {
+    vi.useFakeTimers()
+    try {
+      const d = makeDeps()
+      cancelAndSendInput({ ...d, idleTimeoutMs: 10 })
+      expect(d.submit).not.toHaveBeenCalled()
+      vi.advanceTimersByTime(10)
+      // 超时兜底：草稿恢复（光标置末尾），提交从未发生
+      expect(d.input.setValue).toHaveBeenLastCalledWith('send now', 'send now'.length)
+      expect(d.submit).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('超时先到后 idle 才落定：不再提交（settled 竞态防护，防双重提交）', async () => {
+    vi.useFakeTimers()
+    try {
+      const d = makeDeps()
+      cancelAndSendInput({ ...d, idleTimeoutMs: 10 })
+      vi.advanceTimersByTime(10)
+      expect(d.input.setValue).toHaveBeenLastCalledWith('send now', 'send now'.length)
+      d.resolveIdle()
+      await Promise.resolve()
+      expect(d.submit).not.toHaveBeenCalled()
+      // 恢复后的草稿不被再次覆盖
+      expect(d.input.value).toBe('send now')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

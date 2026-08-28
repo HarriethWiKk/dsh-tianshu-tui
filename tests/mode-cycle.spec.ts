@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { waitFor } from './helpers/wait-for.js'
 import type { Context } from '@deepseek-ai/cordis'
 import type { WriteStream } from 'node:tty'
 import { SessionId } from '@deepseek-ai/dsh-session'
@@ -147,6 +148,8 @@ describe('Shift+Tab 三态循环（C3 项 4）', () => {
   it('Normal → Plan：shift_tab 调 planMode.set(true)', async () => {
     const { ctx, app, stdin, agent } = await bootApp()
     stdin.emit('data', '\x1b[Z') // shift_tab
+    // 键处理经异步链路（渲染 tick 后动作落地）：轮询等待处理发生（flaky 加固）
+    await waitFor(() => ctx.planMode.set.mock.calls.length >= 1)
     expect(ctx.planMode.set).toHaveBeenCalledTimes(1)
     expect(ctx.planMode.set).toHaveBeenCalledWith(agent, true)
     await app.dispose()
