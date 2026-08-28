@@ -18,6 +18,7 @@
 import type { LiveAgentState } from '../adapter/live.js'
 import { truncateToDisplayWidth } from '../width.js'
 import { useAsciiGlyphs } from '../term-caps.js'
+import { DEFAULT_SPINNER_VERBS, verbForElapsed } from '../format/spinner-status.js'
 
 /** 底部 glance 一行数据（纯文本，无 ANSI——着色留在装配层）。 */
 export interface GlanceLine {
@@ -52,16 +53,18 @@ export interface MetricsGlanceControllerOptions {
 
 /**
  * 状态行派生：工作流投影优先，否则 agent 状态回退（复刻 TuiApp 旧装配）。
- * 空闲态返回 null（不渲染不占位）：空闲提示已由 footer 承载，状态行只在
- * 「有事发生」（运行中/已停止/投影文本）时出现。
+ * running 回退为轮换动词（verbForElapsed 按 elapsed 时间片取词；elapsed 缺省
+ * 0 = 池首「思考中」）。空闲态返回 null（不渲染不占位）：空闲提示已由 footer
+ * 承载，状态行只在「有事发生」（运行中/已停止/投影文本）时出现。
  * @param statusText - WorkflowStatusLine.current；null = 无投影。
  * @param live - live agent 状态；undefined = 未挂载。
+ * @param elapsedMs - 当前回合已耗时（毫秒；动词轮换时间片数据源）。
  * @returns 状态行纯文本；空闲 null。
  */
-export function deriveGlanceStatus(statusText: string | null, live: LiveAgentState | undefined): string | null {
+export function deriveGlanceStatus(statusText: string | null, live: LiveAgentState | undefined, elapsedMs = 0): string | null {
   if (statusText !== null) return statusText
   if (live === undefined || live.live) {
-    return live?.status === 'running' ? '● 运行中' : null
+    return live?.status === 'running' ? `● ${verbForElapsed(elapsedMs, DEFAULT_SPINNER_VERBS)}` : null
   }
   return '✗ 已停止'
 }
@@ -99,14 +102,16 @@ export function deriveGlanceErrorFull(live: LiveAgentState | undefined): string 
  * @param statusText - WorkflowStatusLine.current；null = 无投影
  * @param live - live agent 状态；undefined = 未挂载
  * @param columns - 终端列数（错误首行截断度量）
+ * @param elapsedMs - 当前回合已耗时（毫秒；running 回退的动词轮换数据源）
  * @returns 状态行 + 错误行数据
  */
 export function deriveGlance(
   statusText: string | null,
   live: LiveAgentState | undefined,
   columns: number,
+  elapsedMs = 0,
 ): GlanceLine {
-  return { status: deriveGlanceStatus(statusText, live), error: deriveGlanceError(live, columns), errorFull: deriveGlanceErrorFull(live) }
+  return { status: deriveGlanceStatus(statusText, live, elapsedMs), error: deriveGlanceError(live, columns), errorFull: deriveGlanceErrorFull(live) }
 }
 
 /**
@@ -118,6 +123,8 @@ export class MetricsGlanceController {
   private cache: GlanceLine
   private computed = false
   private lastComputeAt = 0
+  /** idle→running 跃迁观测时间（running 回退动词轮换的 elapsed 数据源；非 running 复位）。 */
+  private runningSince: number | null = null
   private timer: ReturnType<typeof setTimeout> | null = null
   private readonly throttleMs: number
   private readonly options: MetricsGlanceControllerOptions
@@ -170,10 +177,19 @@ export class MetricsGlanceController {
   private compute(): void {
     this.lastComputeAt = Date.now()
     const first = !this.computed
+    const live = this.options.getLiveState()
+    // running 起点跟踪：以首次观测为起点（attach 运行中会话错过 turn/start 也
+    // 有近似起点）；跨 turn 不复位——动词轮换覆盖整段运行，非 running 才归零。
+    if (live?.status === 'running') {
+      if (this.runningSince === null) this.runningSince = this.lastComputeAt
+    } else {
+      this.runningSince = null
+    }
     const next = deriveGlance(
       this.options.getStatusText(),
-      this.options.getLiveState(),
+      live,
       this.options.getColumns(),
+      this.runningSince === null ? 0 : this.lastComputeAt - this.runningSince,
     )
     const changed = first || next.status !== this.cache.status || next.error !== this.cache.error || next.errorFull !== this.cache.errorFull
     this.cache = next

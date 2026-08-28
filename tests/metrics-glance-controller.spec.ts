@@ -2,12 +2,13 @@
  * MetricsGlanceController — 底部 glance 数据收集与刷新节流契约测试（RED→GREEN）。
  *
  * - deriveGlanceStatus：WorkflowStatusLine.current 优先，否则 agent 状态回退
- *   （running「● 运行中」/ 已停止「✗ 已停止」/ 空闲 null——不渲染不占位，
- *   空闲提示由 footer 承载）。
+ *   （running 轮换动词「● 思考中/分析中/…」（verbForElapsed 时间片取词）/
+ *   已停止「✗ 已停止」/ 空闲 null——不渲染不占位，空闲提示由 footer 承载）。
  * - deriveGlanceError：lastError 无 → null；有 → glyph（ascii 降级）+ 首行
  *   截断至 cols-2。
  * - 控制器节流：首次 refresh 恒同步；窗口内重复 refresh 合并到窗口末重算；
- *   数据变化经 onChange 推送，未变化不推送。
+ *   数据变化经 onChange 推送，未变化不推送。idle→running 跃迁记时为动词轮换
+ *   的 elapsed 数据源（非 running 复位）。
  *
  * 纯投影纪律：数据全部来自既有 LiveAgentState / statusLine，不发明事件类型。
  */
@@ -23,6 +24,7 @@ import {
   deriveGlanceErrorFull,
   deriveGlanceStatus,
 } from '../src/engine/metrics-glance-controller.js'
+import { DEFAULT_SPINNER_VERBS, VERB_ROTATE_MS } from '../src/format/spinner-status.js'
 
 /** 最小 live 状态：status/live 可覆盖，其余字段置空。 */
 type MutableLiveState = { -readonly [K in keyof LiveAgentState]: LiveAgentState[K] }
@@ -55,8 +57,13 @@ describe('deriveGlanceStatus（状态行回退派生）', () => {
     expect(deriveGlanceStatus(null, undefined)).toBeNull()
   })
 
-  it('running → ● 运行中', () => {
-    expect(deriveGlanceStatus(null, liveState({ status: 'running' }))).toBe('● 运行中')
+  it('running → ● + 轮换动词（elapsed 缺省 0 取池首；时间片跨片换词）', () => {
+    const running = liveState({ status: 'running' })
+    expect(deriveGlanceStatus(null, running)).toBe(`● ${DEFAULT_SPINNER_VERBS[0]}`)
+    expect(deriveGlanceStatus(null, running, VERB_ROTATE_MS - 1)).toBe(`● ${DEFAULT_SPINNER_VERBS[0]}`)
+    expect(deriveGlanceStatus(null, running, VERB_ROTATE_MS)).toBe(`● ${DEFAULT_SPINNER_VERBS[1]}`)
+    // 取模回绕：片号 ≥ 池长回到池首
+    expect(deriveGlanceStatus(null, running, VERB_ROTATE_MS * DEFAULT_SPINNER_VERBS.length)).toBe(`● ${DEFAULT_SPINNER_VERBS[0]}`)
   })
 
   it('idle → null（空闲不渲染状态行）', () => {
@@ -134,8 +141,37 @@ describe('MetricsGlanceController 刷新节流', () => {
     })
     expect(ctrl.current()).toEqual({ status: null, error: null, errorFull: null }) // 构造安全默认（空闲不占位）
     ctrl.refresh()
-    expect(ctrl.current().status).toBe('● 运行中')
+    expect(ctrl.current().status).toBe('● 思考中')
     expect(onChange).toHaveBeenCalledTimes(1)
+  })
+
+  it('idle→running 跃迁记时：动词随时间片轮换；转空闲复位后重新从池首起算', () => {
+    // 显式冻结 Date：动词轮换按 Date.now 取片，不冻结则全量跑负载高时
+    // 两行代码间隔跨片会误判轮换，测试 flaky。
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+    try {
+      const state = liveState({ status: 'running' })
+      const ctrl = new MetricsGlanceController({
+        getStatusText: () => null,
+        getLiveState: () => state,
+        getColumns: () => 80,
+        throttleMs: 0,
+      })
+      ctrl.refresh() // 首次观测 running → 起点，elapsed 0 → 池首
+      expect(ctrl.current().status).toBe('● 思考中')
+      vi.advanceTimersByTime(VERB_ROTATE_MS) // 跨一个时间片 → 轮换第二词
+      ctrl.refresh()
+      expect(ctrl.current().status).toBe(`● ${DEFAULT_SPINNER_VERBS[1]}`)
+      state.status = 'idle' // 转空闲 → 状态行 null 且起点复位
+      ctrl.refresh()
+      expect(ctrl.current().status).toBeNull()
+      vi.advanceTimersByTime(VERB_ROTATE_MS)
+      state.status = 'running' // 再次 running → 重新从池首起算
+      ctrl.refresh()
+      expect(ctrl.current().status).toBe('● 思考中')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('窗口内重复 refresh 合并，不重复推送；数据变化在窗口末重算推送', () => {
@@ -164,9 +200,9 @@ describe('MetricsGlanceController 刷新节流', () => {
       expect(ctrl.current().status).toBeNull()
       expect(onChange).toHaveBeenCalledTimes(1)
       vi.advanceTimersByTime(100)
-      expect(ctrl.current().status).toBe('● 运行中')
+      expect(ctrl.current().status).toBe('● 思考中')
       expect(onChange).toHaveBeenCalledTimes(2)
-      expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ status: '● 运行中' }))
+      expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ status: '● 思考中' }))
     } finally {
       vi.useRealTimers()
     }
@@ -190,7 +226,7 @@ describe('MetricsGlanceController 刷新节流', () => {
       state.status = 'running'
       vi.advanceTimersByTime(150) // 越过窗口
       ctrl.refresh() // 同步重算
-      expect(ctrl.current().status).toBe('● 运行中')
+      expect(ctrl.current().status).toBe('● 思考中')
       expect(onChange).toHaveBeenCalledTimes(2)
     } finally {
       vi.useRealTimers()
