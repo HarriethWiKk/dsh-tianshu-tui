@@ -85,6 +85,7 @@
 | src/format/btw-panel.ts | — | new |
 | src/format/chrome-colors.ts | — | new（输入轨/footer 雾蓝 chrome token，对齐 dsh-cc-tui Gentle Mist Blue） |
 | src/format/collapsed-bash.ts | format/collapsed-bash.ts | modified |
+| src/format/confirm-hints.ts | — | new（双击布防提示行：「再按 Ctrl+C 退出」「再按 Esc 打开 rewind」——registry confirmSince 数据源 + 窗口过期自清） |
 | src/format/diff.ts | format/diff.ts | modified |
 | src/format/doctor-report.ts | — | new |
 | src/format/activity-band.ts | format/activity-band.ts | ported（2026-08 回流：统一活动带——subagent/workflow/task 折叠 + 封顶渲染；纯函数层并入，live 接线待 owner 决策） |

@@ -51,6 +51,8 @@ function makeCtx(state: {
   slashMenuOpen?: boolean
   inspectAny?: boolean
   vimNormalEsc?: boolean
+  /** 打断宽限期（inAbortGrace 读取；session.rewind 守卫用）。 */
+  abortGrace?: boolean
   hasReasoning?: boolean
   pendingTool?: boolean
   images?: boolean
@@ -99,6 +101,7 @@ function makeCtx(state: {
     slashMenuOpen: () => state.slashMenuOpen ?? false,
     inspectAny: () => state.inspectAny ?? false,
     vimNormalEsc: () => state.vimNormalEsc ?? false,
+    inAbortGrace: () => state.abortGrace ?? false,
     hasReasoning: () => state.hasReasoning ?? false,
     hasPendingToolCard: () => state.pendingTool ?? false,
     hasImages: () => state.images ?? false,
@@ -260,6 +263,17 @@ describe('confirmMs 双击布防（registry 集中管理）', () => {
   it('vim normal 下 Esc 空操作：rewind 不命中（布防/触发都跳过）', () => {
     const { registry, ctx } = makeCtx({ vimNormalEsc: true })
     expect(registry.match(key('escape'), ctx, { phase: 'main' })).toBeNull()
+  })
+
+  it('打断 grace 窗口内 Esc 不命中 session.rewind（不布防不触发）；窗口外恢复', () => {
+    const grace = makeCtx({ abortGrace: true })
+    expect(grace.registry.match(key('escape'), grace.ctx, { phase: 'main' })).toBeNull()
+    // 窗口外：布防/触发路径不受影响（when 通过）
+    const idle = makeCtx({ abortGrace: false })
+    const rewind = idle.registry.match(key('escape'), idle.ctx, { phase: 'main' })
+    expect(rewind?.id).toBe('session.rewind')
+    expect(rewind?.run(idle.ctx, key('escape'))).toBe(false)
+    expect(idle.registry.confirmSince('session.rewind')).not.toBe(0)
   })
 
   it('inspect.close 触发时撤防 rewind 布防', () => {

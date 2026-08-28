@@ -151,10 +151,11 @@ export function createBuiltinActions(options: BuiltinActionsOptions): KeyAction[
       // 空闲双击 Esc（窗口内第二次）触发 rewind（CC 的 Esc+Esc 时间回溯）；
       // 第一次只布防并放行（返回 false 继续流向 InputLine——vim 等空闲 Esc
       // 语义保留），窗口过期后第二次仅刷新布防。vim normal 下 Esc 空操作：
-      // 布防/触发都跳过（when 守卫）。
+      // 布防/触发都跳过（when 守卫）。打断宽限期（handleAbort 后一个窗口内）
+      // 同样不布防不触发——打断在途后 isRunning 异步落定，落定即双击会误开。
       id: 'session.rewind',
       keys: [{ name: 'escape' }],
-      when: ctx => !ctx.slashMenuOpen() && !ctx.inspectAny() && !ctx.vimNormalEsc(),
+      when: ctx => !ctx.slashMenuOpen() && !ctx.inspectAny() && !ctx.vimNormalEsc() && !ctx.inAbortGrace(Date.now()),
       confirmMs: REWIND_DOUBLE_ESC_MS,
       category: '会话',
       hint: '取消/关闭检查面板（空闲双击 rewind）',
@@ -167,6 +168,9 @@ export function createBuiltinActions(options: BuiltinActionsOptions): KeyAction[
           return true
         }
         ctx.confirmArm('session.rewind', now)
+        // 布防提示行「再按 Esc 打开 rewind」即时上屏（对齐 ctrl_c 布防后的 flushLive；
+        // 返回 false 继续流向 InputLine 的放行语义不变）。
+        ctx.flushLive()
         return false
       },
     },

@@ -232,10 +232,8 @@ import { formatTopBar } from '../format/top-bar.js'
 import { livePresetShort } from '../preset-catalog.js'
 import { formatTurnStatus } from '../format/turn-status.js'
 import { formatFooterInfo } from '../format/prompt-footer.js'
-import {
-  ActionRegistry,
-  EXIT_WINDOW_MS,
-} from '../actions/registry.js'
+import { pushConfirmHints } from '../format/confirm-hints.js'
+import { ActionRegistry, REWIND_DOUBLE_ESC_MS } from '../actions/registry.js'
 import { createBuiltinActions } from '../actions/builtin-actions.js'
 import {
   createApprovalKeyContext,
@@ -2761,6 +2759,8 @@ export class TuiApp {
   /** 取消当前运行（Esc/Ctrl+C）：cancel agent（keepInbox——宿主 inbox 未消费的 steer/排队残留保留）、丢弃未发出的流式/推理缓冲并重置流渲染。 */
   /** 最近一次 Ctrl+C 字节（0x03）处理时间戳；0 = 未处理过（SIGINT 防抖用）。 */
   private lastCtrlCAt = 0
+  /** 最近一次 handleAbort 时间戳；0 = 未打断过（双击 Esc rewind 的 grace 守卫数据源）。 */
+  private lastAbortAt = 0
 
   /**
    * Windows 双触发防护：最近 800ms 内 Ctrl+C 字节（0x03）已处理（打断/退出）时，
@@ -2784,6 +2784,11 @@ export class TuiApp {
   }
 
   handleAbort(): void {
+    // grace 守卫数据源：打断在途后 isRunning 异步落定，落定后一个双击窗口内
+    // Esc 不布防/触发 rewind（when 经 inAbortGrace 判定）；已布防的随之撤防
+    //（对齐 inspect.close 的 disarm）。
+    this.lastAbortAt = Date.now()
+    this.actions.confirmDisarm('session.rewind')
     // 防御：打断优先于 overlay——释放激活的全屏 overlay（palette/search/rewind/picker），
     // 保证主屏（含输入轨）下一帧必然恢复（覆盖未来新增路径在 overlay 激活时调 abort）。
     this.overlay?.deactivate()
@@ -3042,6 +3047,7 @@ export class TuiApp {
       slashMenuOpen: () => this.inputController.slashMenu.open,
       inspectAny: () => this.inspect.any(),
       vimNormalEsc: () => this.inputLine.vimEnabled && this.inputLine.vimMode === 'normal',
+      inAbortGrace: (now) => now - this.lastAbortAt < REWIND_DOUBLE_ESC_MS,
       hasReasoning: () => this.reasoningText !== '' || this.lastReasoningBlock !== null,
       hasPendingToolCard: () => this.latestPendingToolCall() !== undefined,
       hasImages: () => this.inputLine.images.length > 0,
@@ -3705,15 +3711,8 @@ export class TuiApp {
         : policy.staleLevel === 'warn' ? theme.warning : theme.secondary
       lines.push({ text: color(`⏳ ${policy.staleMessage}`, staleColor) })
     }
-    // 双击退出布防提示行（布防状态由 action registry 的 confirmMs 集中管理）。
-    const exitArmedSince = this.actions.confirmSince('app.interrupt')
-    if (exitArmedSince !== 0) {
-      if (Date.now() - exitArmedSince >= EXIT_WINDOW_MS) {
-        this.actions.confirmDisarm('app.interrupt')
-      } else {
-        lines.push({ text: color('再按 Ctrl+C 退出 · Ctrl+Q 立即退出', theme.muted) })
-      }
-    }
+    // 双击布防提示行（registry confirmMs 集中管理；投影含过期自清——format/confirm-hints）。
+    pushConfirmHints(this.actions, lines, theme)
 
     // 推理展开视图（Ctrl+O 切换；scrollback append-only，全文在 live 区展示）：
     // - 流式进行中：shimmer 头行 + 推理全文（替代折叠态的尾 N 行）；

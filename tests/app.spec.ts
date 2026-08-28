@@ -980,11 +980,11 @@ describe('TuiApp 审查 HIGH 修复回归（177c12e）', () => {
     if (id === null) throw new Error('sessionId missing')
     emitTranscriptUser(bus, id, 1, 'hi')
     // eslint-disable-next-line no-console
-    // 单次 Esc → 不打开
+    // 单次 Esc → 布防提示行出现，rewind overlay 不打开
     stdin.emit('data', '\x1b')
     await new Promise(resolve => setTimeout(resolve, 150))
     let written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).not.toContain('rewind')
+    expect(written).not.toContain('⟲ rewind 回退')
     // 非 Esc 键清除待定双击窗口（避免单次检查污染下面的双击）
     stdin.emit('data', 'x')
     await new Promise(resolve => setTimeout(resolve, 50))
@@ -1022,6 +1022,82 @@ describe('TuiApp 审查 HIGH 修复回归（177c12e）', () => {
     await new Promise(resolve => setTimeout(resolve, 150))
     const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
     expect(written).not.toContain('⟲ rewind 回退')
+    await app.dispose()
+  })
+
+  it('打断后 grace 窗口内双击 Esc 不开 rewind（不布防）；窗口外恢复双击 rewind', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('grace-esc')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    ;(agent.session as { id: SessionId }).id = app.sessionId ?? SessionId('grace-esc')
+    const bus = sessionEventBus(ctx)
+    const id = app.sessionId
+    if (id === null) throw new Error('sessionId missing')
+    emitTranscriptUser(bus, id, 1, 'hi')
+    const statusHandlers = (ctx.on as ReturnType<typeof vi.fn>).mock.calls
+      .filter((call: unknown[]) => call[0] === 'agent/status')
+      .map(call => call[1] as (payload: { agent: { id: SessionId }; status: string }) => void)
+    // running → Esc 打断（lone ESC 走 80ms 派发；lastAbortAt 此刻记录）
+    for (const handler of statusHandlers) handler({ agent: { id }, status: 'running' })
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 150))
+    expect(agent.cancel).toHaveBeenCalledTimes(1)
+    // isRunning 落定 idle；grace 窗口（1s）内双击 Esc → 不布防不触发 rewind
+    for (const handler of statusHandlers) handler({ agent: { id }, status: 'idle' })
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 200))
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 150))
+    let written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).not.toContain('⟲ rewind 回退')
+    expect(written).not.toContain('再按 Esc 打开 rewind')
+    // grace 窗口过期后：双击 Esc 正常布防并打开 rewind
+    await new Promise(resolve => setTimeout(resolve, 800))
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 200))
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 150))
+    written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('⟲ rewind 回退')
+    await app.dispose()
+  })
+
+  it('Esc 布防提示行：布防后显示「再按 Esc 打开 rewind」，窗口过期自清', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('esc-hint')
+    const handle = makeHandle(agent)
+    ctx.agents.create.mockResolvedValue(handle)
+    ctx.sessions.get.mockReturnValue(agent.session)
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+    const id = app.sessionId
+    if (id === null) throw new Error('sessionId missing')
+    const now = Date.now()
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now)
+    // 单次 Esc → 布防（lone ESC 80ms 派发）；提示行随布防 flush 上屏
+    stdin.emit('data', '\x1b')
+    await new Promise(resolve => setTimeout(resolve, 150))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('再按 Esc 打开 rewind')
+    // 窗口过期（Date 推进 1.5s）后重绘：过期自清，提示行不再渲染
+    nowSpy.mockReturnValue(now + 1_500)
+    const statusHandlers = (ctx.on as ReturnType<typeof vi.fn>).mock.calls
+      .filter((call: unknown[]) => call[0] === 'agent/status')
+      .map(call => call[1] as (payload: { agent: { id: SessionId }; status: string }) => void)
+    const writesBefore = stdout.write.mock.calls.length
+    for (const handler of statusHandlers) handler({ agent: { id }, status: 'running' })
+    await new Promise(resolve => setTimeout(resolve, 150))
+    const after = stdout.write.mock.calls.slice(writesBefore).map(c => `${c[0]}`).join('')
+    expect(after).not.toContain('再按 Esc 打开 rewind')
+    nowSpy.mockRestore()
     await app.dispose()
   })
 

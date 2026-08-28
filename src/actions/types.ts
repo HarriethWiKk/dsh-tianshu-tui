@@ -103,6 +103,9 @@ export interface ActionContext {
   inspectAny(): boolean
   /** vim normal 态（Esc 空操作——双击 rewind 的布防/触发都跳过）。 */
   vimNormalEsc(): boolean
+  /** 打断宽限期内（now - 最近 handleAbort 时间 < 双击 rewind 窗口）：期间 Esc
+   *  不布防/触发 rewind——打断在途后 isRunning 异步落定，落定即双击会误开 rewind。 */
+  inAbortGrace(now: number): boolean
   /** 有可展开的推理块（流式缓冲或已落底块；无则 ctrl_o 落给 editorKey 分支）。 */
   hasReasoning(): boolean
   /** 有进行中的工具卡（空 Enter 展开/收起目标）。 */
