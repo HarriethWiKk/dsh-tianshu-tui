@@ -3,6 +3,14 @@
 版本更新记录。安装与当前版本见 [README](README.md)；完整历史在此。
 `/changelog` 在 TUI 内查看（默认当前版本，`/changelog all` 全部，`/changelog N` 最近 N 版）。
 
+## [0.1.2-rc.27] - 2026-08-29
+
+回流 Tianshu Harness（opencode-tui/revit）UX 审计波中两项适配本仓架构的优化：错误时刻可行动 + 决策卡视觉分层。
+
+- **错误后自动回填上一条消息（ErrorAnnouncer）** — agent 错误在完整落底 + 恢复指引尾注之外，把最近一条已投递消息自动填回输入行并附 `↩ 可能未被完整处理` 提示——改一下回车即可重发；生命周期完整：直发与排队 flush 投递时记录、成功回合清除、有草稿不抢写、取走即清防双份（渲染错误块顺势 C4 提取为 `controllers/error-announcer`）
+- **plan-review 决策卡视觉分层（轻量适配）** — 选项与键位提示之间加 dim 决策区分隔线；approve 主操作升 `❯` 前缀 + success 着色（BOLD 保留）；主题可选注入，不传时渲染逐字节不变——解决「审批按钮淹没在正文里」
+- 筛选说明：上游 choice-panel 输入子模式修不回流（本仓提问反馈走真实 InputLine，光标/粘贴原生完备）
+
 ## [0.1.2-rc.26] - 2026-08-28
 
 P1 交互打磨六连：Esc 分层收尾、拟人 spinner 词库、footer 显式分级降级、错误恢复指引、定高视口强化、fish 式历史建议。

@@ -123,7 +123,9 @@ The companion vision plugin lives in `vision-ask/` if you need image re-interrog
 
 ## Release notes
 
-Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.26`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.26)).
+Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.27`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.27)).
+
+**0.1.2-rc.27 (2026-08-29)**: two backports from Tianshu — actionable errors (beyond the full error commit + recovery hint, the last delivered message is auto-refilled into the input line with a `↩` "may not have been fully processed" note; edit and re-send; cleared on successful turns, drafts never clobbered); plan-review decision-card visual layering (dim decision-zone divider + `❯`/success primary-action highlight; rendering byte-identical when no theme is passed).
 
 **0.1.2-rc.26 (2026-08-28)**: the P1 polish six-pack — Esc layering finished (post-abort grace period + armed hint line), a playful verb pool on the glance line, explicit priority-based footer degradation, error recovery hints (every error names the next action), a steadier fixed-height viewport (chrome panels no longer jolt the input track), and fish-style history ghost suggestions (`→` to accept); `/scroll` cap now configurable.
 
