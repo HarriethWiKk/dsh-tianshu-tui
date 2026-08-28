@@ -48,6 +48,8 @@ export interface TuiPrefs {
   vimEnabled?: boolean
   /** vim insert 两键序列→Esc 映射（如 {"jj":"esc"}；值仅支持 esc，见 insert-remap.ts）。 */
   vimInsertRemaps?: Record<string, string>
+  /** fish 式历史建议 ghost（缺省开；false 关闭；接受手势 →）。 */
+  ghostSuggest?: boolean
 }
 
 /** 缺省偏好（= 现行为）。 */
@@ -80,6 +82,7 @@ export function parsePrefs(text: string): TuiPrefs {
     prefs.footerInfo = obj.footerInfo as FooterInfoLevel
   }
   if (typeof obj.notifyOs === 'boolean') prefs.notifyOs = obj.notifyOs
+  if (typeof obj.ghostSuggest === 'boolean') prefs.ghostSuggest = obj.ghostSuggest
   if (typeof obj.vimEnabled === 'boolean') prefs.vimEnabled = obj.vimEnabled
   if (typeof obj.vimInsertRemaps === 'object' && obj.vimInsertRemaps !== null && !Array.isArray(obj.vimInsertRemaps)) {
     const remaps: Record<string, string> = {}

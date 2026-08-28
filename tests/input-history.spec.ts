@@ -10,6 +10,7 @@ import { join } from 'node:path'
 import {
   MAX_INPUT_HISTORY,
   appendInputHistory,
+  historyGhostSuffix,
   inputHistoryEnabled,
   loadInputHistory,
   nextHistoryAfterSubmit,
@@ -40,6 +41,24 @@ describe('nextHistoryAfterSubmit', () => {
     expect(next[0]).toBe('new')
     expect(next[1]).toBe('old-0')
     expect(next[next.length - 1]).toBe(`old-${MAX_INPUT_HISTORY - 2}`)
+  })
+})
+
+describe('historyGhostSuffix（fish 式历史建议）', () => {
+  it('前缀匹配取最近条目（历史按最近在前），返回剩余部分', () => {
+    expect(historyGhostSuffix(['help me', 'hello world'], 'hel')).toBe('p me')
+    expect(historyGhostSuffix(['hello world'], 'hello')).toBe(' world')
+  })
+
+  it('等长（无剩余）/ 非前缀 / 空 value → null', () => {
+    expect(historyGhostSuffix(['hello'], 'hello')).toBeNull()
+    expect(historyGhostSuffix(['hello'], 'xyz')).toBeNull()
+    expect(historyGhostSuffix(['hello'], '')).toBeNull()
+  })
+
+  it('剩余部分含换行的条目跳过（ghost 只渲染光标行尾），继续找下一条', () => {
+    expect(historyGhostSuffix(['he\nllo world', 'heyyy'], 'he')).toBe('yyy')
+    expect(historyGhostSuffix(['he\nllo'], 'he')).toBeNull()
   })
 })
 

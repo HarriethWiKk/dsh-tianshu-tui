@@ -323,6 +323,19 @@ export function createBuiltinActions(options: BuiltinActionsOptions): KeyAction[
       keymapOrder: 170,
       run: (ctx, key) => { ctx.passHistoryKey(key) },
     },
+    {
+      // fish 式历史建议：→ 在「光标末尾 + 无选区 + ghost 可见」时接受整条；
+      // 守卫未命中落给 InputLine 光标右移（守卫已限定末尾，与移动语义不冲突）。
+      // vim normal 的 l 不受影响（normal 态 ghost 不显示，l 也不在本绑定）。
+      id: 'input.accept-ghost',
+      keys: [{ name: 'right' }],
+      when: ctx => ctx.ghostAcceptable(),
+      phase: 'tail',
+      category: '输入',
+      hint: '接受历史建议',
+      keymapHidden: true,
+      run: ctx => { ctx.acceptGhost() },
+    },
 
     // ── approval 域：审批挂起时经 approval 阻塞上下文独占轮询（不进常规 match） ──
     // 注册序即决策梯度序（y → p → t → a → n → f → esc），footer 提示段与审批卡

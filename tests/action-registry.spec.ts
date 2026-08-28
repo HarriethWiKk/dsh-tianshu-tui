@@ -61,6 +61,8 @@ function makeCtx(state: {
   approvalPending?: boolean
   /** 挂起审批的命令前缀（approvalCommandPrefix 读取；p 键守卫用）。 */
   approvalPrefix?: string | null
+  /** fish 式历史建议可见（ghostAcceptable 读取；input.accept-ghost 守卫用）。 */
+  ghost?: boolean
   hasExit?: boolean
 } = {}) {
   const registry = new ActionRegistry(createBuiltinActions({ editorKey: 'ctrl_e' }))
@@ -93,6 +95,7 @@ function makeCtx(state: {
     approveToolSession: vi.fn(),
     approveCommandPrefix: vi.fn(),
     startApprovalFeedback: vi.fn(),
+    acceptGhost: vi.fn(),
   }
   const ctx: ActionContext = {
     hasExit: state.hasExit ?? true,
@@ -109,6 +112,7 @@ function makeCtx(state: {
     paletteOpen: () => state.paletteOpen ?? false,
     approvalPending: () => state.approvalPending ?? false,
     approvalCommandPrefix: () => state.approvalPrefix ?? null,
+    ghostAcceptable: () => state.ghost ?? false,
     confirmArm: (id, now) => { registry.confirmArm(id, now) },
     confirmWithin: (id, now) => registry.confirmWithin(id, now),
     confirmDisarm: (id) => { registry.confirmDisarm(id) },
@@ -220,6 +224,17 @@ describe('ActionRegistry.match — 注册序与守卫', () => {
     // slash 菜单打开：三个 esc 动作全部让位（归菜单关闭分支）
     const menu = makeCtx({ slashMenuOpen: true, running: true, inspectAny: true })
     expect(menu.registry.match(key('escape'), menu.ctx, { phase: 'main' })).toBeNull()
+  })
+
+  it('→ 接受 fish 历史建议（tail 相位）：ghost 可见命中，不可见落 InputLine 光标移动', () => {
+    const { registry, ctx, calls } = makeCtx({ ghost: true })
+    const hit = registry.match(key('right'), ctx, { phase: 'tail', context: 'global' })
+    expect(hit?.id).toBe('input.accept-ghost')
+    hit?.run(ctx, key('right'))
+    expect(calls.acceptGhost).toHaveBeenCalledTimes(1)
+    // ghost 不可见：守卫不命中 → 无动作消费，右移语义留给 InputLine
+    const off = makeCtx({ ghost: false })
+    expect(off.registry.match(key('right'), off.ctx, { phase: 'tail', context: 'global' })).toBeNull()
   })
 })
 

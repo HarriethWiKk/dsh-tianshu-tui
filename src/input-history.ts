@@ -51,6 +51,21 @@ export function nextHistoryAfterSubmit(history: readonly string[], entry: string
   return [trimmed, ...history.filter(h => h !== trimmed)].slice(0, MAX_INPUT_HISTORY)
 }
 
+/**
+ * fish 式历史建议（ghost）：最近一条以 value 为前缀的历史条目的剩余部分。
+ * 历史按最近在前排列，首个匹配即最近条目；等长（无剩余）与剩余部分含换行
+ * 的条目跳过（ghost 只渲染在光标行尾，多行建议无意义）。空 value → null。
+ */
+export function historyGhostSuffix(history: readonly string[], value: string): string | null {
+  if (value === '') return null
+  for (const entry of history) {
+    if (entry.length <= value.length || !entry.startsWith(value)) continue
+    if (entry.includes('\n', value.length)) continue
+    return entry.slice(value.length)
+  }
+  return null
+}
+
 // 进程内追加串行队列：上次写完成（或失败）后才进行下一次 读-合并-写。
 let appendQueue: Promise<void> = Promise.resolve()
 

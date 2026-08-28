@@ -169,6 +169,10 @@ export interface ActionContext {
   removeLastImage(): void
   /** 空输入 ↑：取回运行中提交队列队首回输入行。 */
   recallQueuedSubmit(): void
+  /** fish 式历史建议当前可接受（ghost 可见：光标末尾 + 无选区 + 非 vim normal + prefs 开）。 */
+  ghostAcceptable(): boolean
+  /** → 接受整条历史建议（把 ghost 剩余部分补进输入行）。 */
+  acceptGhost(): void
   /** ↑↓ 透传 InputLine 历史导航。 */
   passHistoryKey(key: KeyPress): void
   /** 清空输入行（Ctrl+C 空闲草稿语义；setValue 记 undo）。 */

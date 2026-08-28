@@ -29,7 +29,7 @@ import {
   type GlanceHideableSegment,
   type TuiPrefs,
 } from '../prefs.js'
-import { appendInputHistory, inputHistoryEnabled, loadInputHistory, MAX_INPUT_HISTORY } from '../input-history.js'
+import { appendInputHistory, historyGhostSuffix, inputHistoryEnabled, loadInputHistory, MAX_INPUT_HISTORY } from '../input-history.js'
 import { exportCurrentTheme } from '../theme-custom.js'
 import { writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
@@ -2860,12 +2860,8 @@ export class TuiApp {
     this.skillSurface.refreshEntries()
   }
 
-  /**
-   * 输入行 ghost 预览文本（阶段 2）：菜单选中命令时预览补全剩余
-   * （`/th` + 选中 /theme → `eme`）；完整命令名 + 尾空格 → 预览参数占位
-   * （`/theme ` → `<name>`）。菜单关闭/光标不在末尾/无补全关系 → null。
-   * @returns ghost 文本或 null。
-   */
+  /** slash ghost 预览：菜单选中命令补全剩余（/th→eme）；完整命令名+尾空格 → 参数占位。
+   *  菜单关闭/光标不在末尾/无补全关系 → null。 */
   private slashGhostText(): string | null {
     const menu = this.inputController.slashMenu
     if (!menu.open) return null
@@ -2880,13 +2876,18 @@ export class TuiApp {
     return null
   }
 
-  /**
-   * 接受 slash 菜单当前选中项（Tab / Enter）。
-   * Enter 且输入已是完整命令名（如 `/theme`）→ 关闭菜单并直接提交；
-   * 否则补全命令名到输入行（有 argsHint 的命令补到 `cmd ` 留参数位，
-   * 参数建议留待下一批），随后关闭菜单。
-   * @param opts - submit：Enter 语义（精确命令直接发送）。
-   */
+  /** fish 式历史建议 ghost：prefs 关 / `/` 开头 / 光标不在末尾 / 有选区 / vim normal → null。 */
+  private historyGhostText(): string | null {
+    const value = this.inputLine.value
+    if (this.prefs.ghostSuggest === false || value.startsWith('/')) return null
+    if (this.inputLine.cursor !== value.length || this.inputLine.selectionRange !== null) return null
+    if (this.inputLine.vimEnabled && this.inputLine.vimMode === 'normal') return null
+    return historyGhostSuffix(this.history, value)
+  }
+
+  /** 接受 slash 菜单当前选中项（Tab / Enter）：Enter 且输入已是完整命令名 →
+   *  关菜单直接提交（opts.submit）；否则补全命令名（有 argsHint 补到 `cmd `
+   *  留参数位，参数建议留待下一批）后关菜单。 */
   private acceptSlashCompletion(opts?: { submit?: boolean }): void {
     const menu = this.inputController.slashMenu
     const selected = menu.matches[menu.selected]
@@ -2986,11 +2987,9 @@ export class TuiApp {
 
   /**
    * 键路由（统一 action registry）：布防清扫 → 早段全局动作（overlay 之前——
-   * shift_tab/ctrl_n 等在面板打开时先生效，现状语义保持）→ overlay 委派
-   * （scroll-pager 范式）→ 阻塞上下文轮询（question > btw > approval）→
-   * 主段动作（esc 打断/关 inspect/双击 rewind、ctrl_c、ctrl_o、editorKey、
-   * ctrl_t、ctrl_v）→ slash 菜单 → inspect 上下文键 → 尾段动作（空 Tab/
-   * Alt+Backspace/↑↓）→ InputLine 兜底。
+   * shift_tab/ctrl_n 等在面板打开时先生效）→ overlay 委派 → 阻塞上下文轮询
+   * （question > btw > approval）→ 主段动作（esc/ctrl_c/ctrl_o/editorKey/
+   * ctrl_t/ctrl_v）→ slash 菜单 → inspect 上下文键 → 尾段动作 → InputLine 兜底。
    */
   private handleKey(key: KeyPress): void {
     // 双击布防清扫：非某 confirmMs 动作触发键的键到达即撤防（对齐原
@@ -3035,11 +3034,8 @@ export class TuiApp {
     return pending[pending.length - 1]
   }
 
-  /**
-   * 动作执行上下文门面（actions/types.ts 的 ActionContext）：动作表的 when/run
-   * 只经此触达本类私有方法——registry 不 import 本类。读取方法即原 handleKey
-   * 各分支的判定条件原样搬出；confirmMs 原语转发 registry 布防状态。
-   */
+  /** 动作执行上下文门面（ActionContext）：when/run 只经此触达本类私有方法
+   *  （registry 不 import 本类）；confirmMs 原语转发 registry 布防状态。 */
   private createActionContext(): ActionContext {
     return {
       hasExit: this.onExit !== undefined,
@@ -3133,6 +3129,11 @@ export class TuiApp {
         if (first !== undefined) this.inputLine.setValue(first.text, first.text.length)
         this.flushLiveRender()
       },
+      ghostAcceptable: () => this.historyGhostText() !== null,
+      acceptGhost: () => {
+        const ghost = this.historyGhostText()
+        if (ghost !== null) { this.inputLine.append(ghost); this.flushLiveRender() }
+      },
       passHistoryKey: (key) => {
         this.inputLine.handleKey(key.name, key.char, key.ctrl, key.meta, key.shift, key.inline === true)
         this.flushLiveRender()
@@ -3180,10 +3181,6 @@ export class TuiApp {
     return { width: this.stdout.columns, preset }
   }
 
-  /**
-   * 把渲染行批量提交到 scrollback（保持时间顺序）。
-   * @param rows - RenderedRow 数组。
-   */
   /**
    * 历史行渐进落底（任务5，2026-08-27）：大会话 attach 不再单 tick 全量写入。
    * 首片同步 commit（首帧即有内容），余片经 setImmediate 链逐片追加——每片
@@ -3884,8 +3881,8 @@ export class TuiApp {
     if (this.submitQueue.size() > 0) {
       lines.push({ text: formatQueueLine(cols, this.submitQueue.peekAll()) })
     }
-    // 阶段 2：slash 菜单选中命令 → 输入行 ghost 预览（补全剩余/参数占位）。
-    this.inputLine.setGhost(this.slashGhostText())
+    // ghost 槽位汇合：slash 补全（补全剩余/参数占位）优先，fish 式历史建议其次。
+    this.inputLine.setGhost(this.slashGhostText() ?? this.historyGhostText())
     // CC PromptInput marginTop={1}：轨前 1 行呼吸，不填视口。
     lines.push({ text: '' })
     // 输入轨（Claude Code 形态）：上下圆角横线、左右不封。轨线色
