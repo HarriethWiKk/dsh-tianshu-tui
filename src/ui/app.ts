@@ -232,6 +232,7 @@ import { formatTopBar } from '../format/top-bar.js'
 import { livePresetShort } from '../preset-catalog.js'
 import { formatTurnStatus } from '../format/turn-status.js'
 import { formatFooterInfo, type FooterRightSegment } from '../format/prompt-footer.js'
+import { errorRecoveryHint, formatWarnWithHint } from '../format/error-recovery.js'
 import { pushConfirmHints } from '../format/confirm-hints.js'
 import { ActionRegistry, REWIND_DOUBLE_ESC_MS } from '../actions/registry.js'
 import { createBuiltinActions } from '../actions/builtin-actions.js'
@@ -315,6 +316,8 @@ export interface TuiAppOptions {
    * 宿主/测试装配可显式关闭——TTY 替身与真实终端无法从 stdin 区分。
    */
   disableKeyAutoPrompt?: boolean
+  /** 启动期收集的主题警告（loadCustomThemes 回调路由；attach 后 echoWarn + /theme 指引落 scrollback）。 */
+  themeWarnings?: readonly string[]
   /**
    * 主控模型的识图能力与视觉桥状态（图片附件的用户气泡提示数据源；
    * 由装配方按 agent 配置注入——TUI 是纯表现层，不自行查询模型能力）。
@@ -503,6 +506,7 @@ export class TuiApp {
   private keyFlow!: KeyFlow
   /** /key 首启自动弹窗禁用（宿主/测试装配显式关闭；缺省 false=启用）。 */
   private readonly disableKeyAutoPrompt: boolean
+  private readonly themeWarnings: readonly string[]
   private overlay: OverlayController | null = null
   /** C3 项 3：rewind overlay（/rewind 双阶段回退面板）。 */
   private rewindOverlay: RewindOverlay | null = null
@@ -737,6 +741,7 @@ export class TuiApp {
 
   constructor(options: TuiAppOptions) {
     this.disableKeyAutoPrompt = options.disableKeyAutoPrompt === true
+    this.themeWarnings = options.themeWarnings ?? []
     this.ctx = options.ctx
     this.stdout = options.stdout
     this.stdin = options.stdin
@@ -870,9 +875,8 @@ export class TuiApp {
       toggleTaskPanel: () => { void this.inspect.toggle('tasks') },
       toggleSubagentsPanel: () => {
         this.subagentsPanelVisible = !this.subagentsPanelVisible
-        if (this.subagentsPanelVisible && this.ctx.reflect.get('subagents', false) === undefined) {
-          this.echoWarn('⚠ subagents 服务不可用（未装配 subagent 插件），委派树面板无数据')
-        }
+        if (this.subagentsPanelVisible && this.ctx.reflect.get('subagents', false) === undefined)
+          this.echoWarn('⚠ subagents 服务不可用（未装配 subagent 插件），委派树面板无数据', '/doctor 体检')
         // P1：常驻监控面板显隐写透（下次启动恢复）
         this.prefs.panels = { ...this.prefs.panels, subagents: this.subagentsPanelVisible }
         this.persistPrefs()
@@ -880,9 +884,8 @@ export class TuiApp {
       },
       toggleWorkflowPanel: () => {
         this.workflowPanelVisible = !this.workflowPanelVisible
-        if (this.workflowPanelVisible && scopedService(this.ctx, this.activeSessionId, 'workflowEngine') === undefined) {
-          this.echoWarn('⚠ workflow 引擎不可用（未装配 workflow 插件），面板无运行数据')
-        }
+        if (this.workflowPanelVisible && scopedService(this.ctx, this.activeSessionId, 'workflowEngine') === undefined)
+          this.echoWarn('⚠ workflow 引擎不可用（未装配 workflow 插件），面板无运行数据', '/doctor 体检')
         this.prefs.panels = { ...this.prefs.panels, workflow: this.workflowPanelVisible }
         this.persistPrefs()
         this.renderBatcher.schedule()
@@ -967,9 +970,8 @@ export class TuiApp {
           this.todosPanelVisible = !this.todosPanelVisible
           if (!this.todosPanelVisible) { this.todosExpanded = false; this.todosAutoArmed = false }
         }
-        if (this.todosPanelVisible && this.ctx.reflect.get('sessionProjections', false) === undefined) {
-          this.echoWarn('⚠ sessionProjections 服务不可用（未装配 session-projection 插件），待办面板无数据')
-        }
+        if (this.todosPanelVisible && this.ctx.reflect.get('sessionProjections', false) === undefined)
+          this.echoWarn('⚠ sessionProjections 服务不可用（未装配 session-projection 插件），待办面板无数据', '/doctor 体检')
         this.renderBatcher.schedule()
       },
     })
@@ -1155,7 +1157,7 @@ export class TuiApp {
     this.skillSurface.refreshEntries()
     this.inspect = new InspectSurfaceController({
       hasService: name => this.ctx.reflect.get(name, false) !== undefined,
-      echoWarn: text => this.echoWarn(text),
+      echoWarn: (text, hint) => this.echoWarn(text, hint),
       refreshConfig: () => this.refreshConfigProjection(),
       refreshSkills: () => { this.skillSurface.refresh() },
       ensureLsp: () => { this.ensureLspBridge() },
@@ -1480,6 +1482,7 @@ export class TuiApp {
       this.echoWarn(this.pendingUpdateFailNotice)
       this.pendingUpdateFailNotice = null
     }
+    for (const w of this.themeWarnings) this.echoWarn(`⚠ 主题警告：${w}`, '/theme 检查自定义主题')
     this.flushLiveRender()
     // A3：纯位置参数作为初始 prompt（`dsh --profile tui "修复这个 bug"`）。
     if (initialPrompt !== '') {
@@ -2098,7 +2101,7 @@ export class TuiApp {
     await openModelPicker({
       overlay: this.overlay,
       picker: this.picker,
-      echoWarn: (text) => { this.echoWarn(text) },
+      echoWarn: (text, hint) => { this.echoWarn(text, hint) },
       commit: (text) => { this.commitToScrollback({ text, trailingNewline: true }) },
       ...(live === undefined ? {} : { current: live }),
       savedKey: saved === undefined ? null : `${saved.provider}/${saved.model}`,
@@ -2363,7 +2366,7 @@ export class TuiApp {
 
   /** 按键面切换：失败回显 ⚠ 并停留原会话（rejection 不逃逸成 unhandled）。 */
   private switchSessionGuarded(id: SessionId): void {
-    void this.switchSession(id).catch((error: unknown) => { this.echoWarn(`⚠ 会话切换失败: ${error instanceof Error ? error.message : String(error)}`) })
+    void this.switchSession(id).catch((error: unknown) => { this.echoWarn(`⚠ 会话切换失败: ${error instanceof Error ? error.message : String(error)}`, '/session 重新选择') })
   }
 
   /** 首次非空 todos 打开紧凑卡；关掉或 /clear 后本会话不再自动开。 */
@@ -2550,9 +2553,9 @@ export class TuiApp {
     this.renderBatcher.schedule()
   }
 
-  /** 回显一条警告行到 scrollback（可选服务缺失的 fails-loud 提示共用出口）。 */
-  private echoWarn(text: string): void {
-    this.commitToScrollback({ text: color(text, this.theme.warning), trailingNewline: true })
+  /** 回显警告行到 scrollback（fails-loud 提示共用出口）；hint 给 dim 色 `  ↳ ` 恢复指引尾随行。 */
+  private echoWarn(text: string, hint?: string): void {
+    this.commitToScrollback({ text: formatWarnWithHint(text, hint, this.theme), trailingNewline: true })
     this.flushLiveRender()
   }
 
@@ -2625,9 +2628,7 @@ export class TuiApp {
     // 图片不可达时不发送（气泡已警告「图片未发送」）；可达时直发或经视觉桥转描述。
     // followup 异步（图片经 attachments 服务持久化后投递）；失败回显警告，不静默吞。
     void this.controls?.followup(expanded, imagesReachable ? images : undefined).catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err)
-      this.commitToScrollback({ text: `⚠ 消息发送失败: ${message}`, trailingNewline: true })
-      this.flushLiveRender()
+      this.echoWarn(`⚠ 消息发送失败: ${err instanceof Error ? err.message : String(err)}`, '↑ 收回重发')
     })
     this.flushLiveRender()
   }
@@ -2639,7 +2640,7 @@ export class TuiApp {
     for (const item of items) {
       this.commitSurface.userPrompt(item.text, item.images)
       void this.controls?.followup(item.text, item.images).catch((err: unknown) => {
-        this.commitToScrollback({ text: `⚠ 排队消息发送失败: ${err instanceof Error ? err.message : String(err)}`, trailingNewline: true })
+        this.echoWarn(`⚠ 排队消息发送失败: ${err instanceof Error ? err.message : String(err)}`, '↑ 收回重发')
       })
     }
     if (items.length > 0) this.flushLiveRender()
@@ -2955,7 +2956,7 @@ export class TuiApp {
       | { set(agent: unknown, active: boolean): string } | undefined
     if (planMode === undefined) {
       // 只在进入 plan 时提示（退出分支由 Always-Approve 本地态驱动，无需服务）。
-      if (active) this.echoWarn('⚠ planMode 服务不可用（未装配 plan 插件），无法进入 plan 模式')
+      if (active) this.echoWarn('⚠ planMode 服务不可用（未装配 plan 插件），无法进入 plan 模式', '/doctor 体检')
       return
     }
     if (this.activeSessionId === null) return
@@ -3597,13 +3598,12 @@ export class TuiApp {
     // Phase 5.3：glance 控制器统一派生（首推同步 + 窗口内节流）。
     this.glance.refresh()
     const glance = this.glance.current()
-    // 错误详情完整落底（任务3，2026-08-27）：glance 行空间受限只显首行截断，
-    // 完整多行详情在「新错误文本」出现时落底 scrollback 一次（diff 去重——
-    // lastError 在挂起期间被逐帧重读不重复落底）。先更新去重指针再提交：
-    // 编舞内 flushNow 会重入 renderLive，次轮读到同文本即跳过，深度至多 2。
+    // 错误详情完整落底（任务3，2026-08-27）：glance 行只显首行截断，完整多行详情在
+    // 「新错误文本」出现时落底 scrollback 一次（diff 去重）并附恢复指引尾注。先更新
+    // 去重指针再提交：flushNow 重入 renderLive 次轮读同文本即跳过，深度至多 2。
     if (glance.errorFull !== null && glance.errorFull !== this.lastGlanceErrorFull) {
       this.lastGlanceErrorFull = glance.errorFull
-      this.commitToScrollback({ text: color(glance.errorFull, this.theme.warning), trailingNewline: true })
+      this.commitToScrollback({ text: formatWarnWithHint(glance.errorFull, errorRecoveryHint(glance.errorFull), this.theme), trailingNewline: true })
     }
     // C4 概念稿 A：turn_status 形态——glance 状态行升级为 spinner（运行中
     // braille 帧循环 / 等待输入 pulsing ◆）+ 阶段文本；null 不占位。

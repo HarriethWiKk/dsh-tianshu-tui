@@ -22,7 +22,7 @@ export interface ModelPickerLlm {
 export interface ModelPickerHost {
   overlay: OverlayActivate | null
   picker: PickerController | null
-  echoWarn(text: string): void
+  echoWarn(text: string, hint?: string): void
   commit(text: string): void
   current?: { provider: string; model: string }
   savedKey?: string | null
@@ -54,7 +54,7 @@ export async function openModelPicker(host: ModelPickerHost): Promise<void> {
   const { overlay, picker } = host
   if (overlay === null || picker === null) return
   if (host.llm === undefined) {
-    host.echoWarn('⚠ llm 服务不可用（未装配 llm 插件），模型选择器不可用')
+    host.echoWarn('⚠ llm 服务不可用（未装配 llm 插件），模型选择器不可用', '/key 配置')
     return
   }
   const currentKey = host.current === undefined ? null : `${host.current.provider}/${host.current.model}`
@@ -76,7 +76,7 @@ export async function openModelPicker(host: ModelPickerHost): Promise<void> {
     }
   }
   if (items.length === 0) {
-    host.echoWarn('⚠ 无可用模型（llm 目录为空），模型选择器不可用')
+    host.echoWarn('⚠ 无可用模型（llm 目录为空），模型选择器不可用', '/key 配置')
     return
   }
   const apply = (item: PickerItem, persist: boolean): void => {

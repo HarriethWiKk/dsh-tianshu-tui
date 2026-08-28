@@ -8443,3 +8443,45 @@ describe('TuiApp 运行中排队（对标 CC queue；↑ 取回）', () => {
     await app.dispose()
   })
 })
+
+describe('错误恢复指引（echoWarn hint 尾随行）', () => {
+  it('启动期主题警告：attach 后经 echoWarn 落 scrollback，附 /theme 指引尾随行', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('theme-warn-1')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockReturnValue(agent.session)
+    ctx.sessions.list.mockReturnValue([agent.session])
+    const stdout = makeStdout()
+    const app = new TuiApp({
+      ctx, stdout, stdin: makeStdin(),
+      themeWarnings: ['low contrast in foo.json: primary(#555555 ×1.2)'],
+    })
+    await app.attach()
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('⚠ 主题警告：low contrast in foo.json')
+    expect(written).toContain('↳ /theme 检查自定义主题')
+    await app.dispose()
+  })
+
+  it('会话切换失败：警告附 /session 重新选择尾随行', async () => {
+    const ctx = makeCtx()
+    const agent = makeAgent('hint-keep')
+    const other = makeAgent('hint-bad')
+    ctx.agents.create.mockResolvedValue(makeHandle(agent))
+    ctx.sessions.get.mockImplementation((id: SessionId) => (id === agent.session.id ? agent.session : other.session))
+    ctx.sessions.list.mockReturnValue([agent.session, other.session])
+    ctx.agents.get.mockImplementation((id: SessionId) => (id === agent.session.id ? agent : undefined))
+    ctx.agents.resume.mockRejectedValue(new Error('bad'))
+    const stdin = makeStdin()
+    const stdout = makeStdout()
+    const app = new TuiApp({ ctx, stdout, stdin })
+    await app.attach()
+
+    stdin.emit('data', '\x13') // ctrl_s
+    await new Promise(resolve => setTimeout(resolve, 60))
+    const written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
+    expect(written).toContain('⚠ 会话切换失败: bad')
+    expect(written).toContain('↳ /session 重新选择')
+    await app.dispose()
+  })
+})

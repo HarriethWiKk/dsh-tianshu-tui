@@ -95,4 +95,30 @@ describe('自定义主题低对比警告（fail-open）', () => {
       rmSync(base, { recursive: true, force: true })
     }
   })
+
+  it('onWarning 注入：警告路由回调且不写 stderr（TUI 收集落 scrollback 路径）', () => {
+    const base = mkdtempSync(join(tmpdir(), 'dsh-theme-'))
+    try {
+      mkdirSync(join(base, 'themes'))
+      writeFileSync(join(base, 'themes', 'broken.json'), '{not valid json')
+      writeFileSync(
+        join(base, 'themes', 'lowkontrast.json'),
+        JSON.stringify({ base: 'cobalt', background: 'dark', colors: { primary: '#555555' } }),
+      )
+      const err = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+      const warnings: string[] = []
+      try {
+        const loaded = loadCustomThemes(base, (w) => { warnings.push(w) })
+        // 注册未被阻断；两类警告都进回调（无 [theme] 前缀——前缀是 stderr 出口的历史文案）
+        expect(loaded).toContain('lowkontrast')
+        expect(warnings.some(w => w.includes('skip invalid custom theme: broken.json'))).toBe(true)
+        expect(warnings.some(w => w.includes('low contrast in lowkontrast.json: primary(#555555'))).toBe(true)
+        expect(err).not.toHaveBeenCalled()
+      } finally {
+        err.mockRestore()
+      }
+    } finally {
+      rmSync(base, { recursive: true, force: true })
+    }
+  })
 })

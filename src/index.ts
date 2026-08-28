@@ -81,7 +81,9 @@ export interface TuiRunnerConfig {
 export function apply(ctx: Context, config: TuiRunnerConfig = {}): void {
   // 自定义主题装载（~/.dsh-tui/themes/*.json）：必须在 TuiApp 构造（读持久化
   // 主题偏好、解析 custom:<name>）之前——修历史孤儿导出（此前从未被调用）。
-  loadCustomThemes()
+  // 警告收集进数组（不写 stderr），attach 后由 app 经 echoWarn 落 scrollback。
+  const themeWarnings: string[] = []
+  loadCustomThemes(undefined, (w) => { themeWarnings.push(w) })
   // 配置边界校验（cordis.yml 值在此进入）：misconfiguration fails loud at load。
   if (config.workflowHistoryLimit !== undefined
     && (!Number.isInteger(config.workflowHistoryLimit) || config.workflowHistoryLimit <= 0)) {
@@ -154,6 +156,7 @@ export function apply(ctx: Context, config: TuiRunnerConfig = {}): void {
       ...(config.prefsPath === undefined ? {} : { prefsPath: config.prefsPath }),
       ...(config.inputHistoryPath === undefined ? {} : { inputHistoryPath: config.inputHistoryPath }),
       ...(config.disableKeyAutoPrompt === undefined ? {} : { disableKeyAutoPrompt: config.disableKeyAutoPrompt }),
+      ...(themeWarnings.length === 0 ? {} : { themeWarnings }),
     })
     // Windows 控制台（PowerShell/conhost）下 Ctrl+C 可能同时产生 0x03 字节
     // 与 SIGINT 信号：0x03 已走 handleAbort（打断），紧随的 SIGINT 若直接

@@ -21,7 +21,7 @@ const WARN = {
 
 export interface InspectSurfaceOptions {
   hasService: (name: string) => boolean
-  echoWarn: (text: string) => void
+  echoWarn: (text: string, hint?: string) => void
   refreshConfig: () => Promise<void>
   refreshSkills: () => void
   ensureLsp: () => void
@@ -57,12 +57,12 @@ export class InspectSurfaceController {
     this.state = next
     if (next.config) await this.opts.refreshConfig()
     if (next.skills) {
-      if (!this.opts.hasService('skills')) this.opts.echoWarn(WARN.skills)
+      if (!this.opts.hasService('skills')) this.opts.echoWarn(WARN.skills, '/doctor 体检')
       this.opts.refreshSkills()
     }
     if (next.lsp) this.opts.ensureLsp()
-    if (next.status && !this.opts.hasService('sessionProjections')) this.opts.echoWarn(WARN.status)
-    if (next.tasks && !this.opts.hasService('sessionProjections')) this.opts.echoWarn(WARN.tasks)
+    if (next.status && !this.opts.hasService('sessionProjections')) this.opts.echoWarn(WARN.status, '/doctor 体检')
+    if (next.tasks && !this.opts.hasService('sessionProjections')) this.opts.echoWarn(WARN.tasks, '/doctor 体检')
     this.opts.schedule()
   }
 

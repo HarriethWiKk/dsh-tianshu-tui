@@ -12,7 +12,7 @@
  * }
  * ```
  * 文件名（去 .json）即主题名，引用方式 `custom:<name>`。
- * 单个文件解析失败只跳过该文件（stderr 警告），不影响其他主题与启动。
+ * 单个文件解析失败只跳过该文件（警告走 onWarning 回调/stderr 出口），不影响其他主题与启动。
  */
 
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -94,16 +94,24 @@ const NAME_RE = /^[A-Za-z0-9_-]+$/
 /**
  * 扫描并注册全部自定义主题。返回成功注册的裸名列表。
  * 目录不存在 → 空列表（不是错误）。
+ * 解析失败/低对比警告：onWarning 注入时路由给回调（TUI 装配收集后落 scrollback），
+ * 缺省写 process.stderr（pre-TUI / 独立调用保持可见）。
  * @param baseDir - 根目录（测试注入）；缺省 `~/.dsh-tui`。
+ * @param onWarning - 警告收集回调；缺省写 stderr（`[theme] ` 前缀，对齐历史文案）。
  * @returns 成功注册的主题裸名（不含 `custom:` 前缀）。
  */
-export function loadCustomThemes(baseDir?: string): string[] {
+export function loadCustomThemes(baseDir?: string, onWarning?: (message: string) => void): string[] {
   const dir = customThemesDir(baseDir)
   let files: string[]
   try {
     files = readdirSync(dir).filter(f => f.endsWith('.json'))
   } catch {
     return []
+  }
+  // 警告出口：回调优先（TUI 收集），缺省 stderr。
+  const warn = (message: string): void => {
+    if (onWarning !== undefined) onWarning(message)
+    else process.stderr.write(`[theme] ${message}\n`)
   }
   const loaded: string[] = []
   for (const file of files) {
@@ -112,7 +120,7 @@ export function loadCustomThemes(baseDir?: string): string[] {
     try {
       const input = parseCustomThemeJson(readFileSync(join(dir, file), 'utf8'))
       if (!input) {
-        process.stderr.write(`[theme] skip invalid custom theme: ${file}\n`)
+        warn(`skip invalid custom theme: ${file}`)
         continue
       }
       // 对比度警告（fail-open）：对声明背景 < 3.0 的 token 提示，不阻断注册。
@@ -122,12 +130,12 @@ export function loadCustomThemes(baseDir?: string): string[] {
       )
       if (issues.length > 0) {
         const list = issues.map(i => `${i.token}(${i.value} ×${i.ratio.toFixed(1)})`).join(', ')
-        process.stderr.write(`[theme] low contrast in ${file}: ${list}\n`)
+        warn(`low contrast in ${file}: ${list}`)
       }
       registerCustomTheme(name, input)
       loaded.push(name)
     } catch {
-      process.stderr.write(`[theme] failed to read custom theme: ${file}\n`)
+      warn(`failed to read custom theme: ${file}`)
     }
   }
   return loaded
