@@ -125,8 +125,12 @@ async function bootApp(name = 'mc-1', opts: { noPlanMode?: boolean } = {}) {
   const stdout = makeStdout()
   const app = new TuiApp({ ctx, stdout, stdin })
   await app.attach() // attach 无 target 时自动 newSession（铸造会话 id）
-  // newSession 铸造的 session id（投影回调按此 id 过滤）
-  const castId = (ctx.agents.create.mock.calls[0]?.[0] as { sessionId: SessionId } | undefined)?.sessionId
+  // attach 后的事实会话 id（投影回调按此 id 过滤）。不用 agents.create mock
+  // 调用序——启动有空会话复用路径（findMostRecentEmptySession）不走 create，
+  // mock.calls[0] 会是 undefined，测试绿依赖「恰好走 create」的偶然性；
+  // app.sessionId 是唯一事实源，取不到即响亮失败（审查 LOW 加固）。
+  const castId = app.sessionId
+  if (castId === null) throw new Error('bootApp: attach 后 sessionId 应为已铸造会话 id')
   return {
     ctx, app, stdin, stdout, agent, castId,
     /** 模拟 plan-mode 生效：驱动投影回调更新 planState。 */
