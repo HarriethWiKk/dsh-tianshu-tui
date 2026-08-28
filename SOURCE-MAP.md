@@ -196,4 +196,4 @@ Apache-2.0）；`service.ts`（LspService 封装）、`tools.ts`（三个模型�
 
 验证命令（映射覆盖护栏，随 tui 包测试执行）：
 
-    pnpm vitest run packages/tui/tui/tests/source-map.spec.ts
+    npx vitest run tests/source-map.spec.ts
