@@ -3884,7 +3884,10 @@ export class TuiApp {
       lines.push({ text: formatQueueLine(cols, this.submitQueue.peekAll()) })
     }
     // ghost 槽位汇合：slash 补全（补全剩余/参数占位）优先，fish 式历史建议其次。
-    this.inputLine.setGhost(this.slashGhostText() ?? this.historyGhostText())
+    // 提问/审批挂起时抑制 ghost：该上下文吞掉全部未匹配键（→ 无法 accept-ghost），
+    // 可见但不可用的建议会误导用户；btw 侧问放行键入（不吞键），不在此列。
+    const ghostBlocked = this.question.isPending || this.approval.isPending
+    this.inputLine.setGhost(ghostBlocked ? null : (this.slashGhostText() ?? this.historyGhostText()))
     // CC PromptInput marginTop={1}：轨前 1 行呼吸，不填视口。
     lines.push({ text: '' })
     // 输入轨（Claude Code 形态）：上下圆角横线、左右不封。轨线色
@@ -3969,6 +3972,10 @@ export class TuiApp {
     // ceiling + absorbedRows 使上限与这些段高度无关 → 开合只改垫高行数，输入轨
     // 行位恒定（短内容期高水位无余量时首次打开向下落定一次，此后不再漂移）。
     const terminalRows = this.stdout.rows || 24
+    // 底部 slack 常数 2：整帧（动态段 + chrome 尾部）预算至多 terminalRows - 2
+    // 行，输入轨与 footer 不贴终端最底两行（底行留白防尾行换行触发滚屏与帧重
+    // 铺错位；live-engine 另有 min(28, rows-1) 封顶兜底）。注意呼吸行与输入轨
+    // 行已计入 chromeRows，不属此 -2 的构成。
     const raw = terminalRows - chromeRows - 2
     const ceiling = Math.max(0, Math.min(raw, workingRowsCap(terminalRows, chromeRows)))
     let absorbedRows = 0

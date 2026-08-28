@@ -9,6 +9,11 @@
  *
  * 业务调用（settle/cancel/重绘）经 deps 闭包注入，本模块不 import app。
  *
+ * ghost 抑制（任务 F）：approval/question 挂起期间输入行被独占，未匹配键
+ * 一律吞掉（→ 不触发 acceptGhost）；若 ghost 预览仍显示会误导——挂起吞键
+ * 路径先清除 ghost（deps.inputLine.setGhost(null) 借面），「看得见用不上」
+ * 的提示不该在屏上。
+ *
  * @module @deepseek-ai/dsh-tianshu-tui/actions/key-contexts
  */
 import type { InputLine } from '../engine/input-line.js';

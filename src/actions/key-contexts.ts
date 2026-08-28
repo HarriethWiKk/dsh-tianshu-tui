@@ -9,6 +9,11 @@
  *
  * 业务调用（settle/cancel/重绘）经 deps 闭包注入，本模块不 import app。
  *
+ * ghost 抑制（任务 F）：approval/question 挂起期间输入行被独占，未匹配键
+ * 一律吞掉（→ 不触发 acceptGhost）；若 ghost 预览仍显示会误导——挂起吞键
+ * 路径先清除 ghost（deps.inputLine.setGhost(null) 借面），「看得见用不上」
+ * 的提示不该在屏上。
+ *
  * @module @deepseek-ai/dsh-tianshu-tui/actions/key-contexts
  */
 
@@ -35,6 +40,15 @@ export interface QuestionKeyContextDeps {
   cancel(): void
   /** 请求重绘 live 区。 */
   flushLive(): void
+}
+
+/**
+ * 挂起吞键时清除 ghost 预览（任务 F：审批/提问挂起中 ghost 可见但 → 被吞）。
+ * deps.inputLine 的真实实现（InputLine）含 setGhost；单元测试 stub 可缺省
+ * （optional call 跳过）——借面不改 deps 的类型面，装配侧零改动。
+ */
+function clearGhostOnBlock(inputLine: Pick<InputLine, 'value' | 'setValue' | 'handleKey'>): void {
+  ;(inputLine as { setGhost?(text: string | null): void }).setGhost?.(null)
 }
 
 /**
@@ -77,6 +91,10 @@ export function createQuestionKeyContext(deps: QuestionKeyContextDeps): Blocking
         if (option !== undefined) {
           deps.settle({ answers: [{ id: item.id, selected: [option.label] }] })
         }
+      } else {
+        // 挂起中输入行被独占：未匹配键吞掉（不干扰输入行——现状语义），同时
+        // 清 ghost——「ghost 可见但 → 被吞」的误导（任务 F）。
+        clearGhostOnBlock(deps.inputLine)
       }
       return true
     },
@@ -153,7 +171,13 @@ export function createApprovalKeyContext(deps: ApprovalKeyContextDeps): Blocking
         return true
       }
       const action = deps.registry.match(key, deps.ctx, { context: 'approval' })
-      if (action !== null) action.run(deps.ctx, key)
+      if (action !== null) {
+        action.run(deps.ctx, key)
+      } else {
+        // 挂起中输入行被独占：未匹配键吞掉（不干扰输入行——现状语义），同时
+        // 清 ghost——「ghost 可见但 → 被吞」的误导（任务 F）。
+        clearGhostOnBlock(deps.inputLine)
+      }
       return true
     },
   }

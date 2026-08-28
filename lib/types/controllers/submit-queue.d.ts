@@ -50,7 +50,16 @@ export interface CancelAndSendDeps {
     abort(): void;
     /** 正常提交路径（app.handleSubmit：排队/直发由运行态分流）。 */
     submit(text: string, images?: string[]): void;
+    /** 插队等待 whenIdle 落定的超时（毫秒；测试注入短值用）。缺省 30s。 */
+    idleTimeoutMs?: number;
 }
+/**
+ * whenIdle 落定等待的超时兜底（毫秒）：agent 卡死（whenIdle 只 resolve 不
+ * reject）时插队消息永不发出会静默丢用户输入——超时后把草稿恢复回输入行，
+ * 用户可见文本回来即知未发出，可重试。先到者胜：正常 resolve 先到则照常提交，
+ * 超时先到则恢复草稿并放弃提交（settled flag 防双重提交/双重恢复）。
+ */
+export declare const CANCEL_AND_SEND_IDLE_TIMEOUT_MS = 30000;
 /**
  * Ctrl+Enter 插队（cancel-and-send）：打断当前回合并把输入行草稿立即发出去。
  * 与 Ctrl+T steer 的区别：steer 不打断在途 step（下一轮边界才被消费），
@@ -58,7 +67,8 @@ export interface CancelAndSendDeps {
  * 保留），等 whenIdle 落定后再走正常提交路径——此时 agent 已 idle，handleSubmit
  * 直发 followup，本地队列里更老的消息排在其后投递（「插队」语义）。先取草稿
  * 快照再清空输入行（与 steerInput 同款先清后送）；whenIdle 是 quiescence 语义
- * 只 resolve 不 reject。空白草稿（动作 when 已挡空串，此处挡纯空白）不插队。
+ * 只 resolve 不 reject——故设超时兜底（见 CANCEL_AND_SEND_IDLE_TIMEOUT_MS）。
+ * 空白草稿（动作 when 已挡空串，此处挡纯空白）不插队。
  * @param deps - 装配依赖（输入行 / 控制面 / 打断 / 提交）。
  */
 export declare function cancelAndSendInput(deps: CancelAndSendDeps): void;
