@@ -231,7 +231,7 @@ import { formatWhaleLogo, WHALE_MIN_ROWS } from '../format/whale.js'
 import { formatTopBar } from '../format/top-bar.js'
 import { livePresetShort } from '../preset-catalog.js'
 import { formatTurnStatus } from '../format/turn-status.js'
-import { formatFooterInfo } from '../format/prompt-footer.js'
+import { formatFooterInfo, type FooterRightSegment } from '../format/prompt-footer.js'
 import { pushConfirmHints } from '../format/confirm-hints.js'
 import { ActionRegistry, REWIND_DOUBLE_ESC_MS } from '../actions/registry.js'
 import { createBuiltinActions } from '../actions/builtin-actions.js'
@@ -3917,15 +3917,15 @@ export class TuiApp {
     }
 
     // C4：footer 分层两行（对齐 kimi-code）——行 1 状态行：左 mode/快捷键、
-    // 右状态段（预设/model/API/git；任意宽度右对齐合并，放不下从右丢段）；
-    // 行 2 指标行：context/tokens/cost 等（full 档；compact 仅行 1，off 全关）。
-    // A3：git 未提交 ●N 段置于行 1 右段末尾（丢段从右丢 → ●N 最次要先丢）。
+    // 右状态段（预设/model/API/git；priority 大者先丢：●N 200 最先 → API 100
+    // → glance 段字符串缺省下标序即从后丢）；行 2 指标行：context/tokens/cost
+    // 等（full 档；compact 仅行 1，off 全关）。
     const bottomMetrics = this.glanceMetrics()
-    const dirtySeg = this.gitDirty > 0 ? `●${this.gitDirty}` : null
-    const apiSeg = `API ${this.apiKeyReady ? '✓' : '✗'}`
-    const rightSegments = bottomMetrics === null
-      ? (dirtySeg === null ? undefined : [apiSeg, dirtySeg])
-      : [...glanceStatusSegments({ ...bottomMetrics, hideSegments: this.prefs.glance?.hideSegments }), apiSeg, ...(dirtySeg === null ? [] : [dirtySeg])]
+    const apiSeg: FooterRightSegment = { text: `API ${this.apiKeyReady ? '✓' : '✗'}`, priority: 100 }
+    const dirtySeg: FooterRightSegment[] = this.gitDirty > 0 ? [{ text: `●${this.gitDirty}`, priority: 200 }] : []
+    const rightSegments: (string | FooterRightSegment)[] | undefined = bottomMetrics === null
+      ? (dirtySeg.length === 0 ? undefined : [apiSeg, ...dirtySeg])
+      : [...glanceStatusSegments({ ...bottomMetrics, hideSegments: this.prefs.glance?.hideSegments }), apiSeg, ...dirtySeg]
     const footerLines = formatFooterInfo({
       width: cols,
       planActive: planProj?.active === true,

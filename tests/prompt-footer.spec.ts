@@ -2,7 +2,9 @@
  * 底部 footer（format/prompt-footer.ts）— 纯渲染契约测试（C4 概念稿 C 三行底部区）。
  *
  * - 模式 badge 段（normal / [plan] / [plan…] / [auto]）在前，快捷键提示在后。
- * - 窄宽从后往前丢段（ctrl+p → / 命令 → mode），mode 恒保留。
+ * - 空闲/检查态窄宽从后整段丢（mode 恒保留）；审批态显式分级降级：先走
+ *   「长文案→短文案」中间档，再按 esc→f→n→a→p→t 位次丢段（y 保底恒留）。
+ * - 右段按 priority 丢（数值大者先丢；字符串/缺省 = 数组下标即从后丢）。
  * - 宽度守恒：任何输入下每行显示宽度 ≤ width。
  */
 
@@ -174,6 +176,122 @@ describe('formatPromptFooter', () => {
     expect(line).toContain('\x1B[38;2;170;178;194m')
     expect(line).toContain('\x1B[38;2;94;102;115m')
     expect(line).not.toContain('\x1B[38;2;17;17;17m')
+  })
+})
+
+describe('审批态显式分级降级（中间档 → 固定位次丢段，y 恒留）', () => {
+  /** 审批态单行纯文本（缺省七段提示：y/p/t/a/n/f/esc）。 */
+  const approval = (width: number): string =>
+    plain(formatPromptFooter(base({ width, approvalPending: true }), fakeTheme()))[0] ?? ''
+
+  it('120 列快照：全长文案，七个审批键位全在列', () => {
+    expect(approval(120)).toBe('normal · y 允许 · p 此命令不再问 · t 记住此工具 · a 全放行 · n 拒绝 · f 拒绝并说明 · esc 取消')
+  })
+
+  it('80 列快照：中间档——长文案整体收缩为短文案，一段不丢', () => {
+    const line = approval(80)
+    expect(line).toBe('normal · y 允许 · p 不再问 · t 记住 · a 放行 · n 拒绝 · f 拒绝说明 · esc 取消')
+    // 长文案已收缩（y/n/esc 本已最短，不在中间档收缩表内）
+    expect(line).not.toContain('此命令不再问')
+    expect(line).not.toContain('此工具')
+    expect(line).not.toContain('全放行')
+    expect(line).not.toContain('拒绝并说明')
+  })
+
+  it('60 列快照：中间档仍超宽 → 按位次丢段（esc、f 已丢）', () => {
+    expect(approval(60)).toBe('normal · y 允许 · p 不再问 · t 记住 · a 放行 · n 拒绝')
+  })
+
+  it('40 列快照：继续按位次丢（n、a 亦丢）', () => {
+    expect(approval(40)).toBe('normal · y 允许 · p 不再问 · t 记住')
+  })
+
+  it('丢段位次：esc → f → n → a → p → t（逐边界档各少一段）', () => {
+    expect(approval(76)).toBe('normal · y 允许 · p 不再问 · t 记住 · a 放行 · n 拒绝 · f 拒绝说明') // esc 先丢
+    expect(approval(65)).toBe('normal · y 允许 · p 不再问 · t 记住 · a 放行 · n 拒绝') // f 次丢
+    expect(approval(52)).toBe('normal · y 允许 · p 不再问 · t 记住 · a 放行') // n
+    expect(approval(43)).toBe('normal · y 允许 · p 不再问 · t 记住') // a
+    expect(approval(34)).toBe('normal · y 允许 · t 记住') // p
+    expect(approval(19)).toBe('normal · y 允许') // t 亦丢，y 仍留
+  })
+
+  it('y 保底恒留：丢段序不入队；极端窄宽退化为 mode 单段（宽度守恒优先）', () => {
+    expect(approval(15)).toBe('normal · y 允许')
+    expect(approval(14)).toBe('normal')
+  })
+
+  it('审批态宽度守恒：任意宽度下每行显示宽度 ≤ width', () => {
+    for (const width of [120, 100, 80, 76, 65, 60, 52, 43, 40, 34, 30, 19, 15, 14, 6]) {
+      for (const line of formatPromptFooter(base({ width, approvalPending: true }), fakeTheme())) {
+        expect(displayWidth(line)).toBeLessThanOrEqual(width)
+      }
+    }
+  })
+
+  it('自定义审批段（未登记 token）：无中间档原样保留，位次 6——核心键之后、y 之前丢', () => {
+    // 'normal · y 允许 · x 自定义动作' = 6+3+6+3+12 = 30 ≤ 40 全保留
+    const wide = plain(formatPromptFooter(base({
+      width: 40, approvalPending: true, approvalHints: ['y 允许', 'x 自定义动作'],
+    }), fakeTheme()))[0] ?? ''
+    expect(wide).toBe('normal · y 允许 · x 自定义动作')
+    // 收窄：自定义段先于 y 丢，y 恒留
+    const narrow = plain(formatPromptFooter(base({
+      width: 24, approvalPending: true, approvalHints: ['y 允许', 'x 自定义动作'],
+    }), fakeTheme()))[0] ?? ''
+    expect(narrow).toBe('normal · y 允许')
+  })
+})
+
+describe('右段 priority 丢序', () => {
+  it('显式 priority：数值大者先丢，保活段维持数组序展示', () => {
+    // 左段 29 列（normal · / 命令 · ctrl+p 面板）；width 40 → 右预算 11，
+    // 'AA · BB · CC'（12 列）超出 → 丢 priority 最大者 BB（而非末尾 CC）
+    const [line = ''] = plain(formatPromptFooter(base({
+      width: 40,
+      rightSegments: [
+        { text: 'AA', priority: 0 },
+        { text: 'BB', priority: 9 },
+        { text: 'CC', priority: 5 },
+      ],
+    }), fakeTheme()))
+    expect(line).toContain('AA')
+    expect(line).not.toContain('BB')
+    expect(line).toContain('CC')
+    expect(line.indexOf('AA')).toBeLessThan(line.indexOf('CC'))
+    // 再窄一档：次大 priority 的 CC 亦丢，AA 保底
+    const [narrow = ''] = plain(formatPromptFooter(base({
+      width: 35,
+      rightSegments: [
+        { text: 'AA', priority: 0 },
+        { text: 'BB', priority: 9 },
+        { text: 'CC', priority: 5 },
+      ],
+    }), fakeTheme()))
+    expect(narrow).toContain('AA')
+    expect(narrow).not.toContain('BB')
+    expect(narrow).not.toContain('CC')
+  })
+
+  it('混合字符串与段对象：字符串缺省取下标 priority（从后丢语义不变）', () => {
+    // 镜像 app.ts 组装：glance 段字符串 + api(100) + git ●N(200)。
+    // 左 29 列；width 44 → 右预算 15，全量 19 → git(200) 先丢
+    const wide = plain(formatPromptFooter(base({
+      width: 44,
+      rightSegments: ['g0', 'g1', { text: 'api', priority: 100 }, { text: 'git', priority: 200 }],
+    }), fakeTheme()))[0] ?? ''
+    expect(wide).toContain('g0')
+    expect(wide).toContain('g1')
+    expect(wide).toContain('api')
+    expect(wide).not.toContain('git')
+    // width 40 → 预算 11：git 丢后仍超 → api(100) 次丢，glance 段（下标 0/1）保底
+    const mid = plain(formatPromptFooter(base({
+      width: 40,
+      rightSegments: ['g0', 'g1', { text: 'api', priority: 100 }, { text: 'git', priority: 200 }],
+    }), fakeTheme()))[0] ?? ''
+    expect(mid).toContain('g0')
+    expect(mid).toContain('g1')
+    expect(mid).not.toContain('api')
+    expect(mid).not.toContain('git')
   })
 })
 
