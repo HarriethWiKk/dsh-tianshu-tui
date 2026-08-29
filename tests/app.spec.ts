@@ -4035,12 +4035,12 @@ describe('TuiApp 历史搜索 overlay（C2 项 2）', () => {
     stdin.emit('data', '\x06') // Ctrl+F → ctrl_f
     await new Promise(resolve => setTimeout(resolve, 30)) // 等 renderBatcher flush（16ms 合并）
     let written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).toContain('输入搜索词')
+    expect(written).toContain('输入关键词搜索会话历史')
     stdout.write.mockClear()
     stdin.emit('data', '\x1b') // Esc 关闭
     await new Promise(resolve => setTimeout(resolve, 30))
     written = stdout.write.mock.calls.map(c => `${c[0]}`).join('')
-    expect(written).not.toContain('输入搜索词')
+    expect(written).not.toContain('输入关键词搜索会话历史')
     await app.dispose()
   })
 

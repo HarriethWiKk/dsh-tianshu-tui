@@ -6,6 +6,11 @@
  * - 数据源：transcript.view.messages（adapter 事件投影，消费 text 字段）
  * - smart-case：查询含大写 → 精确匹配；否则大小写不敏感
  * - 输入实时搜索（type 即重算），n/N 循环跳转，Esc 退出
+ *
+ * 两阶段输入（#55）：编辑段（默认）所有可打印字符——含 n/N/p/P——都进 query
+ * （此前 n/N 被跳转快捷键劫持，搜索词打不出这两个字母）；Enter 确认查询后进入
+ * 跳转段（n/N 下一个、p/P 上一个、Enter 回编辑段、可打印字符回编辑段续输）。
+ * 搜索对象是会话历史（scrollback 消息快照），搜索栏文案显式标注防误解。
  */
 import type { OverlayKeyResult, OverlayRenderer } from '../engine/overlay-engine.js';
 import type { RivetTheme } from '../theme.js';
@@ -13,14 +18,18 @@ import type { RivetTheme } from '../theme.js';
 export interface SearchableMessage {
     text: string;
 }
-/** 历史搜索 overlay：smart-case 子串搜索对话历史，输入实时重算，n/N 循环跳转（主线程同步搜索，零 I/O）。 */
+/** 历史搜索 overlay：smart-case 子串搜索对话历史，两阶段输入（编辑/跳转，见模块注释）。 */
 export declare class HistorySearchOverlay implements OverlayRenderer {
     private query;
     private matches;
     private current;
     private messages;
+    /** 跳转段（Enter 确认查询后）：n/N/p/P 循环跳匹配；false = 编辑段（全字符进 query）。 */
+    private jumping;
     private readonly theme;
     constructor(theme?: RivetTheme);
+    /** 当前是否处于跳转段（Enter 确认后）。 */
+    isJumping(): boolean;
     /**
      * 装配方提供消息快照（transcript.view.messages）；重复设置重算搜索。
      * @param messages - 可搜索的消息快照。
@@ -51,11 +60,12 @@ export declare class HistorySearchOverlay implements OverlayRenderer {
     currentIndex(): number;
     private research;
     /**
-     * 键位路由（scroll-pager 范式收敛）：Esc/Ctrl+C → close；Backspace 退格；
-     * n/N、p/P 循环跳匹配；其余可打印字符进 query（输入实时重算）。
-     * @param name - 按键名。
-     * @param char - 可打印字符（控制键为 ''）。
-     * @returns close = 请求关闭；handled = 已消费（含无 char 的控制键——吞掉）。
+     * 键位路由（scroll-pager 范式收敛），两阶段（#55）：
+     * - 编辑段（默认）：Backspace 退格；Enter 确认查询进跳转段（有匹配时）；
+     *   其余可打印字符——含 n/N/p/P——进 query（搜索词不再被跳转键劫持）。
+     * - 跳转段：n/N 下一个、p/P 上一个；Enter/Backspace/可打印字符回编辑段
+     *   （可打印字符顺带追加进 query，输入不过夜）。
+     * Esc/Ctrl+C 两段恒为 close。
      */
     handleKey(name: string, char: string): OverlayKeyResult;
     render(width: number, height: number): string[];

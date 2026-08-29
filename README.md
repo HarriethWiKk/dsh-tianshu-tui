@@ -181,7 +181,7 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 - **Slash 命令菜单** — 输入 `/` 打开下拉菜单：模糊前缀匹配、`↑↓` / `PageUp` / `PageDown` 选择、`Tab` 接受、`Enter` 提交、MRU 排序、参数占位 ghost 与输入行 ghost 预览。
 - **剪贴板与图片粘贴** — `Ctrl+V` 读取剪贴板图片（回退到文本）；终端菜单粘贴检测图片；看起来像图片的粘贴路径按附件加载；`Alt+W` / vim yank 经 OSC52 把选区复制到系统剪贴板。
 - **图片提交** — 附件图片显示 `📎 N images` 标记，提交时在用户气泡下方以内联图形渲染，并经附件服务到达模型；气泡携带识图提示（已转发 / 经视觉模型桥接 / 未发送）。超大图发送前自适应压缩：长边 1568px 封顶（PNG 保留透明），逐级 JPEG 0.82 → 0.55 → 1024px + 0.55 直到低于 provider 上限，全程只缩不放。
-- **Vim 编辑键位（[#51](https://github.com/huiliyi37/dsh-tianshu-tui/issues/51)）** — `Esc` 进 NORMAL，键位表对标 Claude Code：`h j k l / w e b W B E / 0 $ ^ / gg G / f F t T ; ,` 导航与查找重放、`d c y × motion` + 数字前缀、文本对象 `iw aw iW aW`、行级 `dd cc yy Y` 与 `p P` 粘贴、`x X D C s S r o O J u .`；`v/V` visual 选区两端含光标下字符。多行草稿 `j/k` 保持列移动；中文连续段成词不逐字跳。运行时 `/vim` 开关，`/vim default` 设为启动默认。insert 两键序列→Esc（`vimInsertRemaps`，如 `{"jj":"esc"}` 写入 prefs；1 秒窗防误触）。
+- **Vim 编辑键位（[#51](https://github.com/huiliyi37/dsh-tianshu-tui/issues/51)）** — `Esc` 进 NORMAL，键位表对标 Claude Code：`h j k l / w e b W B E / 0 $ ^ / gg G / f F t T ; ,` 导航与查找重放、`d c y × motion` + 数字前缀、文本对象 `iw aw iW aW`、行级 `dd cc yy Y` 与 `p P` 粘贴、`x X D C s S r o O J u .`；`v/V` visual 选区两端含光标下字符。多行草稿 `j/k` 保持列移动；中文连续段成词不逐字跳。运行时 `/vim` 开关，`/vim default` 设为启动默认。insert 两键序列→Esc（`vimInsertRemaps`，如 `{"jj":"esc"}` 写入 prefs；1 秒窗防误触）。光标形态随模式区分：NORMAL 反色块、insert 竖线（#55）。NORMAL `/` 打开会话历史搜索（两阶段：输入即过滤，`Enter` 确认后 `n`/`N` 跳转——搜索词可含 n/N）。
 - **编辑** — 外部编辑器（`Ctrl+E`）、Tab 文件补全、`@mention` 展开、输入历史、多行输入、bracketed paste（多行/长文本粘贴整段进输入行，不逐行提交）；输入行绘制为完整圆角框体。
 - **运行中排队（对标 Claude Code queue）** — agent 运行时提交的消息进入输入轨上方的本地队列（立即回显、不直发）；回合结束按序自动投递，中断不投递（留给你 ↑ 取回的余地）；空输入 `↑` 取回队首回输入行；切换会话丢弃并回显条数。中轮即时纠偏仍走 `/steer` / `Ctrl+T`。
 - **图片再询问** — 同仓伴生插件 `@deepseek-ai/dsh-vision-ask` 登记已发送图片，并经 `ask_image` 回答模型的定向问题（见 [vision-ask](vision-ask/README.md)）。
@@ -254,7 +254,7 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 | `Ctrl+Q` | 退出（同 `/exit`） |
 | `Ctrl+P` | 命令面板 |
 | `Ctrl+.` | 键位表 overlay |
-| `Ctrl+F` / `Ctrl+R` | 历史搜索（`n`/`N` 下一个，`p`/`P` 上一个） |
+| `Ctrl+F` / `Ctrl+R` | 历史搜索（输入即过滤；`Enter` 确认后 `n`/`N` 下一个、`p`/`P` 上一个） |
 | `Ctrl+O` | 展开/收起最近推理块 |
 | `Ctrl+E` | 用 `$EDITOR` 打开输入行（可经 `editorKey` 配置） |
 | `Ctrl+T` | 中轮转向 |

@@ -142,7 +142,7 @@ Custom themes (`~/.dsh-tui/themes/*.json`) get contrast warnings on load (WCAG <
 - **@ references**: `@` triggers path completion (Tab), expanding to file summaries on submit (@mention), with cwd boundary and truncation fallbacks.
 - **Image paste**: `Ctrl+V` or the terminal menu; oversized images are adaptively compressed before sending (1568px long-edge cap, progressive JPEG downscaling).
 - **Multiline input & bracketed paste**: pasting multiline/long text lands whole in the input line instead of submitting line by line.
-- **Vim keybindings**: optional (`vimEnabled`); `Alt+W`/yank copies the selection via OSC52. Insert-mode two-key sequence → Esc (`vimInsertRemaps`, e.g. `{"jj":"esc"}` in prefs; 1s window guards misfires).
+- **Vim keybindings**: optional (`vimEnabled`); `Alt+W`/yank copies the selection via OSC52. Insert-mode two-key sequence → Esc (`vimInsertRemaps`, e.g. `{"jj":"esc"}` in prefs; 1s window guards misfires). Cursor shape follows the mode: block (reverse video) in NORMAL, bar in insert (#55; `|` on the ASCII track).
 - **Message queue while running (CC queue parity)**: submits during a running turn enter a local queue above the input rail (echoed, not sent); flushed in order at turn end; aborted turns do not flush; empty-input `↑` takes back the first; switching sessions drops it with an echo. Immediate steering stays on `/steer`/`Ctrl+T`; `Ctrl+Enter` cuts in line (interrupt first, then send; needs kitty keyboard enhancement).
 
 ## Interactive Panels
@@ -153,7 +153,7 @@ Custom themes (`~/.dsh-tui/themes/*.json`) get contrast warnings on load (WCAG <
 - **Pickers (issue #31)**: no-arg `/model` `/theme` `/effort` `/session` open a picker with the current value marked ● and the startup default ★. `/model` `/theme` `/effort`: Enter applies this session only; S applies and writes the startup default. Session and `/key` pickers have no S. **The theme picker previews live**: ↑/↓ switches the theme immediately, Enter settles without writing prefs, S writes the startup default, Esc restores the theme from before opening.
 - **Command palette (Ctrl+P)**: fuzzy + subsequence command search, Enter fills `/cmd `.
 - **Keymap panel (Ctrl+.)**: the full shortcut list, always one key away.
-- **History search (Ctrl+F / Ctrl+R)**: searches the scrollback message snapshot, `n`/`N` to jump.
+- **History search (Ctrl+F / Ctrl+R, vim NORMAL `/`)**: two-phase — the edit phase filters as you type (every character incl. n/N goes into the query, #55); `Enter` confirms and enters the jump phase (`n`/`N` next, `p`/`P` previous, `Enter` again returns to editing).
 
 ## Overlay System
 

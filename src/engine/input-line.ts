@@ -128,6 +128,7 @@ const PASTE_FOLD_MIN_CHARS = 10_000
 const PASTE_MARKER_RE = /\[paste #(\d+) \+\d+ lines?\]/g
 
 import { ambiguousWideEnabled, charDisplayWidth, displayWidth } from '../width.js'
+import { useAsciiGlyphs } from '../term-caps.js'
 import { ANSI } from './ansi.js'
 import { InsertRemapper } from './insert-remap.js'
 import { VimInput, type VimHost } from './vim-input.js'
@@ -172,6 +173,11 @@ function inputDisplayWidth(text: string, ambiguousAsWide: boolean): number {
   return displayWidth(text, { ambiguousAsWide })
 }
 
+/** vim insert 光标竖线（#55）：ASCII 档（legacy conhost）退化为 `|`。 */
+function insertBarGlyph(): string {
+  return useAsciiGlyphs() ? '|' : '▏'
+}
+
 function pushWrappedSegment(
   out: VisualLine[],
   segment: string,
@@ -185,7 +191,11 @@ function pushWrappedSegment(
   segAbsStart?: number,
   /** 键盘选区（buffer 绝对偏移，start<end）：范围内字符反色渲染。 */
   sel?: { start: number; end: number } | null,
+  /** #55 vim insert 光标：竖线占格（字符原样）；false = 反色原字符（normal/非 vim）。 */
+  bar = false,
 ): void {
+  const barGlyph = bar ? insertBarGlyph() : ''
+  const barWidth = bar ? inputDisplayWidth(barGlyph, ambiguousAsWide) : 0
   let current = ''
   let currentWidth = 0
   let currentHasCursor = false
@@ -209,12 +219,18 @@ function pushWrappedSegment(
     if (sel && !inSel && absOff === sel.start) { current += ANSI.REVERSE; inSel = true }
     const atCaret = cursorOffset !== null && offset === cursorOffset
     const chWidth = Math.max(1, charDisplayWidth(ch, ambiguousAsWide))
-    if (currentWidth > 0 && currentWidth + chWidth > maxContentWidth) flush()
+    if (currentWidth > 0 && currentWidth + chWidth + barWidth > maxContentWidth) flush()
     if (atCaret) {
-      // #50 反色光标：字符原位反色不占格（选区覆盖时免包裹防 RESET 拆高亮）。
       if (caretCol) caretCol.value = currentWidth
       currentHasCursor = true
-      current += inSel ? ch : `${ANSI.REVERSE}${ch}${ANSI.RESET}`
+      if (bar) {
+        // #55 vim insert：竖线占格、字符原样——与 normal 反色块在视觉上区分模式。
+        current += barGlyph
+        currentWidth += barWidth
+      } else {
+        // #50 反色光标：字符原位反色不占格（选区覆盖时免包裹防 RESET 拆高亮）。
+        current += inSel ? ch : `${ANSI.REVERSE}${ch}${ANSI.RESET}`
+      }
     } else { current += ch }
     currentWidth += chWidth
     offset += ch.length
@@ -224,10 +240,11 @@ function pushWrappedSegment(
     const absOff = (segAbsStart ?? 0) + offset
     if (sel && inSel && absOff === sel.end) { current += ANSI.RESET; inSel = false }
     if (sel && !inSel && absOff === sel.start) { current += ANSI.REVERSE; inSel = true }
-    const markerWidth = inputDisplayWidth('█', ambiguousAsWide)
+    const glyph = bar ? barGlyph : '█'
+    const markerWidth = inputDisplayWidth(glyph, ambiguousAsWide)
     if (currentWidth > 0 && currentWidth + markerWidth > maxContentWidth) flush()
     if (caretCol) caretCol.value = currentWidth
-    current += '█'
+    current += glyph
     currentWidth += markerWidth
     currentHasCursor = true
   }
@@ -266,6 +283,7 @@ function wrapInputLines(
   cursor: number,
   maxWidth: number,
   sel?: { start: number; end: number } | null,
+  bar = false,
 ): { lines: string[]; cursorLine: number; cursorCol: number } {
   const ambiguousAsWide = ambiguousWideEnabled()
   const visual: VisualLine[] = []
@@ -295,6 +313,7 @@ function wrapInputLines(
       caretCol,
       lineStart,
       sel,
+      bar,
     )
     if (cursorInLine) {
       const found = visual.findIndex((line, idx) => idx >= beforeCount && line.cursor)
@@ -566,8 +585,11 @@ export class InputLine {
     if (options.maxLines !== undefined) this._maxDisplayLines = options.maxLines
     const ambiguousAsWide = ambiguousWideEnabled()
     const prefixWidth = inputDisplayWidth('❯ ', ambiguousAsWide)
+    // #55 vim 光标形态：insert 竖线占格，normal 反色块（原字符反色）；非 vim 维持原样。
+    const vimInsert = this._vimEnabled && this._vimMode === 'insert'
+    const barGlyph = vimInsert ? insertBarGlyph() : '█'
     if (!this._value) {
-      return { lines: [`❯ █${this._placeholder}`], caret: { line: 0, col: prefixWidth } }
+      return { lines: [`❯ ${barGlyph}${this._placeholder}`], caret: { line: 0, col: prefixWidth } }
     }
     // ghost 激活：光标在值末尾且无选区（选区行含 ANSI 高亮，列≠字符位置，
     // 插入会错位；ghost 是「接下来可补全」语义，选区场景无意义）。
@@ -578,7 +600,7 @@ export class InputLine {
     const cursorCol = before.length - (before.lastIndexOf('\n') + 1)
 
     if (options.maxWidth !== undefined) {
-      const wrapped = wrapInputLines(this._value, this._cursor, options.maxWidth, this.selectionRange)
+      const wrapped = wrapInputLines(this._value, this._cursor, options.maxWidth, this.selectionRange, vimInsert)
       const view = viewportWithCaret(wrapped.lines, wrapped.cursorLine, options.maxLines)
       if (ghostActive) {
         // 光标行片段无 ANSI（selectionRange 已排除）→ 列 = 字符串位置；
@@ -599,9 +621,13 @@ export class InputLine {
       const prefix = isCursorLine ? '❯ ' : '  '
       if (!isCursorLine) return `${prefix}${line}`
       // #50 反色光标：光标格反色原字符；行尾无字可反色时保留块 █（不产生推移）。
+      // #55 vim insert：竖线插在光标前（不吞字符）；normal/非 vim 语义不变。
       const chUnder = line[cursorCol]
       const caretCell = chUnder === undefined ? '█' : `${ANSI.REVERSE}${chUnder}${ANSI.RESET}`
-      return `${prefix}${line.slice(0, cursorCol)}${caretCell}${line.slice(cursorCol + 1)}${ghostSuffix}`
+      const body = vimInsert
+        ? `${line.slice(0, cursorCol)}${barGlyph}${line.slice(cursorCol)}`
+        : `${line.slice(0, cursorCol)}${caretCell}${line.slice(cursorCol + 1)}`
+      return `${prefix}${body}${ghostSuffix}`
     })
     const view = viewportWithCaret(lines, cursorLine, options.maxLines)
     const beforeCursorText = before.slice(before.lastIndexOf('\n') + 1)

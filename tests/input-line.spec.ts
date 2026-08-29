@@ -7,7 +7,7 @@
  * - setGhost(null) 清除；幂等无副作用
  */
 
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { InputLine } from '../src/engine/input-line.js'
 import { ANSI } from '../src/engine/ansi.js'
 import { displayWidth } from '../src/width.js'
@@ -222,5 +222,67 @@ describe('acceptGhost 引擎侧 undo 语义（append 进 undo 栈）', () => {
     expect(il.value).toBe('helh') // 只撤销 ghost，保留 h 输入
     il.handleKey('ctrl_z', '', true, false, false)
     expect(il.value).toBe('hel') // 再撤销 h 输入
+  })
+})
+
+describe('#55 vim 光标形态（insert 竖线 / normal 反色块）', () => {
+  const prevAscii = process.env.RIVET_ASCII_UI
+  beforeAll(() => { process.env.RIVET_ASCII_UI = '0' }) // 锁 Unicode 档：断言 ▏
+  afterAll(() => {
+    if (prevAscii === undefined) delete process.env.RIVET_ASCII_UI
+    else process.env.RIVET_ASCII_UI = prevAscii
+  })
+
+  function vimLine(value: string, cursor: number): InputLine {
+    const il = new InputLine({ value })
+    il.setValue(value, cursor)
+    il.setVimEnabled(true)
+    return il
+  }
+
+  it('vim insert 行中：竖线插在光标前、字符原样不吞', () => {
+    const il = vimLine('abc', 1)
+    const [line = ''] = il.displayLines()
+    expect(plain(line)).toBe('❯ a▏bc')
+  })
+
+  it('vim insert 行尾：竖线替代块 █', () => {
+    const il = vimLine('abc', 3)
+    const [line = ''] = il.displayLines()
+    expect(plain(line)).toBe('❯ abc▏')
+  })
+
+  it('vim normal：保持反色原字符（色块语义与 #50 一致）', () => {
+    const il = vimLine('abc', 1)
+    il.handleKey('escape', '', false, false, false) // → normal，光标左移一字符（vim 语义）
+    const [line = ''] = il.displayLines()
+    expect(line).toContain(ANSI.REVERSE)
+    expect(plain(line)).not.toContain('▏')
+  })
+
+  it('空值 vim insert：占位行用竖线', () => {
+    const il = new InputLine({ placeholder: '说点什么…' })
+    il.setVimEnabled(true)
+    const [line = ''] = il.displayLines()
+    expect(plain(line)).toBe('❯ ▏说点什么…')
+  })
+
+  it('ASCII 档：竖线退化为 |', () => {
+    process.env.RIVET_ASCII_UI = '1'
+    try {
+      const il = vimLine('abc', 1)
+      const [line = ''] = il.displayLines()
+      expect(plain(line)).toBe('❯ a|bc')
+    } finally {
+      process.env.RIVET_ASCII_UI = '0'
+    }
+  })
+
+  it('非 vim：维持 #50 原样（无竖线）', () => {
+    const il = new InputLine({ value: 'abc' })
+    il.setValue('abc', 1)
+    const [line = ''] = il.displayLines()
+    expect(plain(line)).not.toContain('▏')
+    expect(line).toContain(`${ANSI.REVERSE}b${ANSI.RESET}`)
   })
 })

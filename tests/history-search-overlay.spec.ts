@@ -107,7 +107,7 @@ describe('HistorySearchOverlay — 渲染（C2 项 2）', () => {
     overlay.setMessages(MESSAGES)
     const rows = overlay.render(80, 24)
     const text = rows.join('\n')
-    expect(text).toContain('输入搜索词')
+    expect(text).toContain('输入关键词搜索会话历史')
   })
 
   it('渲染包含匹配消息内容（当前匹配居中可见）', () => {
@@ -175,6 +175,80 @@ describe('HistorySearchOverlay — 渲染（C2 项 2）', () => {
     overlay.setMessages([])
     const rows = overlay.render(80, 24)
     expect(rows.length).toBe(2) // 搜索栏 + hints
-    expect(rows.join('\n')).toContain('输入搜索词')
+    expect(rows.join('\n')).toContain('输入关键词搜索会话历史')
+  })
+})
+
+describe('两阶段输入（#55：编辑段 n/N 不再被劫持）', () => {
+  function bootOverlay(): { overlay: HistorySearchOverlay; hit: (k: string, c: string) => void } {
+    const overlay = new HistorySearchOverlay()
+    overlay.setMessages(MESSAGES)
+    return { overlay, hit: (name, char) => { overlay.handleKey(name, char) } }
+  }
+
+  it('编辑段：n/N/p/P 是普通字符进 query（实时过滤照常）', () => {
+    const { overlay, hit } = bootOverlay()
+    hit('unknown', 'n')
+    // 'n' 进 query 且命中（another line）——被劫持时这里 matchCount 恒 0
+    expect(overlay.matchCount()).toBeGreaterThan(0)
+    expect(overlay.isJumping()).toBe(false)
+  })
+
+  it('Enter 确认（有匹配）进跳转段：n/N 下一个、p/P 上一个', () => {
+    const { overlay, hit } = bootOverlay()
+    overlay.type('world')
+    hit('return', '')
+    expect(overlay.isJumping()).toBe(true)
+    const first = overlay.currentIndex()
+    hit('unknown', 'n')
+    expect(overlay.currentIndex()).not.toBe(first)
+    hit('unknown', 'p')
+    expect(overlay.currentIndex()).toBe(first)
+  })
+
+  it('空 query / 无匹配时 Enter 不进跳转段', () => {
+    const { overlay, hit } = bootOverlay()
+    hit('return', '')
+    expect(overlay.isJumping()).toBe(false)
+    overlay.type('nonexistent')
+    hit('return', '')
+    expect(overlay.isJumping()).toBe(false)
+  })
+
+  it('跳转段可打印字符回编辑段续输；Enter 回编辑段；backspace 回编辑段并退格', () => {
+    const { overlay, hit } = bootOverlay()
+    overlay.type('world')
+    hit('return', '')
+    hit('unknown', '!') // 可打印 → 回编辑段并追加
+    expect(overlay.isJumping()).toBe(false)
+    expect(overlay.render(80, 24).join('\n')).toContain('world!')
+    hit('return', '')
+    hit('return', '') // 再确认进跳转，再 Enter → 回编辑
+    expect(overlay.isJumping()).toBe(false)
+    overlay.type('world')
+    hit('return', '')
+    hit('backspace', '')
+    expect(overlay.isJumping()).toBe(false)
+  })
+
+  it('跳转段渲染 [跳转] 徽标；编辑段渲染语义占位', () => {
+    const { overlay, hit } = bootOverlay()
+    const editRows = overlay.render(80, 24).join('\n')
+    expect(editRows).toContain('搜索会话历史') // 空 query 占位显式标注搜索对象
+    overlay.type('world')
+    hit('return', '')
+    expect(overlay.render(80, 24).join('\n')).toContain('[跳转]')
+  })
+
+  it('Esc 两段均 close；onDeactivate 清相位（重开回编辑段）', () => {
+    const { overlay, hit } = bootOverlay()
+    overlay.type('world')
+    hit('return', '')
+    expect(overlay.handleKey('escape', '')).toBe('close')
+    overlay.onDeactivate()
+    expect(overlay.isJumping()).toBe(false)
+    overlay.setMessages(MESSAGES)
+    overlay.type('world')
+    expect(overlay.isJumping()).toBe(false)
   })
 })

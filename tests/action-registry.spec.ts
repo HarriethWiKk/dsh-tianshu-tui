@@ -402,7 +402,7 @@ describe('keymap 投影 — 与原静态表逐行一致', () => {
       { keys: 'Ctrl+Q', action: '退出' },
       { keys: 'Ctrl+P', action: '命令面板' },
       { keys: 'Ctrl+.', action: '快捷键面板' },
-      { keys: 'Ctrl+F / Ctrl+R', action: '历史搜索（n/N 跳转）' },
+      { keys: 'Ctrl+F / Ctrl+R', action: '历史搜索（Enter 确认后 n/N 跳转）' },
       { keys: 'Ctrl+O', action: '展开/收起推理块' },
       { keys: 'Ctrl+E', action: '外部编辑器' },
       { keys: 'Ctrl+T', action: '中轮转向' },

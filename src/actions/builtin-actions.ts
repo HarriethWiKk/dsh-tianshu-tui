@@ -114,7 +114,7 @@ export function createBuiltinActions(options: BuiltinActionsOptions): KeyAction[
       when: ctx => !ctx.paletteOpen(),
       phase: 'early',
       category: '面板',
-      hint: '历史搜索（n/N 跳转）',
+      hint: '历史搜索（Enter 确认后 n/N 跳转）',
       keysLabel: 'Ctrl+F / Ctrl+R',
       keymapOrder: 80,
       run: ctx => { ctx.toggleHistorySearch() },
