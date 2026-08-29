@@ -17,6 +17,9 @@
  * 5. README 哈希清单：README.i18n.yaml 必须与 README.md / README.en.md 的
  *    sha1 一致——清单是 i18n 平台拉取翻译底稿的依据，改 README 忘更清单
  *    会静默漂移（已实锤一次）。
+ * 6. README 键位表一致性：registry 键位投影（keymapEntries）的每个键位必须
+ *    在 README「快捷键」表登记——键位文案单源在 registry，README 是手抄面，
+ *    改键位忘更 README 会静默漂移（C1 复盘教训，2026-08-29）。
  *
  * 扫描器是纯函数（虚拟语料输入），自检块用植入违规验证扫描器真的在工作。
  */
@@ -25,6 +28,7 @@ import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { keymapEntries } from '../src/format/keymap-panel.js'
 
 // ── 语料收集 ─────────────────────────────────────────────────
 
@@ -282,4 +286,37 @@ describe('架构守护 · 自检（扫描器必须真的在工作）', () => {
       .filter(f => f.endsWith('.ts') && f.startsWith('src/'))
     expect(corpus.length).toBeGreaterThanOrEqual(gitFiles.length)
   })
+})
+
+describe('架构守护 · README 键位表与 registry 投影一致（C1）', () => {
+  /** README 侧允许的投影外行：审批卡上下文键位（keymap 表注明不在此列）与
+   *  kitty 键盘增强键位（keymapEntries 按终端能力过滤，测试环境恒不可达）。 */
+  const README_EXTRA_ALLOWED = new Set(['t', 'a', 'Ctrl+Enter'])
+
+  it('registry 键位投影的每个键位都在 README「快捷键」表登记', () => {
+    const readme = readFileSync(join(REPO_ROOT, 'README.md'), 'utf-8')
+    const section = readme.split('### 快捷键')[1] ?? ''
+    const rows = section.split('\n').filter(l => l.startsWith('| `'))
+    expect(rows.length).toBeGreaterThan(10)
+    const readmeKeys = new Set(
+      rows.map(l => (l.split('|')[1] ?? '').replace(/[` ]/g, '')))
+    const missing = keymapEntries({})
+      .map(e => e.keys.replace(/ /g, ''))
+      .filter(k => !readmeKeys.has(k))
+    expect(missing, 'registry 键位未在 README 快捷键表登记——改键位须同步 README（C1）').toEqual([])
+  })
+
+  it('README 键位表无过期行（投影外行仅允许白名单：审批上下文 + kitty 门控）', () => {
+    const readme = readFileSync(join(REPO_ROOT, 'README.md'), 'utf-8')
+    const section = readme.split('### 快捷键')[1] ?? ''
+    const rows = section.split('\n').filter(l => l.startsWith('| `'))
+    const proj = new Set(keymapEntries({}).map(e => e.keys.replace(/ /g, '')))
+    const stale = [...readmeKeysOf(rows)].filter(k => !proj.has(k) && !README_EXTRA_ALLOWED.has(k))
+    expect(stale, 'README 键位表存在已失效的键位行——键位已改/删请同步 README').toEqual([])
+  })
+
+  /** README 快捷键表第一列（去反引号与空格）。 */
+  function readmeKeysOf(rows: string[]): string[] {
+    return rows.map(l => (l.split('|')[1] ?? '').replace(/[` ]/g, ''))
+  }
 })

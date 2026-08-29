@@ -100,6 +100,7 @@
 | src/format/history-search-overlay.ts | — | modified（两阶段输入 #55：编辑段全字符进 query（n/N 不再被劫持）、Enter 确认进跳转段 n/N/p/P 跳转；搜索栏标注「会话历史」语义） |
 | src/format/scroll-pager-overlay.ts | — | new（/scroll 分页查看器 overlay：scrollback-transcript 消费端——消息单元滚动浏览/实时搜索/n·N 跳转/g·G 首尾，键位路由收敛类内） |
 | src/format/input-frame.ts | — | new（输入轨：上下圆角横线 ╭─╮/╰─╯，左右不封，纯渲染） |
+| src/format/highlight.ts | — | new（搜索命中子串高亮纯函数（A2）：ANSI 感知——转义零宽跳过不参与匹配、plain 投影位置映射原位包裹；smart-case 口径单源导出） |
 | src/format/keymap-panel.ts | — | new |
 | src/format/live-card.ts | — | new（活区共享卡片 chrome：›/⠋/✗/? 状态形 + ⎿ body + suffix 右起丢弃——工具卡/委派树/后台任务统一语言，天枢 f636eb0e 同步） |
 | src/format/markdown.ts | format/markdown.ts | modified |

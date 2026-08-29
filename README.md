@@ -249,6 +249,8 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 
 | 按键 | 作用 |
 |---|---|
+| `Enter` | 发送 |
+| `Shift+Enter` | 换行（或 `\`+Enter 续行） |
 | `Ctrl+N` | 新会话 |
 | `Ctrl+S` | 恢复最近会话 |
 | `Ctrl+Q` | 退出（同 `/exit`） |
@@ -264,6 +266,7 @@ settings 各自独立）。共存时 tianshu 侧设 `export DSH_HOME=~/.dsh-tian
 | `Alt+W` | 把选区复制到系统剪贴板（OSC52） |
 | `Shift+Tab` | 模式循环：normal → plan → always-approve |
 | `Tab` | `@`-路径补全；接受 slash 菜单选中项 |
+| `Ctrl+U` | 删除到行首 |
 | `↑`/`↓` | 输入历史（slash 菜单打开时为选择；有排队消息时空输入 ↑ 取回队首） |
 | `PageUp`/`PageDown` | slash 菜单翻页 |
 | `Esc` | 关闭菜单/overlay/检查面板；取消挂起提问；空闲双击 rewind |

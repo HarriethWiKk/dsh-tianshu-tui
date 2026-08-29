@@ -13,7 +13,7 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
 | `Ctrl+Q` | 退出(同 `/exit`;Ctrl+C 连按两次也可退出——有草稿时第一次清空草稿再按一次退出,打断中第二次直接退出) |
 | `Ctrl+.` | 键位表 overlay(随时呼出) |
 | `Ctrl+P` | 命令面板(模糊搜索 + Enter 回填) |
-| `Ctrl+F` / `Ctrl+R` | 历史搜索(`n`/`N` 下一个,`p`/`P` 上一个) |
+| `Ctrl+F` / `Ctrl+R` | 历史搜索(输入即过滤;`Enter` 确认后 `n`/`N` 下一个,`p`/`P` 上一个) |
 
 多会话切换走 `/session list|switch`(或 `Ctrl+S` 恢复最近)。
 
@@ -153,7 +153,7 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
   长草稿编辑:输入视窗最多 16 行(超出折叠「… 上/下 N 行」),`↑↓` 按软折行
   移动、`PageUp/Down` 翻页、`Home/End/Ctrl+U/K` 以逻辑行为范围;超过
   100 行/10000 字的超大粘贴收纳为 `[paste #N]` 标记(提交时展开)。
-- **Vim 键位**:可选(`vimEnabled`);Alt+W/yank 经 OSC52 复制选区。insert 两键序列→Esc(`vimInsertRemaps`,如 `{"jj":"esc"}` 写入 prefs;1 秒窗防误触)。
+- **Vim 键位**:可选(`vimEnabled`);Alt+W/yank 经 OSC52 复制选区。光标随模式区分:NORMAL 反色块、insert 竖线(#55;ASCII 档 `|`)。insert 两键序列→Esc(`vimInsertRemaps`,如 `{"jj":"esc"}` 写入 prefs;1 秒窗防误触)。
 - **运行中排队(对标 CC queue)**:agent 运行时提交进输入轨上方本地队列(立即回显不直发);回合结束按序投递,中断不投递;空输入 `↑` 取回队首;切会话丢弃并回显。即时纠偏走 `/steer`/`Ctrl+T`;`Ctrl+Enter` 插队(先打断再发,需 kitty 键盘增强)。
 
 ## 交互面板
@@ -171,7 +171,7 @@ dsh-tianshu-tui 的全部交互:快捷键、命令、输入面与交互面板。
   Enter 落定(不写 prefs)、S 写启动默认、Esc 还原打开前主题。
 - **命令面板(Ctrl+P)**:命令模糊搜索 + 子序列匹配,按域分组浏览(会话/配置/认证/面板/技能/系统),Enter 回填 `/cmd `。
 - **键位表(Ctrl+.)**:完整快捷键清单,随时呼出。
-- **历史搜索(Ctrl+F / Ctrl+R)**:滚动区消息快照搜索,`n`/`N` 跳转。
+- **历史搜索(Ctrl+F / Ctrl+R,vim NORMAL `/`)**:两阶段——编辑段输入即过滤(所有字符含 n/N 都进搜索词,#55),`Enter` 确认进跳转段(`n`/`N` 下一个、`p`/`P` 上一个、再按 `Enter` 回编辑段);命中词行内反色高亮。
 
 ## Overlay 体系
 

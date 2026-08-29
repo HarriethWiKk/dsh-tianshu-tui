@@ -248,6 +248,8 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 
 | Key | Action |
 |---|---|
+| `Enter` | Send |
+| `Shift+Enter` | Newline (or `\`+Enter to continue) |
 | `Ctrl+N` | New session |
 | `Ctrl+S` | Restore the most recent session |
 | `Ctrl+Q` | Quit (same as `/exit`) |
@@ -263,6 +265,7 @@ The terminal UI evolved from [Tianshu-Tui](https://github.com/huiliyi37/Tianshu-
 | `Alt+W` | Copy selection to the system clipboard (OSC52) |
 | `Shift+Tab` | Mode cycle: normal → plan → always-approve |
 | `Tab` | `@`-path completion; accept the slash-menu selection |
+| `Ctrl+U` | Delete to line start |
 | `↑`/`↓` | Input history (selection while the slash menu is open; with queued messages, empty-input `↑` takes back the first) |
 | `PageUp`/`PageDown` | Slash menu paging |
 | `Esc` | Close menu/overlay/inspect panel; cancel a pending question; double-Esc rewind when idle |

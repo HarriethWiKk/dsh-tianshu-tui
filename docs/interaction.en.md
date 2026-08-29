@@ -15,7 +15,7 @@ All of dsh-tianshu-tui's interactions: shortcuts, commands, input surfaces, and 
 | `Ctrl+Q` | Exit (same as `/exit`; when idle, two `Ctrl+C`s on an empty input also exit) |
 | `Ctrl+.` | Keymap overlay (always available) |
 | `Ctrl+P` | Command palette (fuzzy search + Enter to fill) |
-| `Ctrl+F` / `Ctrl+R` | History search (`n`/`N` next, `p`/`P` previous) |
+| `Ctrl+F` / `Ctrl+R` | History search (filter as you type; after `Enter`, `n`/`N` next, `p`/`P` previous) |
 
 When there is more than one session, a **session tab bar** appears above the input rail (short-id list, current session marked ●; narrow widths drop the oldest tabs and fold into `+N`).
 
@@ -153,7 +153,7 @@ Custom themes (`~/.dsh-tui/themes/*.json`) get contrast warnings on load (WCAG <
 - **Pickers (issue #31)**: no-arg `/model` `/theme` `/effort` `/session` open a picker with the current value marked ● and the startup default ★. `/model` `/theme` `/effort`: Enter applies this session only; S applies and writes the startup default. Session and `/key` pickers have no S. **The theme picker previews live**: ↑/↓ switches the theme immediately, Enter settles without writing prefs, S writes the startup default, Esc restores the theme from before opening.
 - **Command palette (Ctrl+P)**: fuzzy + subsequence command search, Enter fills `/cmd `.
 - **Keymap panel (Ctrl+.)**: the full shortcut list, always one key away.
-- **History search (Ctrl+F / Ctrl+R, vim NORMAL `/`)**: two-phase — the edit phase filters as you type (every character incl. n/N goes into the query, #55); `Enter` confirms and enters the jump phase (`n`/`N` next, `p`/`P` previous, `Enter` again returns to editing).
+- **History search (Ctrl+F / Ctrl+R, vim NORMAL `/`)**: two-phase — the edit phase filters as you type (every character incl. n/N goes into the query, #55); `Enter` confirms and enters the jump phase (`n`/`N` next, `p`/`P` previous, `Enter` again returns to editing). Matched terms are highlighted in-line (reverse video).
 
 ## Overlay System
 
