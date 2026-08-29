@@ -2633,7 +2633,10 @@ export class TuiApp {
     // 图片不可达时不发送（气泡已警告「图片未发送」）；可达时直发或经视觉桥转描述。
     // followup 异步（图片经 attachments 服务持久化后投递）；失败回显警告，不静默吞。
     void this.controls?.followup(expanded, imagesReachable ? images : undefined).catch((err: unknown) => {
-      this.echoWarn(`⚠ 消息发送失败: ${err instanceof Error ? err.message : String(err)}`, '↑ 收回重发')
+      const message = err instanceof Error ? err.message : String(err)
+      // B1：投递失败回填（输入空时）——失败→改→重发闭环；echoWarn 语义由 announcer 承担
+      this.errorAnnouncer.notifyDeliveryFailure(expanded, message, this.inputLine.value === '')
+      this.flushLiveRender()
     })
     this.flushLiveRender()
   }
@@ -2646,7 +2649,9 @@ export class TuiApp {
     for (const item of items) {
       this.commitSurface.userPrompt(item.text, item.images); this.errorAnnouncer.recordSubmitted(item.text)
       void this.controls?.followup(item.text, item.images).catch((err: unknown) => {
-        this.echoWarn(`⚠ 排队消息发送失败: ${err instanceof Error ? err.message : String(err)}`, '↑ 收回重发')
+        const message = err instanceof Error ? err.message : String(err)
+        this.errorAnnouncer.notifyDeliveryFailure(item.text, message, this.inputLine.value === '', '排队消息发送失败')
+        this.flushLiveRender()
       })
     }
     if (items.length > 0) this.flushLiveRender()

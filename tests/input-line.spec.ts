@@ -286,3 +286,31 @@ describe('#55 vim 光标形态（insert 竖线 / normal 反色块）', () => {
     expect(line).toContain(`${ANSI.REVERSE}b${ANSI.RESET}`)
   })
 })
+
+describe('回归钉：vim NORMAL Enter 提交语义（全局 return 分支先于 vim 分支，勿前置遮蔽）', () => {
+  it('NORMAL 态 Enter 触发 submit（此前被吞，无法直接发送）', () => {
+    const il = new InputLine({ value: 'draft text' })
+    il.setVimEnabled(true)
+    il.handleKey('escape', '', false, false, false) // → NORMAL
+    expect(il.vimMode).toBe('normal')
+    const ev = il.handleKey('return', '', false, false, false)
+    expect(ev?.type).toBe('submit')
+    if (ev?.type === 'submit') expect(ev.value).toBe('draft text')
+    expect(il.value).toBe('')
+  })
+
+  it('NORMAL 态多行草稿 Enter 整段提交；insert 态 Enter 行为不变（受换行模式约束）', () => {
+    const il = new InputLine({ value: 'l1\nl2' })
+    il.setVimEnabled(true)
+    il.handleKey('escape', '', false, false, false)
+    const ev = il.handleKey('return', '', false, false, false)
+    expect(ev?.type).toBe('submit')
+    if (ev?.type === 'submit') expect(ev.value).toBe('l1\nl2')
+
+    const il2 = new InputLine({ value: '' })
+    il2.setVimEnabled(true) // insert 态（缺省）
+    il2.handleKey('unknown', 'a', false, false, false)
+    const ev2 = il2.handleKey('return', '', false, false, false)
+    expect(ev2?.type).toBe('submit') // insert 态 Enter 本就提交
+  })
+})

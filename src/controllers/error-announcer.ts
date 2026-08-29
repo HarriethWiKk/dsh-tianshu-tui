@@ -49,6 +49,30 @@ export class ErrorAnnouncer {
   }
 
   /**
+   * followup 投递失败（本地 catch 路径，B1）：失败警告 + 恢复提示落底，
+   * 输入行空时回填失败文本。与 announce 的区别：失败原因在本地通道而非
+   * glance 错误流；若 lastSubmitted 即该文本则一并消费——防后续 glance
+   * 错误对同文二次回填。
+   * @param text - 投递失败的消息文本（回填底料）。
+   * @param errorMessage - 本地错误信息（catch 原样）。
+   * @param inputEmpty - 输入行是否为空（false 不抢写草稿）。
+   * @param label - 警告前缀（排队投递失败传「排队消息发送失败」）。
+   */
+  notifyDeliveryFailure(
+    text: string,
+    errorMessage: string,
+    inputEmpty: boolean,
+    label = '消息发送失败',
+  ): void {
+    const hint = inputEmpty ? '已回填输入框，编辑后回车重发' : '↑ 从历史取回后重发'
+    this.deps.commit(formatWarnWithHint(`⚠ ${label}: ${errorMessage}`, hint, this.deps.getTheme()))
+    if (inputEmpty) {
+      if (this.lastSubmitted === text) this.lastSubmitted = null
+      this.deps.refillInput(text)
+    }
+  }
+
+  /**
    * renderLive 逐帧调用；仅「新错误文本」动作（重入安全）。
    * @param errorFull - glance 完整错误文本；null = 当前无错误。
    * @param inputEmpty - 输入行是否为空（false 不抢写草稿）。

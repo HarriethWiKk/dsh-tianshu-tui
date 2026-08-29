@@ -70,3 +70,28 @@ describe('ErrorAnnouncer · 错误后回填（lastSubmitted 生命周期）', ()
     expect(refilled).toEqual([])
   })
 })
+
+describe('ErrorAnnouncer · 投递失败回填（B1）', () => {
+  it('警告落底 + 输入空时回填失败文本；提示行区分于 glance 错误', () => {
+    const { announcer, committed, refilled } = makeHarness()
+    announcer.notifyDeliveryFailure('发出去的文本', 'ECONNREFUSED', true)
+    expect(committed[0]).toContain('⚠ 消息发送失败: ECONNREFUSED')
+    expect(committed[0]).toContain('已回填输入框')
+    expect(refilled).toEqual(['发出去的文本'])
+  })
+
+  it('输入有草稿不抢写', () => {
+    const { announcer, refilled } = makeHarness()
+    announcer.notifyDeliveryFailure('text', 'boom', false)
+    expect(refilled).toEqual([])
+  })
+
+  it('同文本底料清防后续 glance 错误二次回填', () => {
+    const { announcer, refilled } = makeHarness()
+    announcer.recordSubmitted('same text')
+    announcer.notifyDeliveryFailure('same text', 'boom', true)
+    expect(refilled).toHaveLength(1)
+    announcer.announce('some agent error', true)
+    expect(refilled).toHaveLength(1) // lastSubmitted 已被投递失败消费
+  })
+})
