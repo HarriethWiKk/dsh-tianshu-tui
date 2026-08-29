@@ -123,7 +123,9 @@ The companion vision plugin lives in `vision-ask/` if you need image re-interrog
 
 ## Release notes
 
-Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.27`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.27)).
+Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@0.1.2-rc.28`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v0.1.2-rc.28)).
+
+**0.1.2-rc.28 (2026-08-29)**: vim improvements answering #55 — mode-distinct cursor (block in NORMAL / bar in insert), two-phase history search (queries may contain n/N; `Enter` to confirm then jump; the search target is now labelled), search-term highlight (also in `/scroll`); plus auto-refill of the input line on delivery failure and a README-keymap consistency guard.
 
 **0.1.2-rc.27 (2026-08-29)**: two backports from Tianshu — actionable errors (beyond the full error commit + recovery hint, the last delivered message is auto-refilled into the input line with a `↩` "may not have been fully processed" note; edit and re-send; cleared on successful turns, drafts never clobbered); plan-review decision-card visual layering (dim decision-zone divider + `❯`/success primary-action highlight; rendering byte-identical when no theme is passed).
 
