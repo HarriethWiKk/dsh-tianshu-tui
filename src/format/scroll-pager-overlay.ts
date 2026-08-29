@@ -19,6 +19,8 @@ import {
   searchTranscript,
   type TranscriptMessage,
 } from '../scrollback-transcript.js'
+import { ANSI } from '../engine/ansi.js'
+import { highlightQuery, isSmartCaseSensitive } from './highlight.js'
 
 /** handleKey 结果：close = 请求关闭 overlay；handled = 已消费（统一词表 OverlayKeyResult）。 */
 export type PagerKeyResult = OverlayKeyResult
@@ -188,7 +190,15 @@ export class ScrollPagerOverlay implements OverlayRenderer {
       if (line === undefined) continue
       const mi = this.rowMessage[r]
       const isCurrent = currentMatch !== undefined && mi === currentMatch
-      const text = truncateToDisplayWidth(line, Math.max(10, width - 2))
+      const isMatchRow = this.matches.includes(mi)
+      let text = truncateToDisplayWidth(line, Math.max(10, width - 2))
+      // A2：匹配消息行内高亮查询词（ANSI 感知——行内原有转义原样保留）
+      if (isMatchRow && this.query !== '') {
+        text = highlightQuery(text, this.query, {
+          sensitive: isSmartCaseSensitive(this.query),
+          wrap: s => `${ANSI.REVERSE}${s}${ANSI.RESET}`,
+        })
+      }
       rows.push(isCurrent ? color(`▸ ${text}`, theme.success) : `  ${text}`)
     }
     rows.push(color('↑↓/PgUp/PgDn 滚动 · n/N 匹配跳转 · g/G 首尾 · Esc 退出', theme.muted))

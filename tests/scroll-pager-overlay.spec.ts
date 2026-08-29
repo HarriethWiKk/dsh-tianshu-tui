@@ -162,3 +162,14 @@ describe('ScrollPagerOverlay · 关闭清理', () => {
     expect(p.some(l => l.includes('alpha'))).toBe(true)
   })
 })
+
+describe('ScrollPagerOverlay · 命中词高亮（A2）', () => {
+  it('匹配消息行内查询词反色包裹；非匹配行不受影响', () => {
+    const pager = new ScrollPagerOverlay()
+    pager.setContent(['alpha here', 'nothing', 'beta alpha'].join('\n'))
+    pager.type('alpha')
+    const rows = pager.render(80, 10).join('\n')
+    expect(rows).toContain('\x1B[7malpha\x1B[0m')
+    expect(rows).not.toContain('\x1B[7mnothing\x1B[0m')
+  })
+})

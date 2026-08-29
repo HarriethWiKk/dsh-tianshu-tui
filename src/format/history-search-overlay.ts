@@ -14,20 +14,19 @@
  */
 
 import type { OverlayKeyResult, OverlayRenderer } from '../engine/overlay-engine.js'
-import { color } from '../engine/ansi.js'
+import { ANSI, color } from '../engine/ansi.js'
 import type { RivetTheme } from '../theme.js'
 import { getTheme } from '../theme.js'
 import { truncateToDisplayWidth } from '../width.js'
+import { highlightQuery, isSmartCaseSensitive } from './highlight.js'
 
 /** 搜索数据源的最小形状（adapter/transcript 的 TranscriptMessage.text 满足它）。 */
 export interface SearchableMessage {
   text: string
 }
 
-/** smart-case：查询含大写字母 → 精确匹配；否则不敏感。 */
-function hasUpper(query: string): boolean {
-  return /[A-Z]/.test(query)
-}
+/** smart-case：查询含大写字母 → 精确匹配；否则不敏感（高亮共用 highlight 模块口径）。 */
+const hasUpper = isSmartCaseSensitive
 
 /** 历史搜索 overlay：smart-case 子串搜索对话历史，两阶段输入（编辑/跳转，见模块注释）。 */
 export class HistorySearchOverlay implements OverlayRenderer {
@@ -201,9 +200,16 @@ export class HistorySearchOverlay implements OverlayRenderer {
       const isMatch = this.matches.includes(i)
       const text = message.text === '' ? '(空消息)' : message.text
       const line = truncateToDisplayWidth(text, contentWidth)
+      // A2：命中行内高亮查询词本身（截断后包裹，反色块足够醒目）
+      const body = isMatch && this.query !== ''
+        ? highlightQuery(line, this.query, {
+            sensitive: isSmartCaseSensitive(this.query),
+            wrap: s => `${ANSI.REVERSE}${s}${ANSI.RESET}`,
+          })
+        : line
       rows.push(isMatch
-        ? color(`▸ ${line}`, theme.success)
-        : `  ${line}`)
+        ? color(`▸ ${body}`, theme.success)
+        : `  ${body}`)
       used++
     }
     // 底部 hints（按阶段）

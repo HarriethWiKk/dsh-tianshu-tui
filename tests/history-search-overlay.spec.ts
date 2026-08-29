@@ -110,13 +110,14 @@ describe('HistorySearchOverlay — 渲染（C2 项 2）', () => {
     expect(text).toContain('输入关键词搜索会话历史')
   })
 
-  it('渲染包含匹配消息内容（当前匹配居中可见）', () => {
+  it('渲染包含匹配消息内容（当前匹配居中可见；命中词反色高亮 #55-A2）', () => {
     const overlay = new HistorySearchOverlay()
     overlay.setMessages(MESSAGES)
     overlay.type('HELLO')
     const rows = overlay.render(80, 24)
     const text = rows.join('\n')
-    expect(text).toContain('HELLO uppercase')
+    expect(text).toContain('\x1B[7mHELLO\x1B[0m') // 命中词反色
+    expect(text.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '')).toContain('HELLO uppercase')
   })
 
   it('clear 清空查询与匹配', () => {
