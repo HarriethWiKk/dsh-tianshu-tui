@@ -29,7 +29,7 @@
 
 ## Install
 
-This package is not a standalone app. You need the official CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh) (npm `next`, currently `0.2.0-rc.1`; needs ≥ `0.2.0-rc.1`, aligned with the peer deps — npm `latest` is still the incompatible 0.1.7 line). `npm i` of this package alone will not run.
+This package is not a standalone app. You need the official CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh) (currently adapted to `0.2.1-rc.4` on npm `next`; requires ≥ `0.2.1-rc.4`, aligned with the peer deps). Use `@next` explicitly instead of an older global CLI or lower release. `npm i` of this package alone will not run.
 
 **One-click install (recommended)**: the repo ships cross-platform scripts that detect Node/pnpm, install the official CLI via pnpm, wire this plugin and launch (defaults to the npmmirror registry for CN networks):
 
@@ -52,7 +52,7 @@ powershell -ExecutionPolicy Bypass -File scripts\install-tui.ps1 -NoLaunch
 
 > ⚠ **npm 11 OOM pitfall**: the official CLI `@deepseek-ai/dsh` has a large dependency tree (60+ sub-packages); **npm 11 (bundled with Node 24) runs out of heap while installing it** (hangs for minutes then `JavaScript heap out of memory` — reproduced). Use pnpm (commands below). If you are already on `npx -y @deepseek-ai/dsh` and it hangs/throws heap OOM, switch to pnpm.
 
-**Do not type `dsh` by itself.** An older `dsh` on PATH (for example `~/.local/bin/dsh`, where `dsh --version` is below `0.2.0-rc.1`) will hit a local staging tree and fail with `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`. Always use the `pnpm dlx` commands below (`@next` = the 0.2.0 line).
+**Do not type `dsh` by itself.** An older `dsh` on PATH (for example `~/.local/bin/dsh`, where `dsh --version` is below `0.2.1-rc.4`) will hit a local staging tree and fail with `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`. Always use the `pnpm dlx` commands below (currently `@next` = the 0.2.1 line).
 
 ### 2. Add this plugin to the tui profile
 
@@ -74,7 +74,7 @@ pnpm dlx @deepseek-ai/dsh@next --profile tui
 
 Success looks like a welcome screen branded **dsh-tianshu-tui**. Quit with `Ctrl+Q` or `/exit`.
 
-If the official CLI is installed globally (`pnpm add -g @deepseek-ai/dsh@next`) and `dsh --version` is at least `0.2.0-rc.1`, you can use `dsh` in place of `pnpm dlx @deepseek-ai/dsh@next`.
+If the official CLI is installed globally (`pnpm add -g @deepseek-ai/dsh@next`) and `dsh --version` is at least `0.2.1-rc.4`, you can use `dsh` in place of `pnpm dlx @deepseek-ai/dsh@next`.
 
 ### 4. Agent presets (`/preset`)
 
@@ -98,9 +98,15 @@ The companion vision plugin lives in `vision-ask/` if you need image re-interrog
 
 ## Release notes
 
-Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@1.0.0-rc.1`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v1.0.0-rc.2)).
+Current npm `latest`: [`@huiliyi37/dsh-tianshu-tui@1.0.0-rc.3`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui) ([GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v1.0.0-rc.3)).
 
-**1.0.0-rc.2 (2026-09-30)**: host line moves to 0.2.0 (official `next` is now `0.2.0-rc.1`) — message model redesign adapted (every message carries `id`/`role`/`source`; tool results are now first-class `ToolResultMessage`s and the nested `tool-result` content block is gone); agent presets move to the official new architecture (`dsh-agent-preset-registry` + declarative `dsh-agent-preset` rows — the `agentPresets` service name and the mount/composeFrom seam are unchanged); the bundle patch's host agent-plane disable list is aligned with the official web-app 0.2.0 (adds tool-plugin-manager/command-goal/workflow-ptc, drops the gone tool-str-replace-editor/workflow-worker-thread); runtime-context injection recognized by `kind: 'runtime-context'` (legacy `plugin` kind still honored for old logs); LSP trio bumped to the `@huiliyi37/*` 0.8.0 line; session log format v4. ⚠ Requires host ≥ 0.2.0-rc.1 (`@deepseek-ai/dsh@next`) and node ≥ 24.4.
+**1.0.0-rc.3 (2026-10-28)**: adapts to official host `0.2.1-rc.4` and fixes the host disabling the old preset registry, which left sessions without a tool surface. Runtime dependencies and all four presets move to the official 0.2.1 line, adding time-context plus the cordis Host runner/inspect providers. Upstream schedule requires the Web `sessionController`, so this TUI does not mount it yet. Requires host ≥ `0.2.1-rc.4` (`@deepseek-ai/dsh@next`).
+
+Upgrade:
+
+```sh
+pnpm dlx @deepseek-ai/dsh@next plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+```
 
 **1.0.0-rc.1 (2026-09-14)**: first release candidate of 1.0.0; the version enters the 1.0 line. Four convergences on top of 0.1.2-rc.31 — **retry-path body loss fixed** (after a successful LLM retry the step's body was dropped whole: each host attempt is an independent attempt, so per-step dedup was a modelling error); failed attempts now get a `⟳ 未完成的尝试` (unfinished attempt) marker before their body so they are not read as one continuous answer with the successful one; assistant stream semantics merged into `adapter/assistant-stream` as the single implementation (previously four copies, so one host behaviour change needed four coordinated edits); two consumer-less dead states removed (`SessionManager` snapshot layer, `TranscriptView.streaming` aggregation). ⚠ Requires host ≥ 0.1.5-rc.1 and node ≥ 24.4.
 

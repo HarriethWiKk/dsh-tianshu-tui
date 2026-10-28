@@ -86,8 +86,21 @@ describe('published bundle contract', () => {
     expect(patch).toContain('@deepseek-ai/dsh-agent-preset-registry')
     expect(patch).toContain("name: '@deepseek-ai/dsh-agent-preset'")
     expect(patch).toMatch(/id:\s*tool-bash[\s\S]*disabled:\s*true/)
-    expect(pkg.dependencies?.['@deepseek-ai/dsh-agent-preset-registry']).toBe('0.2.0-rc.1')
-    expect(pkg.dependencies?.['@deepseek-ai/dsh-agent-preset']).toBe('0.2.0-rc.1')
+    expect(patch).toContain("name: '@deepseek-ai/dsh-time-context'")
+    expect(patch).toContain("id: cordis-host-runner\n      name: '@deepseek-ai/dsh-cordis-host-runner'")
+    expect(patch).toContain("id: cordis-inspect-providers\n      name: '@deepseek-ai/dsh-tool-cordis/host'")
+    expect(patch).not.toContain('@deepseek-ai/dsh-schedule')
+    expect(patch).not.toContain('@deepseek-ai/dsh-tool-schedule')
+    for (const name of [
+      '@deepseek-ai/dsh-agent-preset-registry',
+      '@deepseek-ai/dsh-agent-preset',
+      '@deepseek-ai/dsh-cordis-host-runner',
+      '@deepseek-ai/dsh-plugin-market',
+      '@deepseek-ai/dsh-time-context',
+      '@deepseek-ai/dsh-tool-cordis',
+    ]) {
+      expect(pkg.dependencies?.[name], `${name} must ship with the profile bundle`).toBe('0.2.1-rc.4')
+    }
   })
 
   it('官方预设注册表可解析时（无则跳过）不声明自己的 bundle.patch', async () => {

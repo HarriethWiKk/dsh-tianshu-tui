@@ -39,7 +39,7 @@ if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
 }
 
 function Invoke-Dsh([string[]]$Args) {
-  # 0.2.0 线：peer 依赖 ^0.2.0-rc.1——npm `latest` 仍是 0.1.7 线，必须显式 @next。
+  # 当前适配 0.2.1-rc.4：显式跟随 @next，避免落到旧全局 CLI。
   if (Get-Command pnpm -ErrorAction SilentlyContinue) {
     & pnpm dlx @deepseek-ai/dsh@next @Args
   } else {
@@ -65,7 +65,7 @@ Invoke-Dsh @("--version") | Out-Null
 Say "装配 tui 插件（@huiliyi37/dsh-tianshu-tui）"
 Invoke-DshNoDie @("plugin", "--profile", "tui", "add", "@huiliyi37/dsh-tianshu-tui")
 if ($LASTEXITCODE -ne 0) {
-  # pnpm ≥ 11.7 对未裁决的原生构建 exit 1（0.2.0 宿主树含 node-pty 等）：
+  # pnpm ≥ 11.7 对未裁决的原生构建 exit 1（0.2.1 宿主树含 node-pty 等）：
   # 把 profile 生成的 pnpm-workspace.yaml 里 allowBuilds 占位填掉再重试一次。
   # dsh-subprocess-local 保留 true（只 chmod node-pty 预编译 helper），其余 false。
   $Ws = if ($env:DSH_HOME) { Join-Path $env:DSH_HOME "profiles/tui/pnpm-workspace.yaml" } else { Join-Path $HOME ".dsh/profiles/tui/pnpm-workspace.yaml" }

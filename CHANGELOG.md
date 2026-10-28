@@ -3,6 +3,14 @@
 版本更新记录。安装与当前版本见 [README](README.md)；完整历史在此。
 `/changelog` 在 TUI 内查看（默认当前版本，`/changelog all` 全部，`/changelog N` 最近 N 版）。
 
+## [1.0.0-rc.3] - 2026-10-28
+
+### 宿主 0.2.1-rc.4 兼容
+
+- 修复新版宿主启动时禁用 `0.2.0` 预设注册表和四个预设、导致会话没有工具面的兼容问题；不使用 `allow-version` 绕过安全检查。
+- 官方运行时依赖对齐 `0.2.1-rc.4`；四个预设与官方 web-app 同源，补入 time-context 与 cordis Host runner/inspect providers，移除旧 subagent 配置。上游 schedule 依赖 Web `sessionController`，本 TUI 不挂载该工具面。
+- 本地开发入口、安装说明与装配契约同步到新版宿主。
+
 ## [1.0.0-rc.2] - 2026-09-30
 
 宿主线上到 0.2.0（官方 `next` 已切 `0.2.0-rc.1`，`latest` 仍停 0.1.7 线——安装命令须显式 `@next`）。

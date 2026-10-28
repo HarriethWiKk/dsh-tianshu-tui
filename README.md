@@ -30,7 +30,7 @@
 
 ## 安装
 
-本包不是独立程序。须先有官方 CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh)（npm `next`，当前 `0.2.0-rc.1`；需 ≥ `0.2.0-rc.1`，peer 依赖对齐——npm `latest` 仍是 0.1.7 线，与本包不兼容）。只 `npm i` 本包跑不起来。
+本包不是独立程序。须先有官方 CLI [`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh)（当前适配 npm `next` 的 `0.2.1-rc.4`；需 ≥ `0.2.1-rc.4`，peer 依赖对齐）。请显式使用 `@next`，不要落到旧全局 CLI 或较低版本。只 `npm i` 本包跑不起来。
 
 **一键安装（推荐）**：仓库自带跨平台脚本，自动检测 Node/pnpm、经 pnpm 安装官方 CLI + 装配本插件并启动（国内网络默认走 npmmirror 镜像）：
 
@@ -53,7 +53,7 @@ powershell -ExecutionPolicy Bypass -File scripts\install-tui.ps1 -NoLaunch   # �
 
 > ⚠ **npm 11 的 OOM 坑**：官方 CLI `@deepseek-ai/dsh` 依赖树较大（60+ 子包），**npm 11（Node 24 自带）安装时会 JavaScript heap out of memory**（卡住数分钟后 OOM，实测复现）。请用 pnpm（下方命令）。若你已经在用 `npx -y @deepseek-ai/dsh` 且卡住/报 heap OOM，切到 pnpm 即可。
 
-**不要直接敲 `dsh`。** 若 PATH 上已有旧的 `dsh`（例如 `~/.local/bin/dsh`，`dsh --version` 低于 `0.2.0-rc.1`），会走到本地 staging，出现 `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`。请始终用下面的 `pnpm dlx` 命令（`@next` = 0.2.0 线）。
+**不要直接敲 `dsh`。** 若 PATH 上已有旧的 `dsh`（例如 `~/.local/bin/dsh`，`dsh --version` 低于 `0.2.1-rc.4`），会走到本地 staging，出现 `ERR_FS_EISDIR` / `Path is a directory .../@deepseek-ai/dsh`。请始终用下面的 `pnpm dlx` 命令（当前 `@next` = 0.2.1 线）。
 
 ### 2. 把本插件装进 tui profile
 
@@ -75,7 +75,7 @@ pnpm dlx @deepseek-ai/dsh@next --profile tui
 
 看到欢迎页品牌 **dsh-tianshu-tui** 即成功。`Ctrl+Q` 或 `/exit` 退出。
 
-已全局安装官方 CLI（`pnpm add -g @deepseek-ai/dsh@next`）且 `dsh --version` 不低于 `0.2.0-rc.1` 时，把上面的 `pnpm dlx @deepseek-ai/dsh@next` 换成 `dsh` 即可。
+已全局安装官方 CLI（`pnpm add -g @deepseek-ai/dsh@next`）且 `dsh --version` 不低于 `0.2.1-rc.4` 时，把上面的 `pnpm dlx @deepseek-ai/dsh@next` 换成 `dsh` 即可。
 
 ### 4. agent 预设（`/preset`）
 
@@ -99,30 +99,15 @@ DSH_HOME=/tmp/dsh-tianshu pnpm dlx @deepseek-ai/dsh@next --profile tui
 
 ## 更新说明
 
-当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@1.0.0-rc.1`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v1.0.0-rc.2)）。
+当前 npm `latest`：[`@huiliyi37/dsh-tianshu-tui@1.0.0-rc.3`](https://www.npmjs.com/package/@huiliyi37/dsh-tianshu-tui)（[GitHub Release](https://github.com/huiliyi37/dsh-tianshu-tui/releases/tag/v1.0.0-rc.3)）。
 
-**1.0.0-rc.2（2026-09-30）**：宿主线上到 0.2.0（官方 `next` 已切 `0.2.0-rc.1`）——消息模型重设计适配（每条消息携带 `id`/`role`/`source`，工具结果改为一等 `ToolResultMessage`，嵌套 `tool-result` 内容块退场）；agent 预设切到官方新架构（`dsh-agent-preset-registry` 注册表 + `dsh-agent-preset` 声明行，`agentPresets` 服务名与 mount/composeFrom 接缝不变）；bundle patch 的 agent 面禁用清单与官方 web-app 0.2.0 对齐（新增 tool-plugin-manager/command-goal/workflow-ptc，移除已消失的 tool-str-replace-editor/workflow-worker-thread）；runtime-context 注入源识别 `kind: 'runtime-context'`（保留旧日志的 `plugin` 兼容）；LSP 三件套升 `@huiliyi37/*` 0.8.0 线；会话日志格式 v4。⚠ 需宿主 ≥ 0.2.0-rc.1（`@deepseek-ai/dsh@next`）；node ≥ 24.4。
+**1.0.0-rc.3（2026-10-28）**：适配官方宿主 `0.2.1-rc.4`，修复新版宿主禁用旧预设注册表、导致会话没有工具面的兼容问题。运行时依赖与四个预设同步到官方 0.2.1 线，补入 time-context 和 cordis Host runner/inspect providers。上游 schedule 依赖 Web `sessionController`，本 TUI 暂不挂载。需宿主 ≥ `0.2.1-rc.4`（`@deepseek-ai/dsh@next`）。
 
-**1.0.0-rc.1（2026-09-14）**：1.0.0 的首个候选版，版本号进入 1.0 线。收录 0.1.2-rc.31 之后的四项收敛——**重试路径正文丢失修复**（LLM 重试成功后该 step 的正文曾被整段丢弃：宿主每次尝试都是独立 attempt，按 step 粒度去重是模型性错误）；失败尝试的正文前落 `⟳ 未完成的尝试` 标记，避免它与成功正文被读成一段连续答案；assistant 流语义合并到 `adapter/assistant-stream` 单点维护（此前四处各自实现，同一宿主行为变更需四处联动）；移除两处无消费方的死状态（`SessionManager` 快照层、`TranscriptView.streaming` 聚合）。⚠ 需宿主 ≥ 0.1.5-rc.1；node ≥ 24.4。
+升级安装：
 
-**0.1.2-rc.31（2026-09-14）**：修复 #58——0.1.5 宿主正常回合的助手正文不渲染（attempt 事件只在报错/中断路径出现，正常回合正文随 assistant/message 内嵌流到达；现于 message 边界回退渲染，防重复由同 step 流式增量把关）。⚠ 需宿主 ≥ 0.1.5-rc.1；另请确保 node ≥ 24.4（0.1.5 宿主 CLI 入口依赖 `import.meta.main`，过旧 node 下静默无输出）。
-
-**0.1.2-rc.30（2026-09-12）**：宿主线上到 0.1.5（官方 `latest` 已切 0.1.5-rc.1）——流式事件 `assistant/chunk`→`assistant/attempt` 批量改批、sessionPersistence 新契约（快照列表 + open/read 句柄）、遗留库时间渲染防御；真机 pty e2e 全绿。⚠ 需宿主 ≥ 0.1.5-rc.1。
-
-**0.1.2-rc.29（2026-09-09）**：宿主线上到 0.1.2-rc.1（官方 `latest` 已转正，修复 #56 启动即崩）——`Session.events` 移除改 `snapshotEvents()`、userQuestions 改 waterfall answerer（global 注册）、`CallId→ToolCallId`、preset `code→ptc`、fork 血缘改 `isSeeded`+`inheritedEventCount`、bundle patch 补 `subagent-model-selection-settings`；旧宿主（≤0.1.1-rc.2）启动即 fail-loud 附升级/回退指引。⚠ 本次升级需宿主 ≥ 0.1.2-rc.1。
-
-**0.1.2-rc.28（2026-08-29）**：回应 #55 的 vim 优化——光标形态分模式（NORMAL 反色块 / insert 竖线）、历史搜索两阶段输入（编辑段可输 n/N，`Enter` 后跳转、搜索对象显式标注）、搜索命中子串高亮（含 `/scroll`）；另投递失败自动回填输入行 + README 键位表一致性守卫。
-
-**0.1.2-rc.27（2026-08-29）**：回流 Tianshu 两项——错误时刻可行动（错误落底 + 指引之外，最近一条已投递消息自动回填输入行，`↩` 告知「可能未被完整处理」，改一下即可重发；成功回合清底料、有草稿不抢写）；plan-review 决策卡视觉分层（dim 决策区分隔线 + approve `❯`/success 主操作高亮，主题不传时渲染不变）。
-
-
-
-
-**0.1.2-rc.23（2026-08-27）**：LSP 三件套对齐上游 0.6.0 官方 seam 线（单 `lsp` 工具四操作 + 本地 provider 默认 tsserver），诊断源能力门控防 `/lsp` 面板退化；宿主 peer 对齐 `^0.1.1-rc.2`。
-
-**0.1.2-rc.22（2026-08-27）**：LSP 模型工具面随包内置首版（伴生插件自动挂载，装 TUI 一个包即得展示桥 + 模型工具面；旧社区版请先移除）。
-
-**0.1.2-rc.21（2026-08-27）**：社区反馈三连修——输入框光标反色化（#50）、preset 缺省 standard（#48）、`malformed SSE payload` 根因定位并上报官方（#49）。
+```sh
+pnpm dlx @deepseek-ai/dsh@next plugin --profile tui add @huiliyi37/dsh-tianshu-tui
+```
 
 完整版本历史见 [CHANGELOG.md](CHANGELOG.md)；TUI 内 `/changelog` 查看（`/changelog all` 全部）。
 

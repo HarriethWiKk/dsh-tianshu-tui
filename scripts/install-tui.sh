@@ -37,7 +37,7 @@ if ! command -v pnpm >/dev/null 2>&1; then
 fi
 
 # 3. 官方 CLI（经 pnpm dlx，绕过 npm 11 的 OOM）
-# 0.2.0 线：peer 依赖 ^0.2.0-rc.1——npm `latest` 仍是 0.1.7 线，必须显式 @next。
+# 当前适配 0.2.1-rc.4：显式跟随 @next，避免落到旧全局 CLI。
 DSH="pnpm dlx @deepseek-ai/dsh@next"
 
 say "安装官方 dsh CLI（pnpm，registry=${REGISTRY}）"
@@ -48,7 +48,7 @@ fi
 # 4. 装配 tui 插件（幂等：重复执行会覆盖更新到最新）
 say "装配 tui 插件（@huiliyi37/dsh-tianshu-tui）"
 if ! $DSH plugin --profile tui add @huiliyi37/dsh-tianshu-tui; then
-  # pnpm ≥ 11.7 对未裁决的原生构建 exit 1（0.2.0 宿主树含 node-pty 等）：
+  # pnpm ≥ 11.7 对未裁决的原生构建 exit 1（0.2.1 宿主树含 node-pty 等）：
   # 把 profile 生成的 pnpm-workspace.yaml 里 allowBuilds 占位填掉再重试一次。
   # dsh-subprocess-local 保留 true（只 chmod node-pty 预编译 helper），其余 false。
   WS="${DSH_HOME:-$HOME/.dsh}/profiles/tui/pnpm-workspace.yaml"

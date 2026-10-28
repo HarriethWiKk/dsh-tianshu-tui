@@ -10,7 +10,7 @@ dsh-tianshu-tui 是官方 DeepSeek Harness 的交互式终端 UI 插件。本文
 - 运行模型需要 API key:环境变量 `DEEPSEEK_API_KEY`(或用官方 CLI 的登录流程)
 
 > **不要直接敲 `dsh`。** 若 PATH 上已有旧的 `dsh`(如 `~/.local/bin/dsh`,
-> `dsh --version` 低于 `0.2.0-rc.1`),会走到本地 staging,出现 `ERR_FS_EISDIR` /
+> `dsh --version` 低于 `0.2.1-rc.4`),会走到本地 staging,出现 `ERR_FS_EISDIR` /
 > `Path is a directory .../@deepseek-ai/dsh`。请始终用下面的 `npx` 命令。
 
 ## 安装
@@ -59,8 +59,8 @@ DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh@next plugin --profile tui add 
 DSH_HOME=/tmp/dsh-tianshu npx -y @deepseek-ai/dsh@next --profile tui
 ```
 
-**`plugin add` 报 `plugin command failed`（pnpm ≥ 11.7 / 0.2.0 宿主）**
-0.2.0 宿主依赖树含原生构建脚本（node-pty 等），pnpm ≥ 11.7 对未裁决的构建以
+**`plugin add` 报 `plugin command failed`（pnpm ≥ 11.7 / 0.2.1 宿主）**
+0.2.1 宿主依赖树含原生构建脚本（node-pty 等），pnpm ≥ 11.7 对未裁决的构建以
 exit 1 失败。打开 `$DSH_HOME/profiles/tui/pnpm-workspace.yaml`，把 `allowBuilds`
 段的占位值（`set this to true or false`）逐条改成 `false`（保留
 `@deepseek-ai/dsh-subprocess-local: true`——它只负责 chmod node-pty 的预编译
@@ -68,6 +68,22 @@ helper），然后重跑 `plugin add`。
 若首次失败后 profile 里插件已列进 dependencies 但没进 `dsh.profile.bundles`
 （启动后无 TUI、无报错），先 `plugin remove @huiliyi37/dsh-tianshu-tui` 再重新
 `plugin add`——重跑 reconcile 只登记「新增」依赖。
+
+**插件市场（dsh-plugin-hub）一键安装失败，报 `plugin is not installed`（[#60](https://github.com/huiliyi37/dsh-tianshu-tui/issues/60)）**
+该报错不是本包安装失败：`plugin is not installed` 是市场安装器**自身**的状态守卫
+消息（其卸载/定位接口的前置检查），说明市场界面缓存的「已安装」状态与其服务端
+实际读到的 profile 依赖表不一致——安装命令根本没有执行过。凭据就在失败报告里：
+「实际执行的安装命令：unknown (no executed command recorded)」且无「已尝试的安装
+方式」段，npm 分发物（`lib/index.js` + `cordis.patch.yml`）完整、从未被下载校验。
+安装器把这条自产消息误归类为「插件侧安装失败」自动投递了 Issue。绕过方式：用
+上文的一键脚本或命令行安装（Windows）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/huiliyi37/dsh-tianshu-tui/main/scripts/install-tui.ps1 | iex"
+```
+
+若要协助定位市场侧缺陷，把 `~/.dsh/profiles/<profile>/hub.log` 反馈给
+[dsh-plugin-hub](https://github.com/dshplugin/dsh-plugin-hub)。
 
 **提示"插件已更新到 …,请重启 dsh 后生效"**
 自更新机制把 profile 里的包升到了 npm 新版本,重启即可。
